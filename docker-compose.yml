@@ -1,0 +1,24 @@
+services:
+  vibe-tv:
+    build: .
+    image: vibe-tv:latest
+    container_name: vibe-tv
+    restart: unless-stopped
+    ports:
+      - "8777:8777"
+    environment:
+      - TZ=Etc/UTC   # your timezone, e.g. America/New_York (only affects log times)
+      # Optional: protects the /admin settings page (user name: anything).
+      # The TV page and the MixItUp URLs stay open on your network.
+      - ADMIN_PASSWORD=
+      # Everything else is set on the /admin page and saved in ./config.
+      # These only give starting values on the very first run:
+      # - TWITCH_CLIENT_ID=
+      # - TWITCH_CLIENT_SECRET=
+      # - GOVEE_COLOR_URL=http://<pc-ip>:8765/color/{hex}
+      # - GOVEE_RESET_URL=http://<pc-ip>:8765/default
+    volumes:
+      # Relative to this folder, e.g. /volume1/docker/vibe-tv on a Synology
+      - ./media:/media     # logos (upload them on /admin, or copy logo.mp4 here)
+      - ./config:/config   # settings.json from the /admin page
+      - ./cache:/cache     # downloaded Twitch clips (safe to delete)

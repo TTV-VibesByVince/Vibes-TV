@@ -1,0 +1,6 @@
+media/
+cache/
+config/
+**/__pycache__/
+*.zip
+.git/

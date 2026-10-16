@@ -1,0 +1,5 @@
+aiohttp==3.12.15
+pillow==11.3.0
+# Left unpinned on purpose: Twitch changes break old versions. Rebuild the
+# image to pick up the latest one if clips stop downloading.
+yt-dlp

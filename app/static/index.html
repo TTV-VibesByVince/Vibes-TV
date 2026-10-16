@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe TV</title>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root { --accent: #9146ff; --fit: cover; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #000; overflow: hidden; cursor: none; font-family: "Outfit", system-ui, sans-serif; color: #fff; }
+  body.preview { cursor: default; }
+  video, #logoimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #logo, #logoimg { object-fit: var(--fit); transition: opacity .8s ease, filter .8s ease; }
+  #logoimg { display: none; }
+  .dim { opacity: .25; filter: blur(8px) saturate(1.4); }
+  .dim.deep { opacity: .12; filter: blur(14px) saturate(1.6); }
+  /* a plain black veil: what lite mode uses instead of blurring the video */
+  #shade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .6s ease; pointer-events: none; }
+  #clip { opacity: 0; transition: opacity .5s ease; object-fit: contain; }
+  #clip.show { opacity: 1; }
+  .layer { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  #fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  /* ── Shoutout card ────────────────────────────────────────────── */
+  #card { opacity: 0; transform: scale(.85); transition: opacity .6s ease, transform .6s cubic-bezier(.2,1.4,.4,1); flex-direction: column; gap: 3vh; }
+  #card.show { opacity: 1; transform: scale(1); }
+  .ring { position: relative; width: 38vh; height: 38vh; border-radius: 50%; padding: 1.2vh; background: conic-gradient(#ff3b3b, #ff9f1c, #ffe14d, #3ddc84, #3ba7ff, #9146ff, #ff3b3b); animation: spin 6s linear infinite; box-shadow: 0 0 8vh var(--accent); will-change: transform; }
+  .ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #111; border: 1vh solid #000; animation: spin 6s linear infinite reverse; }
+  .kicker { font-family: "Bungee", sans-serif; font-size: 4.5vh; letter-spacing: .15em; color: var(--accent); text-shadow: 0 0 3vh var(--accent); }
+  .name { font-weight: 900; font-size: 11vh; line-height: 1; text-align: center; text-shadow: 0 .6vh 0 rgba(0,0,0,.6); max-width: 90vw; overflow-wrap: anywhere; }
+  .sub { font-size: 4vh; opacity: .9; text-align: center; }
+  .url { font-family: "Bungee", sans-serif; font-size: 3.2vh; padding: 1vh 3vh; border-radius: 99px; background: rgba(0,0,0,.55); border: .4vh solid var(--accent); }
+
+  /* ── Raid ─────────────────────────────────────────────────────── */
+  #raid { visibility: hidden; }
+  #raid.go { visibility: visible; }
+  #raid .flash { position: absolute; inset: 0; background: radial-gradient(circle, #fff 0%, var(--accent) 45%, transparent 75%); opacity: 0; }
+  #raid.go .flash { animation: flash .7s ease-out both; }
+  #raid .glow { position: absolute; inset: -20%; background: radial-gradient(circle at var(--px, 30%) var(--py, 62%), rgba(145,70,255,.5) 0%, transparent 45%);
+    background: radial-gradient(circle at var(--px, 30%) var(--py, 62%), color-mix(in srgb, var(--accent) 55%, transparent) 0%, transparent 45%); opacity: 0; }
+  #raid.go .glow { animation: fadein .8s .9s ease both, breathe 2.4s 1.7s ease-in-out infinite alternate; }
+
+  .hazard { position: absolute; left: -5vw; right: -5vw; height: 7vh; background: #0b0b10; display: flex; align-items: center; overflow: hidden; box-shadow: 0 0 4vh rgba(0,0,0,.8); will-change: transform; }
+  .hazard::before, .hazard::after { content: ""; position: absolute; left: 0; right: 0; height: 1.3vh; background: repeating-linear-gradient(-45deg, var(--accent) 0 1.6vh, #0b0b10 1.6vh 3.2vh); }
+  .hazard::before { top: 0; } .hazard::after { bottom: 0; }
+  .hazard.top { top: 5vh; transform: rotate(-2deg) translateX(-110%); }
+  .hazard.bot { bottom: 5vh; transform: rotate(-2deg) translateX(110%); }
+  #raid.go .hazard.top { animation: tapeTop .55s .05s cubic-bezier(.2,1.2,.4,1) both; }
+  #raid.go .hazard.bot { animation: tapeBot .55s .15s cubic-bezier(.2,1.2,.4,1) both; }
+  .tape { display: flex; white-space: nowrap; font-family: "Bungee", sans-serif; font-size: 3vh; letter-spacing: .3em; color: var(--accent); text-shadow: 0 0 2vh var(--accent); animation: marquee 9s linear infinite; will-change: transform; }
+  .hazard.bot .tape { animation-direction: reverse; }
+  .tape span { padding-right: 3vw; }
+
+  .wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+  #raid.out .wrap { animation: collapse .9s cubic-bezier(.6,0,.9,.4) both; }
+  #raid.out .hazard.top { animation: tapeOutL .6s ease-in both; }
+  #raid.out .hazard.bot { animation: tapeOutR .6s ease-in both; }
+  #raid.out .glow { animation: flareout .9s ease-in both; }
+  .stage { display: flex; flex-direction: column; align-items: center; }
+  #raid.go .stage { animation: shake .9s .45s linear both; }
+
+  .title { display: flex; gap: 1vw; font-family: "Bungee", sans-serif; font-size: 21vh; line-height: .9; }
+  .title span { display: inline-block; opacity: 0; color: #fff; will-change: transform, opacity;
+    text-shadow: -.7vh 0 #ff2a6d, .7vh 0 #05d9e8, 0 0 5vh var(--accent); }
+  #raid.go .title span { animation: slam .5s cubic-bezier(.2,1.6,.5,1) both, glitch 3.2s 2s steps(1) infinite; }
+  #raid.go .title span:nth-child(1) { animation-delay: .35s, 2.0s; }
+  #raid.go .title span:nth-child(2) { animation-delay: .47s, 2.4s; }
+  #raid.go .title span:nth-child(3) { animation-delay: .59s, 2.8s; }
+  #raid.go .title span:nth-child(4) { animation-delay: .71s, 3.2s; }
+  #raid.go .title span:nth-child(5) { animation-delay: .83s, 3.6s; color: var(--accent); }
+
+  .row { display: flex; align-items: center; gap: 5vw; margin-top: 2vh; }
+  .portal { position: relative; width: 36vh; height: 36vh; flex: none; opacity: 0; will-change: transform; }
+  #raid.go .portal { animation: portalIn .7s .95s cubic-bezier(.2,1.5,.4,1) both; }
+  .portal .orbit { position: absolute; inset: -2.2vh; border-radius: 50%; border: .5vh dashed var(--accent); animation: spin 5s linear infinite; filter: drop-shadow(0 0 1.2vh var(--accent)); will-change: transform; }
+  .portal .orbit.o2 { inset: -4.4vh; border: .35vh dotted #fff; opacity: .6; animation-duration: 9s; animation-direction: reverse; }
+  .portal .rim { position: absolute; inset: 0; border-radius: 50%; padding: 1vh; will-change: transform;
+    background: conic-gradient(from 0deg, var(--accent), #fff, var(--accent), #ff2a6d, var(--accent)); animation: spin 2.2s linear infinite; box-shadow: 0 0 8vh var(--accent), inset 0 0 4vh #000; }
+  .portal img { position: absolute; inset: 1vh; width: calc(100% - 2vh); height: calc(100% - 2vh); border-radius: 50%; object-fit: cover; background: #111; clip-path: circle(0% at 50% 50%); }
+  #raid.go .portal img { animation: iris .6s 1.15s cubic-bezier(.3,1.3,.5,1) both; }
+  .shock { position: absolute; inset: 0; border-radius: 50%; border: 1vh solid var(--accent); opacity: 0; }
+  #raid.go .shock { animation: shock .9s 1.0s ease-out both; }
+  #raid.go .shock.s2 { animation-delay: 1.2s; border-color: #fff; }
+
+  .info { display: flex; flex-direction: column; align-items: flex-start; max-width: 52vw; }
+  .rname { font-weight: 900; font-size: 11vh; line-height: 1; white-space: nowrap; opacity: 0;
+    text-shadow: 0 .6vh 0 rgba(0,0,0,.6), 0 0 4vh var(--accent); }
+  #raid.go .rname { animation: slideIn .6s 1.45s cubic-bezier(.2,1.3,.4,1) both, nameGlitch .35s 1.45s steps(2) 2; }
+  .rsub { font-size: 3.6vh; opacity: 0; margin-top: 1.4vh; letter-spacing: .04em; }
+  #raid.go .rsub { animation: fadeUp .5s 1.75s ease both; }
+  .rcount { display: flex; align-items: baseline; gap: 1.6vh; margin-top: .6vh; opacity: 0; }
+  #raid.go .rcount { animation: fadeUp .5s 1.95s ease both; }
+  .rcount b { font-family: "Bungee", sans-serif; font-size: 15vh; line-height: 1; color: var(--accent);
+    text-shadow: 0 0 4vh var(--accent), 0 .6vh 0 rgba(0,0,0,.6); font-variant-numeric: tabular-nums; }
+  .rcount b.pop { animation: pop .45s cubic-bezier(.2,2,.4,1); }
+  .rcount span { font-family: "Bungee", sans-serif; font-size: 4.4vh; letter-spacing: .12em; }
+
+  /* ── Follow ───────────────────────────────────────────────────── */
+  #follow { flex-direction: column; gap: 3.5vh; visibility: hidden; }
+  #follow.go { visibility: visible; }
+  .fav { position: relative; width: 36vh; height: 36vh; opacity: 0; will-change: transform; }
+  #follow.go .fav { animation: popIn .7s .1s cubic-bezier(.2,1.6,.4,1) both; }
+  .fav .halo { position: absolute; inset: -2.4vh; border-radius: 50%; border: .8vh solid var(--accent); box-shadow: 0 0 6vh var(--accent), inset 0 0 3vh var(--accent); }
+  #follow.go .fav .halo { animation: heartbeat 1.1s .9s ease-in-out infinite; }
+  .fav img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #111; border: 1vh solid #000; }
+  .fav .heart { position: absolute; right: -1vh; bottom: 1vh; width: 11vh; height: 11vh; opacity: 0; filter: drop-shadow(0 .6vh 1.2vh rgba(0,0,0,.6)); }
+  #follow.go .fav .heart { animation: heartPop .6s .75s cubic-bezier(.2,2,.4,1) both; }
+  .thanks { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 2.4vw; max-width: 92vw; font-family: "Bungee", sans-serif; font-size: 10vh; line-height: 1.05; text-align: center; }
+  .thanks span { display: inline-block; opacity: 0; color: #fff; text-shadow: 0 0 4vh var(--accent), 0 .7vh 0 rgba(0,0,0,.55); will-change: transform, opacity; }
+  .thanks span.hl { color: var(--accent); text-shadow: 0 0 4vh var(--accent), 0 .7vh 0 rgba(0,0,0,.55); }
+  #follow.go .thanks span { animation: wordUp .6s cubic-bezier(.2,1.5,.4,1) both; }
+  .fname { font-weight: 900; font-size: 7vh; line-height: 1; opacity: 0; white-space: nowrap; text-shadow: 0 .5vh 0 rgba(0,0,0,.6); }
+  #follow.go .fname { animation: fadeUp .5s 1.15s ease both; }
+  #follow.out, #gift.out { transition: opacity .6s ease, transform .6s ease; opacity: 0; transform: scale(.94); }
+
+  /* ── Gifted subs ──────────────────────────────────────────────── */
+  #gift { flex-direction: column; gap: 4vh; visibility: hidden; padding: 4vh 4vw; }
+  #gift.go { visibility: visible; }
+  .ghead { display: flex; align-items: center; gap: 3vw; opacity: 0; will-change: transform; }
+  #gift.go .ghead { animation: dropIn .7s .1s cubic-bezier(.2,1.4,.4,1) both; }
+  .gav { position: relative; width: 22vh; height: 22vh; flex: none; }
+  .gav img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #111; border: .8vh solid #000; box-shadow: 0 0 0 .7vh var(--accent), 0 0 6vh var(--accent); }
+  .gav svg { position: absolute; right: -2.2vh; bottom: -1.4vh; width: 10vh; height: 10vh; filter: drop-shadow(0 .6vh 1vh rgba(0,0,0,.6)); }
+  #gift.go .gav svg { animation: wiggle 1.4s 1s ease-in-out infinite; }
+  .gtext { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+  .gname { font-weight: 900; font-size: 9vh; line-height: 1; white-space: nowrap; text-shadow: 0 .6vh 0 rgba(0,0,0,.6); }
+  .gwhat { font-family: "Bungee", sans-serif; font-size: 5.5vh; color: var(--accent); text-shadow: 0 0 3vh var(--accent); margin-top: 1vh; letter-spacing: .04em; }
+  .gto { font-size: 3.4vh; opacity: 0; letter-spacing: .3em; text-transform: uppercase; }
+  #gift.go .gto { animation: fadeUp .5s .7s ease both; }
+  .glist { display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; gap: var(--gap, 2vh); max-width: 92vw; }
+  .gchip { display: flex; flex-direction: column; align-items: center; gap: 1vh; width: calc(var(--av, 14vh) * 1.5); opacity: 0; will-change: transform, opacity; }
+  #gift.go .gchip { animation: chipIn .55s cubic-bezier(.2,1.6,.4,1) both; }
+  .gchip img { width: var(--av, 14vh); height: var(--av, 14vh); border-radius: 50%; object-fit: cover; background: #111; border: .5vh solid var(--accent); box-shadow: 0 0 2.5vh color-mix(in srgb, var(--accent) 70%, transparent); }
+  .gchip b { font-size: var(--fs, 3vh); font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 .4vh 0 rgba(0,0,0,.6); }
+  .gchip.more img { display: none; }
+  .gchip.more i { display: flex; align-items: center; justify-content: center; width: var(--av, 14vh); height: var(--av, 14vh); border-radius: 50%; background: rgba(0,0,0,.55); border: .5vh dashed var(--accent);
+    font-family: "Bungee", sans-serif; font-style: normal; font-size: calc(var(--av, 14vh) * .3); color: var(--accent); }
+  .gbig { font-family: "Bungee", sans-serif; font-size: 22vh; line-height: 1; color: var(--accent); text-shadow: 0 0 6vh var(--accent), 0 1vh 0 rgba(0,0,0,.6); opacity: 0; }
+  #gift.go .gbig { animation: popIn .7s .8s cubic-bezier(.2,1.8,.4,1) both; }
+
+  /* ── clip + message ───────────────────────────────────────────── */
+  #cliptag { position: absolute; left: 4vw; bottom: 5vh; display: flex; align-items: center; gap: 2vh; padding: 1.5vh 3vh 1.5vh 1.5vh; border-radius: 99px; background: rgba(0,0,0,.7); border: .4vh solid var(--accent); opacity: 0; transform: translateY(4vh); transition: all .5s ease; max-width: 80vw; }
+  #cliptag.show { opacity: 1; transform: none; }
+  #cliptag img { width: 8vh; height: 8vh; border-radius: 50%; object-fit: cover; }
+  #cliptag b { font-size: 3.6vh; display: block; }
+  #cliptag span { font-size: 2.6vh; opacity: .85; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60vw; }
+
+  #msg { opacity: 0; transform: translateY(6vh); transition: all .6s ease; }
+  #msg.show { opacity: 1; transform: none; }
+  #msg .bubble { max-width: 75vw; padding: 5vh 6vh; border-radius: 4vh; background: rgba(0,0,0,.65); border: .6vh solid var(--accent); box-shadow: 0 0 6vh var(--accent); text-align: center; }
+  #msg .text { font-size: 8vh; font-weight: 900; line-height: 1.1; overflow-wrap: anywhere; }
+  #msg .from { margin-top: 2vh; font-size: 3.6vh; color: var(--accent); font-family: "Bungee", sans-serif; }
+
+  #dot { position: absolute; right: 1vw; bottom: 1vh; width: 1vh; height: 1vh; border-radius: 50%; background: #f33; opacity: .6; }
+  #dot.ok { background: transparent; }
+
+  /* ── Lite mode: for TV sticks and smart-TV browsers ───────────────
+     Same layout and timing, minus the things weak GPUs struggle with:
+     blurring a playing video, animated blur / drop-shadow filters, huge
+     soft glows and clip-path animations. */
+  body.lite .dim, body.lite .dim.deep { filter: none; opacity: 1; }
+  body.lite #logo, body.lite #logoimg { transition: none; }
+  body.lite .ring, body.lite .portal .rim { box-shadow: 0 0 0 .6vh var(--accent); }
+  body.lite .portal .orbit { filter: none; }
+  body.lite .portal .orbit.o2 { display: none; }
+  body.lite .kicker, body.lite .tape, body.lite .gwhat { text-shadow: none; }
+  body.lite .title span { text-shadow: -.6vh 0 #ff2a6d, .6vh 0 #05d9e8; }
+  body.lite #raid.go .title span { animation-name: slamLite, none; }
+  body.lite #raid.out .wrap { animation-name: collapseLite; }
+  body.lite #raid.go .glow { animation: fadein .8s .9s ease both; }
+  body.lite .rname, body.lite .rcount b, body.lite .thanks span, body.lite .gbig { text-shadow: 0 .6vh 0 rgba(0,0,0,.6); }
+  body.lite #raid.go .rname { animation: slideIn .6s 1.45s cubic-bezier(.2,1.3,.4,1) both; }
+  body.lite .fav .halo { box-shadow: none; }
+  body.lite .fav .heart, body.lite .gav svg { filter: none; }
+  body.lite .gav img { box-shadow: 0 0 0 .7vh var(--accent); }
+  body.lite .gchip img { box-shadow: none; }
+  body.lite #msg .bubble { box-shadow: none; }
+  body.lite #cliptag, body.lite #card { transition-duration: .35s; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes flash { 0% { opacity: 0; } 12% { opacity: .95; } 100% { opacity: 0; } }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes breathe { from { opacity: .7; } to { opacity: 1; } }
+  @keyframes tapeTop { to { transform: rotate(-2deg) translateX(0); } }
+  @keyframes tapeBot { to { transform: rotate(-2deg) translateX(0); } }
+  @keyframes tapeOutL { from { transform: rotate(-2deg) translateX(0); } to { transform: rotate(-2deg) translateX(-110%); } }
+  @keyframes tapeOutR { from { transform: rotate(-2deg) translateX(0); } to { transform: rotate(-2deg) translateX(110%); } }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @keyframes slam {
+    0% { opacity: 0; transform: scale(4.5) translateY(-12vh) rotate(-8deg); filter: blur(14px); }
+    55% { opacity: 1; transform: scale(.88) translateY(0) rotate(2deg); filter: blur(0); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+  }
+  @keyframes slamLite {
+    0% { opacity: 0; transform: scale(4.5) translateY(-12vh) rotate(-8deg); }
+    55% { opacity: 1; transform: scale(.88) translateY(0) rotate(2deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+  }
+  @keyframes glitch {
+    0%, 100% { transform: none; clip-path: none; }
+    3% { transform: translateX(-1.4vh) skewX(-12deg); clip-path: inset(10% 0 55% 0); }
+    5% { transform: translateX(1vh); clip-path: inset(60% 0 8% 0); }
+    7% { transform: none; clip-path: none; }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translate(0, 0); }
+    8% { transform: translate(-1.4vh, .8vh); } 16% { transform: translate(1.2vh, -1vh); }
+    24% { transform: translate(-1vh, -.5vh); } 32% { transform: translate(1.4vh, .9vh); }
+    40% { transform: translate(-.8vh, .3vh); } 48% { transform: translate(1vh, -.6vh); }
+    56% { transform: translate(-1.2vh, .7vh); } 64% { transform: translate(.6vh, -.3vh); }
+    76% { transform: translate(-.3vh, .2vh); } 88% { transform: translate(.2vh, -.1vh); }
+  }
+  @keyframes portalIn { 0% { opacity: 0; transform: scale(0) rotate(-120deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+  @keyframes iris { to { clip-path: circle(50% at 50% 50%); } }
+  @keyframes shock { 0% { opacity: 1; transform: scale(.4); } 100% { opacity: 0; transform: scale(2.6); } }
+  @keyframes slideIn { 0% { opacity: 0; transform: translateX(8vw) skewX(-18deg); } 100% { opacity: 1; transform: none; } }
+  @keyframes nameGlitch { 0% { text-shadow: -1vh 0 #ff2a6d, 1vh 0 #05d9e8; } 100% { text-shadow: 0 .6vh 0 rgba(0,0,0,.6), 0 0 4vh var(--accent); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(3vh); } to { opacity: 1; transform: none; } }
+  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+  @keyframes collapse {
+    0% { transform: scale(1); opacity: 1; filter: blur(0); }
+    100% { transform: translate(var(--cx, -14vw), var(--cy, 12vh)) scale(.05) rotate(25deg); opacity: 0; filter: blur(8px); }
+  }
+  @keyframes collapseLite {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: translate(var(--cx, -14vw), var(--cy, 12vh)) scale(.05) rotate(25deg); opacity: 0; }
+  }
+  @keyframes flareout { 0% { opacity: 1; } 60% { opacity: 1; transform: scale(1.4); } 100% { opacity: 0; transform: scale(.2); } }
+  @keyframes popIn { 0% { opacity: 0; transform: scale(0); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes heartbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.07); } 30% { transform: scale(1); } 45% { transform: scale(1.05); } }
+  @keyframes heartPop { 0% { opacity: 0; transform: scale(0) rotate(-30deg); } 100% { opacity: 1; transform: scale(1) rotate(-8deg); } }
+  @keyframes wordUp { 0% { opacity: 0; transform: translateY(8vh) scale(.6); } 100% { opacity: 1; transform: none; } }
+  @keyframes dropIn { 0% { opacity: 0; transform: translateY(-20vh); } 100% { opacity: 1; transform: none; } }
+  @keyframes chipIn { 0% { opacity: 0; transform: translateY(-18vh) scale(.2); } 100% { opacity: 1; transform: none; } }
+  @keyframes wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 80% { transform: rotate(3deg); } }
+</style>
+</head>
+<body>
+<video id="logo" autoplay muted loop playsinline></video>
+<img id="logoimg" alt="">
+<div id="shade"></div>
+<!-- poster = 1x1 transparent GIF: stops Android WebView (Fully Kiosk) from
+     painting its default white/grey poster while a clip loads -->
+<video id="clip" playsinline preload="auto" poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></video>
+<canvas id="fx"></canvas>
+
+<div class="layer" id="card">
+  <div class="kicker" id="kicker">GO FOLLOW</div>
+  <div class="ring"><img id="avatar" alt=""></div>
+  <div class="name" id="name"></div>
+  <div class="sub" id="sub"></div>
+  <div class="url" id="url"></div>
+</div>
+
+<div class="layer" id="raid">
+  <div class="glow"></div>
+  <div class="flash"></div>
+  <div class="hazard top"><div class="tape" id="tapeTop"></div></div>
+  <div class="hazard bot"><div class="tape" id="tapeBot"></div></div>
+  <div class="wrap" id="raidwrap">
+    <div class="stage">
+      <div class="title"><span>R</span><span>A</span><span>I</span><span>D</span><span>!</span></div>
+      <div class="row">
+        <div class="portal" id="portal">
+          <div class="orbit o2"></div><div class="orbit"></div>
+          <div class="rim"></div>
+          <img id="raidavatar" alt="">
+          <div class="shock"></div><div class="shock s2"></div>
+        </div>
+        <div class="info">
+          <div class="rname" id="raidname"></div>
+          <div class="rsub" id="raidsub"></div>
+          <div class="rcount" id="raidcount"><b id="raidnum">0</b><span id="raidlabel">RAIDERS</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layer" id="follow">
+  <div class="fav">
+    <div class="halo"></div>
+    <img id="followavatar" alt="">
+    <svg class="heart" viewBox="0 0 32 29" aria-hidden="true"><path fill="#ff2a6d" stroke="#fff" stroke-width="1.6" d="M16 27.5S2 19.2 2 9.6A6.9 6.9 0 0 1 9 2.5c2.8 0 5.2 1.6 7 4 1.8-2.4 4.2-4 7-4a6.9 6.9 0 0 1 7 7.1c0 9.6-14 17.9-14 17.9z"/></svg>
+  </div>
+  <div class="thanks" id="thanks"></div>
+  <div class="fname" id="followname"></div>
+</div>
+
+<div class="layer" id="gift">
+  <div class="ghead">
+    <div class="gav">
+      <img id="giftavatar" alt="">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="26" width="48" height="34" rx="4" fill="#9146ff" stroke="#fff" stroke-width="3"/><rect x="4" y="16" width="56" height="13" rx="3" fill="#b483ff" stroke="#fff" stroke-width="3"/><rect x="27" y="16" width="10" height="44" fill="#ffe14d"/><path d="M32 16c-6-12-20-10-16-2 3 5 16 2 16 2zm0 0c6-12 20-10 16-2-3 5-16 2-16 2z" fill="#ffe14d" stroke="#fff" stroke-width="2.5"/></svg>
+    </div>
+    <div class="gtext"><div class="gname" id="giftname"></div><div class="gwhat" id="giftwhat"></div></div>
+  </div>
+  <div class="gto" id="giftto">to</div>
+  <div class="glist" id="giftlist"></div>
+  <div class="gbig" id="giftbig"></div>
+</div>
+
+<div class="layer" id="msg">
+  <div class="bubble"><div class="text" id="msgtext"></div><div class="from" id="msgfrom"></div></div>
+</div>
+
+<div id="cliptag"><img id="tagavatar" alt=""><div><b id="tagname"></b><span id="tagtitle"></span></div></div>
+<div id="dot"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const logo = $("logo"), logoImg = $("logoimg"), clip = $("clip"), shade = $("shade");
+const Q = new URLSearchParams(location.search);
+const PREVIEW = Q.get("preview") === "1";
+if (PREVIEW) document.body.classList.add("preview");
+let timers = [];
+let logoKind = "video";
+let LITE = false, serverMode = null;
+let preloading = "";
+
+function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
+
+/* ── performance mode ─────────────────────────────────────────────
+   auto = lite on TV sticks, smart TVs and Android boxes (Fully Kiosk),
+   full on a PC. ?mode=lite / ?mode=full on the URL overrides it. */
+function decideLite(mode) {
+  const forced = Q.get("mode");
+  if (forced === "lite" || forced === "full") mode = forced;
+  if (mode === "lite") return true;
+  if (mode === "full") return false;
+  if (PREVIEW) return false;
+  const ua = navigator.userAgent || "";
+  const tvish = /Android|AFT|BRAVIA|SMART-TV|SmartTV|Tizen|Web0S|webOS|CrKey|HbbTV|NetCast|Roku/i.test(ua);
+  const weak = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 2;
+  return tvish || weak;
+}
+function applyMode(mode) {
+  if (serverMode !== null && mode !== serverMode) { location.reload(); return; }
+  serverMode = mode;
+  LITE = decideLite(mode);
+  document.body.classList.toggle("lite", LITE);
+}
+
+function setAccent(hex) {
+  document.documentElement.style.setProperty("--accent", hex ? "#" + hex : "#9146ff");
+}
+function accent() { return getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(); }
+
+function setLogo(info) {
+  applyMode(info.tv_mode || "auto");
+  document.documentElement.style.setProperty("--fit", info.logo_fit === "contain" ? "contain" : "cover");
+  const src = info.logo || "";
+  logoKind = info.logo_kind === "image" ? "image" : "video";
+  if (logoKind === "image") {
+    logo.pause(); logo.removeAttribute("src"); logo.load(); logo.style.display = "none";
+    logoImg.style.display = "block";
+    if (!logoImg.src.endsWith(src)) logoImg.src = src;
+  } else {
+    logoImg.style.display = "none"; logoImg.removeAttribute("src");
+    logo.style.display = "block";
+    if (src && !logo.src.endsWith(src)) { logo.src = src; }
+    if (src) logo.play().catch(() => {});
+  }
+}
+
+// Picture for a person: the avatar, or a big initial when there is none
+function avatarSrc(u) {
+  if (u.avatar) return u.avatar;
+  const ch = (u.display_name || "?").replace(/[^A-Za-z0-9]/g, "").charAt(0).toUpperCase() || "?";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${accent()}"/><stop offset="1" stop-color="#1a1028"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/><text x="50" y="68" font-family="Bungee, Arial Black, sans-serif" font-size="52" text-anchor="middle" fill="#fff">${ch}</text></svg>`;
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+// Behind cards: blur the logo on a PC, a cheap black veil in lite mode
+function dim(on, deep) {
+  if (LITE) {
+    shade.style.opacity = on ? (deep ? .86 : .72) : 0;
+    return;
+  }
+  [logo, logoImg].forEach(el => { el.classList.toggle("dim", on); el.classList.toggle("deep", !!deep); });
+}
+
+function hideAll() {
+  ["card", "msg", "cliptag"].forEach(id => $(id).classList.remove("show"));
+  ["raid", "follow", "gift"].forEach(id => $(id).classList.remove("go", "out"));
+}
+
+function restartAnim(el) { el.classList.remove("go", "out"); void el.offsetWidth; el.classList.add("go"); }
+
+function unloadClip() {
+  clip.onplaying = null; clip.onended = null;
+  clip.pause(); clip.removeAttribute("src"); clip.load();
+}
+
+function showLogo() {
+  clearTimers();
+  stopFx();
+  hideAll();
+  clip.classList.remove("show");
+  setTimeout(() => {
+    // keep a clip that is being buffered for the next card
+    if (!clip.classList.contains("show") && !(preloading && clip.src.endsWith(preloading))) unloadClip();
+  }, 700);
+  dim(false);
+  if (logoKind === "video" && logo.paused && logo.src) logo.play().catch(() => {});
+  setAccent(null);
+}
+
+/* ── shoutout ─────────────────────────────────────────────────────── */
+function playShoutout(ev) {
+  const u = ev.user;
+  $("avatar").src = avatarSrc(u);
+  $("name").textContent = u.display_name;
+  $("url").textContent = "twitch.tv/" + u.login;
+  $("kicker").textContent = "GO FOLLOW";
+  $("sub").textContent = u.game ? `Last seen playing ${u.game}` : "";
+  dim(true);
+  $("card").classList.add("show");
+  startConfetti(LITE ? 50 : 120);
+  later(() => stopFx(), ev.card_seconds * 1000 - 1500);
+}
+
+/* ── raid ─────────────────────────────────────────────────────────── */
+function fitText(el, maxWidthPx, startVh) {
+  let size = startVh;
+  el.style.fontSize = size + "vh";
+  while (el.scrollWidth > maxWidthPx && size > 4) { size -= 0.5; el.style.fontSize = size + "vh"; }
+}
+
+let portalCenter = null;
+function measurePortal() {
+  // it may still be scaled to 0 by its entry animation: the centre is right
+  // either way, and offsetWidth gives the real (untransformed) size
+  const el = $("portal"), p = el.getBoundingClientRect();
+  portalCenter = { x: p.left + p.width / 2, y: p.top + p.height / 2, r: el.offsetWidth / 2 };
+  return p;
+}
+
+function playRaid(ev) {
+  const u = ev.user, raid = $("raid");
+  const total = ev.card_seconds * 1000;
+  $("raidavatar").src = avatarSrc(u);
+  $("raidname").textContent = u.display_name;
+  $("raidsub").textContent = u.game ? `is raiding from ${u.game} with` : "is raiding with";
+  const n = ev.viewers;
+  $("raidnum").textContent = n ? "0" : "";
+  $("raidnum").style.display = n ? "" : "none";
+  $("raidlabel").textContent = n ? (n === 1 ? "RAIDER" : "RAIDERS") : "RAIDERS INCOMING";
+  const strip = Array(8).fill(`<span>${esc("⚠ INCOMING RAID ⚠ " + u.display_name.toUpperCase())}</span>`).join("");
+  $("tapeTop").innerHTML = strip + strip;
+  $("tapeBot").innerHTML = strip + strip;
+
+  dim(true, true);
+  restartAnim(raid);
+  fitText($("raidname"), innerWidth * 0.5, 11);
+  // Measured once (not every frame): the portal grows from its centre, so
+  // the centre is already final. Reading layout per frame is costly on TVs.
+  const p = measurePortal(), w = $("raidwrap").getBoundingClientRect();
+  raid.style.setProperty("--cx", (p.left + p.width / 2 - (w.left + w.width / 2)) + "px");
+  raid.style.setProperty("--cy", (p.top + p.height / 2 - (w.top + w.height / 2)) + "px");
+  raid.style.setProperty("--px", (p.left + p.width / 2) / innerWidth * 100 + 20 + "%");
+  raid.style.setProperty("--py", (p.top + p.height / 2) / innerHeight * 100 + 20 + "%");
+  raidFx(n, total);
+  later(() => raid.classList.add("out"), Math.max(total - 900, 2500));
+  later(() => stopFx(), total);
+}
+
+/* ── follow ───────────────────────────────────────────────────────── */
+function playFollow(ev) {
+  const u = ev.user, f = $("follow"), total = ev.card_seconds * 1000;
+  $("followavatar").src = avatarSrc(u);
+  $("followname").textContent = u.display_name;
+  const words = ["THANKS", "FOR", "THE", "FOLLOW!"];
+  $("thanks").innerHTML = words.map((w, i) =>
+    `<span class="${i === 3 ? "hl" : ""}" style="animation-delay:${(.35 + i * .13).toFixed(2)}s">${w}</span>`).join("");
+  dim(true);
+  restartAnim(f);
+  fitText($("followname"), innerWidth * .9, 7);
+  heartsFx(total);
+  later(() => f.classList.add("out"), Math.max(total - 600, 1500));
+}
+
+/* ── gifted subs ──────────────────────────────────────────────────── */
+function playGift(ev) {
+  const u = ev.user, g = $("gift"), total = ev.card_seconds * 1000;
+  const people = ev.recipients || [], count = ev.count || people.length || 1;
+  $("giftavatar").src = avatarSrc(u);
+  $("giftname").textContent = u.display_name;
+  $("giftwhat").textContent = count === 1 ? "GIFTED A SUB" : `GIFTED ${count.toLocaleString()} SUBS`;
+  const list = $("giftlist"), big = $("giftbig");
+  if (people.length) {
+    const n = people.length;
+    // fewer people = bigger faces
+    const [av, fs, gap, cap] = n <= 3 ? [20, 4.2, 4, 3] : n <= 6 ? [16, 3.4, 3, 6] : n <= 12 ? [12, 2.8, 2.4, 12]
+      : n <= 24 ? [9, 2.3, 1.8, 24] : [7, 2, 1.4, 39];
+    list.style.setProperty("--av", av + "vh");
+    list.style.setProperty("--fs", fs + "vh");
+    list.style.setProperty("--gap", gap + "vh");
+    const shown = people.slice(0, n > cap ? cap - 1 : cap);
+    const step = Math.min(.14, 2.6 / shown.length);
+    list.innerHTML = shown.map((p, i) =>
+      `<div class="gchip" style="animation-delay:${(.9 + i * step).toFixed(2)}s"><img src="${esc(avatarSrc(p))}" alt=""><b>${esc(p.display_name)}</b></div>`).join("")
+      + (n > shown.length ? `<div class="gchip more" style="animation-delay:${(.9 + shown.length * step).toFixed(2)}s"><i>+${n - shown.length}</i><b>more</b></div>` : "");
+    list.style.display = ""; $("giftto").style.display = ""; big.style.display = "none";
+  } else {
+    list.innerHTML = ""; list.style.display = "none"; $("giftto").style.display = "none";
+    big.textContent = "×" + count.toLocaleString(); big.style.display = "";
+  }
+  dim(true);
+  restartAnim(g);
+  fitText($("giftname"), innerWidth * .6, 9);
+  startConfetti(LITE ? 50 : 140);
+  later(() => stopFx(), total - 1200);
+  later(() => g.classList.add("out"), Math.max(total - 600, 1500));
+}
+
+/* ── canvas effects ───────────────────────────────────────────────── */
+const fx = $("fx"), g = fx.getContext("2d");
+let fxRun = null, W = 0, H = 0;
+// Lite mode draws the effects at half resolution; the browser scales it up.
+function sizeFx() {
+  const scale = LITE ? .5 : Math.min(devicePixelRatio || 1, 1);
+  W = innerWidth; H = innerHeight;
+  fx.width = Math.round(W * scale); fx.height = Math.round(H * scale);
+  g.setTransform(scale, 0, 0, scale, 0, 0);
+}
+function stopFx() {
+  if (fxRun) cancelAnimationFrame(fxRun);
+  fxRun = null;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, fx.width, fx.height);
+}
+
+// Soft glowing dots are pre-drawn once and stamped with drawImage: far
+// cheaper than drawing gradients or blurred arcs every frame.
+const spriteCache = {};
+function glowSprite(color) {
+  if (spriteCache[color]) return spriteCache[color];
+  const c = document.createElement("canvas"), s = 64; c.width = c.height = s;
+  const x = c.getContext("2d"), gr = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  gr.addColorStop(0, "#ffffff"); gr.addColorStop(.18, color); gr.addColorStop(.45, color + "55"); gr.addColorStop(1, color + "00");
+  x.fillStyle = gr; x.fillRect(0, 0, s, s);
+  return (spriteCache[color] = c);
+}
+function heartSprite(color) {
+  const key = "h" + color;
+  if (spriteCache[key]) return spriteCache[key];
+  const c = document.createElement("canvas"); c.width = 64; c.height = 58;
+  const x = c.getContext("2d"); x.scale(2, 2);
+  x.fillStyle = color;
+  x.fill(new Path2D("M16 27.5S2 19.2 2 9.6A6.9 6.9 0 0 1 9 2.5c2.8 0 5.2 1.6 7 4 1.8-2.4 4.2-4 7-4a6.9 6.9 0 0 1 7 7.1c0 9.6-14 17.9-14 17.9z"));
+  return (spriteCache[key] = c);
+}
+function hex6(c) {   // sprites need #rrggbb to append alpha
+  c = c.trim();
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c;
+  if (/^#[0-9a-f]{3}$/i.test(c)) return "#" + c.slice(1).split("").map(ch => ch + ch).join("");
+  return "#9146ff";
+}
+
+function startConfetti(n) {
+  stopFx(); sizeFx();
+  const colors = ["#ff3b3b", "#ff9f1c", "#ffe14d", "#3ddc84", "#3ba7ff", "#9146ff", accent()];
+  const bits = Array.from({ length: n }, () => ({
+    x: Math.random() * W, y: -Math.random() * H,
+    w: 6 + Math.random() * 10, h: 10 + Math.random() * 14,
+    vy: 2 + Math.random() * 4, vx: -1.5 + Math.random() * 3,
+    r: Math.random() * 6.28, vr: -0.15 + Math.random() * 0.3,
+    c: colors[Math.floor(Math.random() * colors.length)]
+  }));
+  let last = performance.now();
+  const tick = now => {
+    const k = Math.min((now - last) / 16.7, 3); last = now;   // same speed at 30 or 60 fps
+    const s = fx.width / (W || 1);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, fx.width, fx.height);
+    for (const b of bits) {
+      b.x += b.vx * k; b.y += b.vy * k; b.r += b.vr * k;
+      if (b.y > H + 20) { b.y = -20; b.x = Math.random() * W; }
+      const cs = Math.cos(b.r) * s, sn = Math.sin(b.r) * s;
+      g.setTransform(cs, sn, -sn, cs, b.x * s, b.y * s);
+      g.fillStyle = b.c; g.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
+    }
+    fxRun = requestAnimationFrame(tick);
+  };
+  fxRun = requestAnimationFrame(tick);
+}
+
+// Raid: warp streaks pour out of the portal; one glowing raider per viewer
+// (capped) flies in from the screen edges and is swallowed by it.
+function raidFx(viewers, total) {
+  stopFx(); sizeFx();
+  const A = hex6(accent());
+  const palette = [A, A, "#ffffff", "#ff2a6d", "#05d9e8"];
+  const pick = () => palette[Math.floor(Math.random() * palette.length)];
+  const stars = Array.from({ length: LITE ? 70 : 200 }, () => ({ a: Math.random() * 6.283, d: Math.random(), s: .5 + Math.random() * 1.5, c: pick() }));
+  const count = Math.min(Math.max(viewers || 40, 24), LITE ? 45 : 160);
+  const spanStart = 1700, spanEnd = Math.max(total - 1600, spanStart + 1500);
+  const unit = Math.max(H / 1080, .6);
+  const raiders = Array.from({ length: count }, () => {
+    const side = Math.random() < .5 ? -1 : 1;
+    return { born: spanStart + Math.random() * (spanEnd - spanStart), life: 900 + Math.random() * 900,
+      side, y0: Math.random() * H, bend: (Math.random() - .5) * H * .9,
+      size: (14 + Math.random() * 14) * unit, img: glowSprite(pick()), done: false };
+  });
+  const trail = LITE ? 0 : 3;
+  const num = $("raidnum");
+  let pulse = 0, shown = -1, t0 = performance.now(), maxR = Math.hypot(W, H);
+  if (!portalCenter) measurePortal();
+
+  const tick = now => {
+    const t = now - t0, cx = portalCenter.x, cy = portalCenter.y, R = Math.max(portalCenter.r, 1);
+    g.clearRect(0, 0, W, H);
+    g.globalCompositeOperation = "lighter";
+
+    // warp: hard burst at the start, cruise, burst again on exit
+    const exitT = total - 900;
+    const speed = t < 1300 ? .002 + .022 * Math.sin(Math.min(t / 1300, 1) * Math.PI)
+                : t > exitT ? .004 + .03 * Math.min((t - exitT) / 600, 1) : .0045;
+    const starAlpha = t < 900 ? t / 900 : 1;
+    g.lineCap = "round";
+    for (const s of stars) {
+      s.d += speed * s.s * (.4 + s.d * 2.5);
+      if (s.d > 1) { s.d = .02 + Math.random() * .05; s.a = Math.random() * 6.283; }
+      const d1 = R * .9 + s.d * maxR * .7, d0 = R * .9 + Math.max(s.d - speed * s.s * 7, 0) * maxR * .7;
+      const ca = Math.cos(s.a), sa = Math.sin(s.a);
+      g.strokeStyle = s.c;
+      g.globalAlpha = Math.min(1, s.d * 3) * .75 * starAlpha;
+      g.lineWidth = 1 + s.d * 3.5;
+      g.beginPath(); g.moveTo(cx + ca * d0, cy + sa * d0); g.lineTo(cx + ca * d1, cy + sa * d1); g.stroke();
+    }
+
+    // raiders
+    for (const p of raiders) {
+      if (p.done) continue;
+      const k = (t - p.born) / p.life;
+      if (k < 0) continue;
+      if (k >= 1) { p.done = true; pulse = Math.min(pulse + .35, 1.2); continue; }
+      const sx = p.side < 0 ? -30 : W + 30, sy = p.y0;
+      const mx = (sx + cx) / 2, my = (sy + cy) / 2 + p.bend;
+      for (let j = trail; j >= 0; j--) {
+        const e = Math.max(k - j * .035, 0), q = e * e * (3 - 2 * e) * .55 + e * e * .45, iq = 1 - q;
+        const x = iq * iq * sx + 2 * iq * q * mx + q * q * cx;
+        const y = iq * iq * sy + 2 * iq * q * my + q * q * cy;
+        const shrink = Math.max(1 - Math.max(q - .85, 0) / .15, 0);
+        const sz = p.size * shrink * (j ? .8 : 1);
+        g.globalAlpha = j ? .3 * (trail + 1 - j) / (trail + 1) : 1;
+        if (sz > .5) g.drawImage(p.img, x - sz / 2, y - sz / 2, sz, sz);
+      }
+    }
+
+    // portal swallow pulse
+    if (pulse > .02) {
+      g.globalAlpha = Math.min(pulse, 1) * .8;
+      g.strokeStyle = A; g.lineWidth = 3 + pulse * 6;
+      g.beginPath(); g.arc(cx, cy, R * (1.12 + (1.2 - pulse) * .25), 0, 6.283); g.stroke();
+      pulse *= .9;
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+
+    // raider counter ticks up
+    if (viewers && t > 1950) {
+      const p = Math.min((t - 1950) / 1800, 1), v = Math.round(viewers * (1 - Math.pow(1 - p, 3)));
+      if (v !== shown) {
+        shown = v; num.textContent = v.toLocaleString();
+        if (p >= 1) { num.classList.remove("pop"); void num.offsetWidth; num.classList.add("pop"); }
+      }
+    }
+    fxRun = requestAnimationFrame(tick);
+  };
+  fxRun = requestAnimationFrame(tick);
+}
+
+// Follow: hearts float up from the bottom and sway
+function heartsFx(total) {
+  stopFx(); sizeFx();
+  const A = hex6(accent()), cols = [A, "#ff2a6d", "#ff6fa8", "#ffffff"];
+  const unit = Math.max(H / 1080, .6);
+  const hearts = Array.from({ length: LITE ? 16 : 40 }, () => ({
+    x: Math.random() * W, y: H + Math.random() * H, s: (24 + Math.random() * 40) * unit,
+    v: (1.2 + Math.random() * 2.2) * unit, ph: Math.random() * 6.28, img: heartSprite(cols[Math.floor(Math.random() * cols.length)])
+  }));
+  let last = performance.now(), t0 = last;
+  const tick = now => {
+    const k = Math.min((now - last) / 16.7, 3); last = now;
+    const t = now - t0, fade = t > total - 800 ? Math.max((total - t) / 800, 0) : Math.min(t / 600, 1);
+    g.clearRect(0, 0, W, H);
+    for (const h of hearts) {
+      h.y -= h.v * k; h.ph += .03 * k;
+      if (h.y < -h.s) { h.y = H + h.s; h.x = Math.random() * W; }
+      g.globalAlpha = .75 * fade * Math.min(1, h.y / (H * .25));
+      g.drawImage(h.img, h.x + Math.sin(h.ph) * 22 * unit, h.y, h.s, h.s * .9);
+    }
+    g.globalAlpha = 1;
+    fxRun = requestAnimationFrame(tick);
+  };
+  fxRun = requestAnimationFrame(tick);
+}
+
+/* ── clip / message ───────────────────────────────────────────────── */
+function preloadClip(src) {
+  if (clip.classList.contains("show")) return;
+  preloading = src;
+  if (!clip.src.endsWith(src)) { clip.src = src; clip.load(); }
+}
+
+function playClip(ev) {
+  clearTimers(); stopFx(); hideAll();
+  setAccent(ev.color);
+  dim(true);
+  $("tagavatar").src = avatarSrc(ev.user);
+  $("tagname").textContent = ev.user.display_name;
+  $("tagtitle").textContent = ev.clip.title || "";
+  preloading = "";
+  if (!clip.src.endsWith(ev.clip.src)) { clip.src = ev.clip.src; clip.load(); }
+  clip.muted = PREVIEW || !ev.sound;
+  clip.volume = 1;
+  // Only fade the clip in once real frames are playing: before that some
+  // TV browsers paint a white or grey box.
+  let shown = false;
+  const reveal = () => {
+    if (shown) return; shown = true;
+    clip.classList.add("show");
+    $("cliptag").classList.add("show");
+  };
+  clip.onplaying = reveal;
+  clip.onended = () => showLogo();
+  try { clip.currentTime = 0; } catch (e) {}
+  clip.play().catch(() => { clip.muted = true; clip.play().catch(() => {}); });
+  later(() => { if (!shown) showLogo(); }, 10000);
+}
+
+function showMessage(ev) {
+  clearTimers(); stopFx(); hideAll();
+  setAccent(null);
+  $("msgtext").textContent = ev.text;
+  $("msgfrom").textContent = ev.from ? "— " + ev.from : "";
+  dim(true);
+  $("msg").classList.add("show");
+  later(() => showLogo(), ev.seconds * 1000);
+}
+
+function playEvent(ev) {
+  clearTimers(); stopFx(); hideAll();
+  if (!clip.classList.contains("show")) preloading = "";
+  clip.classList.remove("show");
+  setAccent(ev.color);
+  if (ev.type === "raid") playRaid(ev);
+  else if (ev.type === "follow") playFollow(ev);
+  else if (ev.type === "gift") playGift(ev);
+  else playShoutout(ev);
+  // the server sends "clip" or "logo" next; this is only a safety net
+  later(() => showLogo(), (ev.card_seconds + (ev.clip_pending ? 70 : 4)) * 1000);
+}
+
+function connect() {
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws" + (PREVIEW ? "?preview=1" : ""));
+  ws.onopen = () => $("dot").classList.add("ok");
+  ws.onclose = () => { $("dot").classList.remove("ok"); setTimeout(connect, 2000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === "hello" || ev.type === "logo_src") setLogo(ev);
+    else if (["shoutout", "raid", "follow", "gift"].includes(ev.type)) playEvent(ev);
+    else if (ev.type === "clip_preload") preloadClip(ev.src);
+    else if (ev.type === "clip") playClip(ev);
+    else if (ev.type === "message") showMessage(ev);
+    else if (ev.type === "logo") showLogo();
+    else if (ev.type === "reload") location.reload();
+  };
+}
+
+addEventListener("resize", () => { if (fxRun) sizeFx(); if ($("raid").classList.contains("go")) measurePortal(); });
+logo.addEventListener("stalled", () => { if (logo.src) logo.load(); });
+connect();
+</script>
+</body>
+</html>

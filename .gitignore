@@ -1,0 +1,18 @@
+# Personal files: never commit
+media/
+config/
+cache/
+.env
+
+# Build outputs and archives
+*.tar
+*.zip
+
+# Python / OS / editor clutter
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/

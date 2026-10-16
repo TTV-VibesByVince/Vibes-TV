@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe TV Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0b14; --card: #16131f; --card2: #1d1929; --line: #2a2539; --text: #f1eef8;
+    --muted: #9a93ad; --accent: #9146ff; --accent2: #b483ff; --green: #3ddc84; --red: #ff5370; --amber: #ffb547;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.45 "Outfit", system-ui, sans-serif; min-height: 100vh; }
+  a { color: var(--accent2); }
+  header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 24px;
+    background: rgba(13,11,20,.88); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .brand { font-family: "Bungee", sans-serif; font-size: 22px; letter-spacing: .04em; background: linear-gradient(90deg, #ff2a6d, var(--accent), #05d9e8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .ver { color: var(--muted); font-size: 13px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 99px; background: var(--card2); border: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .chip.ok i { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .chip.bad i { background: var(--red); }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; min-width: 0; }
+  section.wide { grid-column: 1 / -1; }
+  h2 { font-size: 17px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  .hint { color: var(--muted); font-size: 13px; }
+  h2 + .hint { margin-bottom: 16px; }
+  label.f { display: block; margin-top: 14px; }
+  label.f > span { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  input[type=text], input[type=number], input[type=password], input[type=url], select {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 14px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row > input { flex: 1; min-width: 0; }
+  button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 15px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card2); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #a265ff; }
+  button.danger:hover { border-color: var(--red); color: var(--red); }
+  button:disabled { opacity: .5; cursor: default; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; cursor: pointer; }
+  .switch input { appearance: none; width: 44px; height: 26px; border-radius: 99px; background: var(--line); position: relative; cursor: pointer; flex: none; transition: background .2s; }
+  .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .switch input:checked { background: var(--accent); }
+  .switch input:checked::after { transform: translateX(18px); }
+
+  .preview { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line); }
+  .preview iframe { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: 0; transform-origin: 0 0; }
+  .tests { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .tests .full { grid-column: 1 / -1; }
+
+  .drop { margin-top: 4px; border: 2px dashed var(--line); border-radius: 12px; padding: 22px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .2s, background .2s; }
+  .drop.over { border-color: var(--accent); background: rgba(145,70,255,.08); color: var(--text); }
+  .bar { height: 6px; border-radius: 99px; background: var(--line); margin-top: 10px; overflow: hidden; display: none; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), #05d9e8); }
+  .media { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-top: 16px; }
+  .tile { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .tile.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px rgba(145,70,255,.35); }
+  .thumb { aspect-ratio: 16 / 9; background: #000; position: relative; }
+  .thumb video, .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .badge { position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 99px; background: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .05em; }
+  .tile .meta { padding: 10px 12px 4px; min-width: 0; }
+  .tile .meta b { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile .acts { display: flex; gap: 6px; padding: 8px 12px 12px; }
+  .tile .acts button { padding: 6px 10px; font-size: 13px; }
+  .tile .acts button:first-child { flex: 1; }
+
+  .urls { width: 100%; border-collapse: collapse; }
+  .urls td { padding: 9px 8px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .urls tr:first-child td { border-top: 0; }
+  .urls td:first-child { width: 55%; word-break: break-all; }
+  .urls td:last-child { width: 1%; }
+  .urls button { padding: 5px 10px; font-size: 12px; }
+  .result { margin-top: 8px; font-size: 13px; min-height: 18px; color: var(--muted); word-break: break-word; }
+  .result.ok { color: var(--green); } .result.bad { color: var(--red); }
+  .savebar { position: sticky; bottom: 0; grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 14px 18px;
+    background: rgba(22,19,31,.95); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 14px; }
+  .savebar .result { margin: 0 auto 0 0; }
+  .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px); padding: 10px 18px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line);
+    opacity: 0; transition: all .25s; pointer-events: none; z-index: 10; }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+    .grid2 { grid-template-columns: 1fr; }
+    header { padding: 12px 16px; }
+    .chips { margin-left: 0; }
+    .urls td:nth-child(2) { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">VIBE TV</div><div class="ver" id="ver"></div>
+  <div class="chips">
+    <span class="chip" id="cTv"><i></i><span>TVs</span></span>
+    <span class="chip" id="cShow"><i></i><span>Showing</span></span>
+    <span class="chip" id="cTw"><i></i><span>Twitch API</span></span>
+    <a class="btn" href="/tv" target="_blank">Open TV page</a>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>Live preview</h2>
+    <p class="hint">What the TV shows right now. Test buttons play on every connected TV.</p>
+    <div class="preview" id="pv"><iframe id="pvframe" src="/tv?preview=1" title="TV preview"></iframe></div>
+    <div class="tests">
+      <label class="f full" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="VibesByVince" maxlength="25"></label>
+      <button onclick="test('shoutout')">Test shoutout</button>
+      <div class="row"><button onclick="test('raid')" style="flex:1">Test raid</button><input type="number" id="tViewers" value="42" min="0" style="width:90px;flex:none" title="Raiders"></div>
+      <button onclick="test('follow')">Test follow</button>
+      <div class="row"><button onclick="test('gift')" style="flex:1">Test gifted subs</button><input type="number" id="tGifts" value="5" min="0" max="60" style="width:90px;flex:none" title="How many recipients (0 = a mass gift with no names)"></div>
+      <div class="row full"><input type="text" id="tMsg" placeholder="Message text" value="Welcome to the stream!"><button onclick="test('message')">Show message</button></div>
+      <button onclick="call('/logo')">Back to logo</button>
+      <button onclick="call('/reload')">Reload TVs</button>
+    </div>
+    <div class="result" id="tRes"></div>
+  </section>
+
+  <section>
+    <h2>Logo</h2>
+    <p class="hint">Loops on the TV between events. Videos (mp4, webm, mov) or images (png, jpg, gif, webp).</p>
+    <div class="drop" id="drop">Drop a file here or <b style="color:var(--accent2)">browse</b><input type="file" id="file" accept="video/mp4,video/webm,video/quicktime,.mov,.m4v,image/*" hidden></div>
+    <div class="bar" id="bar"><i></i></div>
+    <label class="f"><span>How it fills the screen</span>
+      <select id="logo_fit" data-k="logo_fit">
+        <option value="cover">Fill the screen (crops edges if the shape differs)</option>
+        <option value="contain">Show the whole logo (black bars if the shape differs)</option>
+      </select></label>
+    <div class="media" id="media"></div>
+  </section>
+
+  <section>
+    <h2>Timing</h2>
+    <p class="hint">How long each card stays up. Clips play after the card.</p>
+    <div class="grid2">
+      <label class="f"><span>Shoutout card (seconds)</span><input type="number" data-k="card_seconds" min="2" max="60" step="0.5"></label>
+      <label class="f"><span>Raid animation (seconds)</span><input type="number" data-k="raid_seconds" min="4" max="60" step="0.5"></label>
+      <label class="f"><span>Message (seconds)</span><input type="number" data-k="message_seconds" min="2" max="60" step="0.5"></label>
+      <label class="f"><span>Longest clip (seconds)</span><input type="number" data-k="max_clip_seconds" min="5" max="60" step="1"></label>
+      <label class="f"><span>Follow (seconds)</span><input type="number" data-k="follow_seconds" min="2" max="60" step="0.5"></label>
+      <label class="f"><span>Gifted subs (seconds)</span><input type="number" data-k="gift_seconds" min="4" max="60" step="0.5"></label>
+    </div>
+    <label class="f"><span>TV animation quality</span>
+      <select data-k="tv_mode">
+        <option value="auto">Auto: lite on TV sticks and smart TVs, full on a PC</option>
+        <option value="lite">Lite everywhere: smoothest on slow TVs</option>
+        <option value="full">Full everywhere: every glow and blur</option>
+      </select></label>
+    <p class="hint" style="margin-top:6px">One TV can override it: add <span class="mono">?mode=lite</span> or <span class="mono">?mode=full</span> to its address.</p>
+    <label class="switch"><span>Play a clip after shoutouts and raids<br><span class="hint">A URL's <span class="mono">&amp;clip=0</span> or <span class="mono">&amp;clip=1</span> overrides this. Needs Twitch API keys.</span></span><input type="checkbox" data-k="clips"></label>
+    <label class="switch"><span>Clip sound on<br><span class="hint">TV browsers may still start muted until the page is clicked once.</span></span><input type="checkbox" data-k="clip_sound"></label>
+  </section>
+
+  <section>
+    <h2>Twitch API</h2>
+    <p class="hint">Optional. Adds real display names, avatars, last game and clips. Create an app at
+      <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv/console</a> (any redirect URL, e.g. http://localhost).</p>
+    <label class="f"><span>Client ID</span><input type="text" class="mono" data-k="twitch_client_id" autocomplete="off" spellcheck="false"></label>
+    <label class="f"><span>Client secret</span><input type="password" class="mono" data-k="twitch_client_secret" id="secret" autocomplete="new-password" spellcheck="false"></label>
+    <div class="row" style="margin-top:12px"><button onclick="testTwitch()">Test connection</button><span class="hint">Save first.</span></div>
+    <div class="result" id="twRes"></div>
+  </section>
+
+  <section class="wide">
+    <h2>Lights</h2>
+    <p class="hint">Vibe TV calls these when a card starts and ends. <span class="mono">{hex}</span> becomes the colour picked from the raider's avatar.
+      For the Govee Light Controller (V1.3+), turn on <b>Settings &gt; Accept requests from my network</b> on the PC, then use its address, e.g.
+      <span class="mono">http://&lt;pc-ip&gt;:8765/color/{hex}</span>.</p>
+    <div class="grid2">
+      <label class="f"><span>Card colour URL</span><div class="row"><input type="url" class="mono" data-k="govee_color_url" placeholder="http://<pc-ip>:8765/color/{hex}"><button onclick="testLights('color')">Test</button></div></label>
+      <label class="f"><span>Raid URL <span class="hint">(optional, blank = card colour URL)</span></span><div class="row"><input type="url" class="mono" data-k="govee_raid_url" placeholder="http://<pc-ip>:8765/sparkle/{hex}/12"><button onclick="testLights('raid')">Test</button></div></label>
+      <label class="f"><span>Back-to-normal URL</span><div class="row"><input type="url" class="mono" data-k="govee_reset_url" placeholder="http://<pc-ip>:8765/default"><button onclick="testLights('reset')">Test</button></div></label>
+      <div class="f"><span style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Last light call</span><div class="result mono" id="lightRes" style="margin:0">—</div></div>
+    </div>
+  </section>
+
+  <section class="wide">
+    <h2>MixItUp URLs</h2>
+    <p class="hint">Use these in MixItUp's Web Request action. They point at this server's address.</p>
+    <table class="urls" id="urls"></table>
+  </section>
+
+  <div class="savebar"><div class="result" id="saveRes"></div><button onclick="load()">Discard changes</button><button class="primary" id="saveBtn" onclick="save()">Save settings</button></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let state = null, dirty = false;
+
+function toast(text) {
+  const t = $("toast"); t.textContent = text; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function setRes(el, ok, text) { el.className = "result" + (ok === null ? "" : ok ? " ok" : " bad") + (el.classList.contains("mono") ? " mono" : ""); el.textContent = text; }
+function fmtSize(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  const ct = r.headers.get("content-type") || "";
+  const body = ct.includes("json") ? await r.json() : { ok: r.ok, result: await r.text() };
+  if (!r.ok && body.ok === undefined) body.ok = false;
+  return body;
+}
+
+async function load() {
+  state = await api("/api/state");
+  const s = state.settings;
+  document.querySelectorAll("[data-k]").forEach(el => {
+    const k = el.dataset.k;
+    if (el.type === "checkbox") el.checked = !!s[k];
+    else if (k === "twitch_client_secret") { el.value = ""; el.placeholder = s.twitch_client_secret_set ? "Saved. Leave blank to keep it" : "Not set"; }
+    else el.value = s[k] ?? "";
+  });
+  dirty = false; setRes($("saveRes"), null, "");
+  renderStatus(); renderMedia(); renderUrls();
+}
+
+function renderStatus() {
+  const st = state.status;
+  $("ver").textContent = "v" + state.version;
+  const tv = $("cTv"); tv.className = "chip " + (st.tvs_connected ? "ok" : "bad");
+  tv.lastChild.textContent = st.tvs_connected === 1 ? "1 TV connected" : `${st.tvs_connected} TVs connected`;
+  $("cShow").lastChild.textContent = "Showing: " + st.showing + (st.queued ? ` (+${st.queued} queued)` : "");
+  $("cShow").className = "chip " + (st.showing === "logo" ? "" : "ok");
+  const tw = $("cTw"); tw.className = "chip " + (st.twitch_api ? "ok" : "");
+  tw.lastChild.textContent = st.twitch_api ? "Twitch API on" : "Twitch API off";
+  if (st.last_lights) $("lightRes").textContent = st.last_lights;
+}
+
+function renderMedia() {
+  const m = $("media");
+  if (!state.media.length) { m.innerHTML = '<p class="hint">No logos yet. Upload one above.</p>'; return; }
+  m.innerHTML = state.media.map(f => `
+    <div class="tile${f.active ? " active" : ""}">
+      <div class="thumb">${f.kind === "video"
+        ? `<video src="${esc(f.url)}#t=1" muted loop playsinline preload="metadata" onmouseenter="this.play()" onmouseleave="this.pause()"></video>`
+        : `<img src="${esc(f.url)}" alt="">`}${f.active ? '<span class="badge">ON TV</span>' : ""}</div>
+      <div class="meta"><b title="${esc(f.name)}">${esc(f.name)}</b><span class="hint">${f.kind} · ${fmtSize(f.size)}</span></div>
+      <div class="acts">
+        <button ${f.active ? "disabled" : ""} onclick="useLogo(${esc(JSON.stringify(f.name))})">${f.active ? "In use" : "Use as logo"}</button>
+        <button class="danger" title="Delete" onclick="delMedia(${esc(JSON.stringify(f.name))})">Delete</button>
+      </div>
+    </div>`).join("");
+}
+
+function renderUrls() {
+  const b = location.origin, u = $("tUser").value || "username";
+  const rows = [
+    ["/shoutout/$targetusername", "Shoutout card (then a clip, if Twitch API keys are set)"],
+    ["/shoutout/$targetusername?avatar=$targetuseravatar", "Same, with the avatar from MixItUp (no keys needed)"],
+    ["/raid/$username?viewers=$raidviewercount&avatar=$useravatar", "Raid animation (use in the Raided event)"],
+    ["/follow/$username", "Thanks for the follow (use in the Followed event)"],
+    ["/gift/$username?to=$targetusername", "One gifted sub (Subscription Gifted event). Gifts arriving together become one screen"],
+    ["/giftbomb/$username?count=<amount>", "Mass gift (Mass Subscriptions Gifted event). Optional if /gift already fires per sub"],
+    ["/message?text=$allargs&from=$username", "Big message bubble"],
+    ["/logo", "Clear the queue and go back to the logo"],
+    ["/reload", "Reload every TV page"],
+    ["/status", "JSON status"],
+  ];
+  $("urls").innerHTML = rows.map(([p, what]) => `<tr><td class="mono">${esc(b + p)}</td><td class="hint">${esc(what)}</td><td><button onclick="copy(${esc(JSON.stringify(b + p))})">Copy</button></td></tr>`).join("");
+}
+
+function copy(text) {
+  const done = () => toast("Copied");
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done);
+  else { const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); done(); }
+}
+
+function collect() {
+  const out = {};
+  document.querySelectorAll("[data-k]").forEach(el => {
+    out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
+  });
+  return out;
+}
+
+async function save() {
+  $("saveBtn").disabled = true;
+  const r = await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(collect()) });
+  $("saveBtn").disabled = false;
+  if (r.ok) { await load(); setRes($("saveRes"), true, "Saved"); toast("Settings saved"); }
+  else setRes($("saveRes"), false, (r.errors || [r.result || "Save failed"]).join(" · "));
+}
+
+async function useLogo(name) {
+  const r = await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logo: name }) });
+  if (r.ok) { toast("Logo changed on every TV"); await refresh(true); } else toast((r.errors || ["Failed"]).join(" "));
+}
+
+async function delMedia(name) {
+  if (!confirm(`Delete ${name}? This removes the file from the NAS.`)) return;
+  const r = await api("/api/media/" + encodeURIComponent(name), { method: "DELETE" });
+  if (r.ok) { toast("Deleted"); await refresh(true); } else toast(r.result || "Delete failed");
+}
+
+function upload(file) {
+  if (!file) return;
+  const fd = new FormData(); fd.append("file", file);
+  const x = new XMLHttpRequest(), bar = $("bar");
+  bar.style.display = "block"; bar.firstElementChild.style.width = "0";
+  x.upload.onprogress = e => { if (e.lengthComputable) bar.firstElementChild.style.width = (e.loaded / e.total * 100) + "%"; };
+  x.onload = async () => {
+    bar.style.display = "none";
+    if (x.status === 200) {
+      const r = JSON.parse(x.responseText);
+      toast("Uploaded " + r.name);
+      await refresh(true);
+      if (confirm(`Use ${r.name} as the logo now?`)) useLogo(r.name);
+    } else toast(x.responseText || "Upload failed");
+  };
+  x.onerror = () => { bar.style.display = "none"; toast("Upload failed"); };
+  x.open("POST", "/api/media"); x.send(fd);
+}
+
+async function call(path) {
+  const r = await api(path, { method: "POST" });
+  setRes($("tRes"), r.ok !== false, r.ok === false ? (r.result || "Failed") : (r.queued ? `Queued (#${r.queued})` : "Done"));
+  refresh();
+}
+function test(kind) {
+  const user = encodeURIComponent(($("tUser").value || "VibesByVince").replace(/^@/, ""));
+  if (kind === "shoutout") call(`/shoutout/${user}`);
+  else if (kind === "raid") call(`/raid/${user}?viewers=${encodeURIComponent($("tViewers").value || "")}`);
+  else if (kind === "follow") call(`/follow/${user}`);
+  else if (kind === "gift") {
+    // real channels so the test shows real avatars when Twitch keys are set
+    const pool = ["twitch", "twitchgaming", "twitchmusic", "twitchdev", "twitchpresents", "twitchsports", "twitchrivals", "twitchjp",
+      "twitchkr", "twitchfr", "twitchde", "twitches", "twitchbr", "twitchit", "twitchpl", "twitchru"];
+    const n = Math.max(0, Math.min(60, parseInt($("tGifts").value || "0", 10)));
+    const to = Array.from({ length: n }, (_, i) => pool[i % pool.length] + (i >= pool.length ? "_" + i : "")).join(",");
+    call(n ? `/gift/${user}?to=${to}&count=${n}` : `/giftbomb/${user}?count=10`);
+  }
+  else call(`/message?text=${encodeURIComponent($("tMsg").value || "Hello!")}&from=${user}`);
+}
+async function testLights(which) {
+  if (dirty) return toast("Save settings first");
+  const r = await api(`/api/test/lights?which=${which}&hex=9146ff`, { method: "POST" });
+  setRes($("lightRes"), r.ok, r.result);
+}
+async function testTwitch() {
+  if (dirty) return toast("Save settings first");
+  setRes($("twRes"), null, "Checking…");
+  const r = await api(`/api/test/twitch?user=${encodeURIComponent($("tUser").value || "twitch")}`, { method: "POST" });
+  setRes($("twRes"), r.ok, r.result);
+  refresh();
+}
+
+async function refresh(withMedia) {
+  try {
+    const s = await api("/api/state");
+    state.status = s.status; state.media = s.media;
+    renderStatus();
+    if (withMedia) renderMedia();
+  } catch (e) { /* server restarting */ }
+}
+
+// inputs
+document.querySelectorAll("[data-k]").forEach(el => el.addEventListener("input", () => {
+  if (el.dataset.k === "logo_fit") return;
+  dirty = true; setRes($("saveRes"), null, "Unsaved changes");
+}));
+$("logo_fit").addEventListener("change", async e => {
+  const r = await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logo_fit: e.target.value }) });
+  toast(r.ok ? "Updated on every TV" : "Failed");
+});
+$("tUser").addEventListener("input", renderUrls);
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+$("file").onchange = e => { upload(e.target.files[0]); e.target.value = ""; };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); upload(e.dataTransfer.files[0]); };
+addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+// scale the 1920x1080 preview to the box
+const pv = $("pv"), frame = $("pvframe");
+new ResizeObserver(() => { frame.style.transform = `scale(${pv.clientWidth / 1920})`; }).observe(pv);
+
+load();
+setInterval(() => refresh(false), 3000);
+</script>
+</body>
+</html>
