@@ -93,7 +93,8 @@
   #raid.go .rcount { animation: fadeUp .5s 1.95s ease both; }
   .rcount b { font-family: "Bungee", sans-serif; font-size: 15vh; line-height: 1; color: var(--accent);
     text-shadow: 0 0 4vh var(--accent), 0 .6vh 0 rgba(0,0,0,.6); font-variant-numeric: tabular-nums; }
-  .rcount b.pop { animation: pop .45s cubic-bezier(.2,2,.4,1); }
+  /* grows to the left, into empty space, not over the RAIDERS label */
+  .rcount b.pop { animation: pop .45s cubic-bezier(.2,2,.4,1); transform-origin: 100% 60%; }
   .rcount span { font-family: "Bungee", sans-serif; font-size: 4.4vh; letter-spacing: .12em; }
 
   /* ── Follow ───────────────────────────────────────────────────── */

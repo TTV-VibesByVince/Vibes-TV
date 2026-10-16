@@ -529,7 +529,7 @@ tv = TV()
 # ── helpers ──────────────────────────────────────────────────────────────
 
 def clean_user(raw):
-    """Keeps the capitals as typed, so the card reads 'VibesByVince' even
+    """Keeps the capitals as typed, so the card reads 'CoolStreamer' even
     without Twitch API keys."""
     user = (raw or "").strip().lstrip("@")
     if not USERNAME_RE.match(user):

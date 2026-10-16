@@ -112,7 +112,7 @@
     <p class="hint">What the TV shows right now. Test buttons play on every connected TV.</p>
     <div class="preview" id="pv"><iframe id="pvframe" src="/tv?preview=1" title="TV preview"></iframe></div>
     <div class="tests">
-      <label class="f full" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="VibesByVince" maxlength="25"></label>
+      <label class="f full" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="" placeholder="Your channel name (blank = twitch)" maxlength="25"></label>
       <button onclick="test('shoutout')">Test shoutout</button>
       <div class="row"><button onclick="test('raid')" style="flex:1">Test raid</button><input type="number" id="tViewers" value="42" min="0" style="width:90px;flex:none" title="Raiders"></div>
       <button onclick="test('follow')">Test follow</button>
@@ -172,7 +172,7 @@
   <section class="wide">
     <h2>Lights</h2>
     <p class="hint">Vibe TV calls these when a card starts and ends. <span class="mono">{hex}</span> becomes the colour picked from the raider's avatar.
-      For the Govee Light Controller (V1.3+), turn on <b>Settings &gt; Accept requests from my network</b> on the PC, then use its address, e.g.
+      For <a href="https://github.com/TTV-VibesByVince/Govee-Lights-Controller" target="_blank" rel="noopener">Govee Lights Controller</a> (V1.3+), turn on <b>Settings &gt; Accept requests from my network</b> on the PC, then use its address, e.g.
       <span class="mono">http://&lt;pc-ip&gt;:8765/color/{hex}</span>.</p>
     <div class="grid2">
       <label class="f"><span>Card colour URL</span><div class="row"><input type="url" class="mono" data-k="govee_color_url" placeholder="http://<pc-ip>:8765/color/{hex}"><button onclick="testLights('color')">Test</button></div></label>
@@ -328,7 +328,7 @@ async function call(path) {
   refresh();
 }
 function test(kind) {
-  const user = encodeURIComponent(($("tUser").value || "VibesByVince").replace(/^@/, ""));
+  const user = encodeURIComponent(($("tUser").value.trim() || "twitch").replace(/^@/, ""));
   if (kind === "shoutout") call(`/shoutout/${user}`);
   else if (kind === "raid") call(`/raid/${user}?viewers=${encodeURIComponent($("tViewers").value || "")}`);
   else if (kind === "follow") call(`/follow/${user}`);
