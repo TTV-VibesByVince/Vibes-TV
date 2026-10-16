@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vibe TV</title>
-<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+<link href="/static/fonts/fonts.css" rel="stylesheet">
 <style>
   :root { --accent: #9146ff; --fit: cover; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -63,12 +63,8 @@
   .title { display: flex; gap: 1vw; font-family: "Bungee", sans-serif; font-size: 21vh; line-height: .9; }
   .title span { display: inline-block; opacity: 0; color: #fff; will-change: transform, opacity;
     text-shadow: -.7vh 0 #ff2a6d, .7vh 0 #05d9e8, 0 0 5vh var(--accent); }
+  /* each letter's delays are set inline, so any title text works */
   #raid.go .title span { animation: slam .5s cubic-bezier(.2,1.6,.5,1) both, glitch 3.2s 2s steps(1) infinite; }
-  #raid.go .title span:nth-child(1) { animation-delay: .35s, 2.0s; }
-  #raid.go .title span:nth-child(2) { animation-delay: .47s, 2.4s; }
-  #raid.go .title span:nth-child(3) { animation-delay: .59s, 2.8s; }
-  #raid.go .title span:nth-child(4) { animation-delay: .71s, 3.2s; }
-  #raid.go .title span:nth-child(5) { animation-delay: .83s, 3.6s; color: var(--accent); }
 
   .row { display: flex; align-items: center; gap: 5vw; margin-top: 2vh; }
   .portal { position: relative; width: 36vh; height: 36vh; flex: none; opacity: 0; will-change: transform; }
@@ -114,6 +110,59 @@
   .fname { font-weight: 900; font-size: 7vh; line-height: 1; opacity: 0; white-space: nowrap; text-shadow: 0 .5vh 0 rgba(0,0,0,.6); }
   #follow.go .fname { animation: fadeUp .5s 1.15s ease both; }
   #follow.out, #gift.out { transition: opacity .6s ease, transform .6s ease; opacity: 0; transform: scale(.94); }
+  /* the same card is used for follows, subs, resubs and bits */
+  .fav .badge { display: none; }
+  #follow[data-kind="follow"] .fav .heart { display: block; }
+  #follow:not([data-kind="follow"]) .fav .heart { display: none; }
+  #follow[data-kind="sub"] .fav .star, #follow[data-kind="resub"] .fav .star, #follow[data-kind="bits"] .fav .gem { display: block; }
+  .fav .badge { position: absolute; right: -1vh; bottom: 1vh; width: 11vh; height: 11vh; opacity: 0; filter: drop-shadow(0 .6vh 1.2vh rgba(0,0,0,.6)); }
+  #follow.go .fav .badge { animation: heartPop .6s .75s cubic-bezier(.2,2,.4,1) both; }
+  .hsub { font-size: 4vh; opacity: 0; text-align: center; max-width: 85vw; }
+  #follow.go .hsub { animation: fadeUp .5s 1.3s ease both; }
+  .hmsg { max-width: 70vw; padding: 1.6vh 3vh; border-radius: 2.5vh; background: rgba(0,0,0,.6); border: .4vh solid var(--accent);
+    font-size: 3.4vh; line-height: 1.25; text-align: center; overflow-wrap: anywhere; opacity: 0; }
+  #follow.go .hmsg { animation: fadeUp .5s 1.5s ease both; }
+  .hsub:empty, .hmsg:empty { display: none; }
+  #follow[data-kind="resub"] .thanks, #follow[data-kind="bits"] .thanks { font-size: 12vh; }
+  #follow:not([data-kind="follow"]) { gap: 2.6vh; }
+  #follow:not([data-kind="follow"]) .fav { width: 30vh; height: 30vh; }
+
+  /* ── First-time chatter: corner pop-ups, stacked top-right ─────── */
+  #welcomes { position: absolute; top: 4vh; right: 3vw; display: flex; flex-direction: column; align-items: flex-end; gap: 1.6vh; pointer-events: none; z-index: 20; }
+  .wtoast { display: flex; align-items: center; gap: 1.8vh; padding: 1.4vh 3.2vh 1.4vh 1.4vh; border-radius: 99px; max-width: 46vw;
+    background: rgba(10,8,18,.82); border: .4vh solid var(--wc, var(--accent)); box-shadow: 0 0 3vh var(--wc, var(--accent));
+    animation: toastIn .55s cubic-bezier(.2,1.5,.4,1) both; }
+  .wtoast.bye { animation: toastOut .45s ease-in both; }
+  .wtoast img { width: 9vh; height: 9vh; border-radius: 50%; object-fit: cover; flex: none; border: .4vh solid var(--wc, var(--accent)); background: #111; }
+  .wtoast .wt { font-family: "Bungee", sans-serif; font-size: 2.6vh; color: var(--wc, var(--accent)); letter-spacing: .06em; }
+  .wtoast .wn { font-size: 4vh; font-weight: 900; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wtoast .ws { font-size: 2.3vh; opacity: .8; }
+  .wtoast > div { min-width: 0; }
+  .wave { display: inline-block; transform-origin: 70% 70%; animation: wave 1.2s .4s ease-in-out 2; }
+
+  /* ── Hype train: bar along the bottom + banner ─────────────────── */
+  #hype { position: absolute; left: 3vw; right: 3vw; bottom: 2.5vh; height: 8vh; display: flex; align-items: center; gap: 2vh; z-index: 15;
+    padding: 0 2.4vh; border-radius: 99px; background: rgba(10,8,18,.85); border: .35vh solid var(--hc, #9146ff);
+    box-shadow: 0 0 3vh color-mix(in srgb, var(--hc, #9146ff) 60%, transparent);
+    transform: translateY(14vh); opacity: 0; transition: transform .6s cubic-bezier(.2,1.3,.4,1), opacity .4s ease; pointer-events: none; }
+  #hype.on { transform: none; opacity: 1; }
+  body.raiding #hype.on { opacity: 0; transform: translateY(14vh); }
+  #hype .htitle { font-family: "Bungee", sans-serif; font-size: 3vh; letter-spacing: .08em; white-space: nowrap; }
+  #hype .htrain { font-size: 4vh; line-height: 1; }
+  #hype .hlevel { font-family: "Bungee", sans-serif; font-size: 2.6vh; padding: .6vh 1.6vh; border-radius: 99px; background: var(--hc, #9146ff); color: #fff; white-space: nowrap; }
+  #hype .htrack { position: relative; flex: 1; height: 3.2vh; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; }
+  #hype .hfill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 99px; transition: width 1.2s cubic-bezier(.2,1,.3,1);
+    background: repeating-linear-gradient(-45deg, var(--hc, #9146ff) 0 2vh, color-mix(in srgb, var(--hc, #9146ff) 70%, #fff) 2vh 4vh);
+    background-size: 5.66vh 100%; animation: stripes .8s linear infinite; }
+  #hype.unknown .hfill { width: 100% !important; opacity: .55; }
+  #hype .hpct { font-family: "Bungee", sans-serif; font-size: 2.8vh; min-width: 8vh; text-align: right; }
+  /* a dark band behind the words keeps them readable over any logo */
+  #hypebanner { position: absolute; left: 0; right: 0; top: 32vh; text-align: center; z-index: 16; pointer-events: none;
+    font-family: "Bungee", sans-serif; font-size: 13vh; line-height: 1.05; color: #fff; padding: 3.5vh 6vw;
+    background: linear-gradient(90deg, transparent, rgba(8,6,16,.88) 18%, rgba(8,6,16,.88) 82%, transparent);
+    border-top: .4vh solid var(--hc, #9146ff); border-bottom: .4vh solid var(--hc, #9146ff);
+    text-shadow: 0 0 4vh var(--hc, #9146ff), 0 .8vh 0 rgba(0,0,0,.6); opacity: 0; }
+  #hypebanner.show { animation: bannerIn 3.2s cubic-bezier(.2,1.2,.4,1) both; }
 
   /* ── Gifted subs ──────────────────────────────────────────────── */
   #gift { flex-direction: column; gap: 4vh; visibility: hidden; padding: 4vh 4vw; }
@@ -178,8 +227,23 @@
   body.lite .gchip img { box-shadow: none; }
   body.lite #msg .bubble { box-shadow: none; }
   body.lite #cliptag, body.lite #card { transition-duration: .35s; }
+  body.lite .fav .badge { filter: none; }
+  body.lite .wtoast, body.lite #hype { box-shadow: none; }
+  body.lite #hype .hfill { animation: none; }
+  body.lite #hypebanner { text-shadow: 0 .8vh 0 rgba(0,0,0,.6); }
 
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes toastIn { 0% { opacity: 0; transform: translateX(30vw) scale(.8); } 100% { opacity: 1; transform: none; } }
+  @keyframes toastOut { to { opacity: 0; transform: translateX(30vw); } }
+  @keyframes wave { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(18deg); } 40% { transform: rotate(-10deg); } 60% { transform: rotate(14deg); } 80% { transform: rotate(-4deg); } }
+  @keyframes stripes { to { background-position: 5.66vh 0; } }
+  @keyframes bannerIn {
+    0% { opacity: 0; transform: scale(3) translateY(-6vh); }
+    14% { opacity: 1; transform: scale(.92); }
+    22% { transform: scale(1); }
+    82% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.1) translateY(-3vh); }
+  }
   @keyframes flash { 0% { opacity: 0; } 12% { opacity: .95; } 100% { opacity: 0; } }
   @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
   @keyframes breathe { from { opacity: .7; } to { opacity: 1; } }
@@ -261,7 +325,7 @@
   <div class="hazard bot"><div class="tape" id="tapeBot"></div></div>
   <div class="wrap" id="raidwrap">
     <div class="stage">
-      <div class="title"><span>R</span><span>A</span><span>I</span><span>D</span><span>!</span></div>
+      <div class="title" id="raidtitle"></div>
       <div class="row">
         <div class="portal" id="portal">
           <div class="orbit o2"></div><div class="orbit"></div>
@@ -284,9 +348,13 @@
     <div class="halo"></div>
     <img id="followavatar" alt="">
     <svg class="heart" viewBox="0 0 32 29" aria-hidden="true"><path fill="#ff2a6d" stroke="#fff" stroke-width="1.6" d="M16 27.5S2 19.2 2 9.6A6.9 6.9 0 0 1 9 2.5c2.8 0 5.2 1.6 7 4 1.8-2.4 4.2-4 7-4a6.9 6.9 0 0 1 7 7.1c0 9.6-14 17.9-14 17.9z"/></svg>
+    <svg class="badge star" viewBox="0 0 32 32" aria-hidden="true"><path fill="#ffd34d" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" d="M16 2.5l4.1 8.6 9.4 1.2-6.9 6.5 1.8 9.3L16 23.6l-8.4 4.5 1.8-9.3-6.9-6.5 9.4-1.2z"/></svg>
+    <svg class="badge gem" id="gembadge" viewBox="0 0 32 32" aria-hidden="true" style="color:#a970ff"><path fill="currentColor" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" d="M9 4h14l7 8-14 17L2 12z"/><path fill="#fff" fill-opacity=".45" d="M9 4l3 8h8l3-8zM2 12h28l-14 17z" /><path fill="#000" fill-opacity=".18" d="M16 29l4-17h10z"/></svg>
   </div>
   <div class="thanks" id="thanks"></div>
   <div class="fname" id="followname"></div>
+  <div class="hsub" id="herosub"></div>
+  <div class="hmsg" id="heromsg"></div>
 </div>
 
 <div class="layer" id="gift">
@@ -307,6 +375,11 @@
 </div>
 
 <div id="cliptag"><img id="tagavatar" alt=""><div><b id="tagname"></b><span id="tagtitle"></span></div></div>
+
+<div id="welcomes"></div>
+<div id="hype"><span class="htrain">🚂</span><span class="htitle" id="hypetitle">HYPE TRAIN</span><span class="hlevel" id="hypelevel">LEVEL 1</span>
+  <div class="htrack"><div class="hfill" id="hypefill"></div></div><span class="hpct" id="hypepct"></span></div>
+<div id="hypebanner"></div>
 <div id="dot"></div>
 
 <script>
@@ -345,13 +418,23 @@ function applyMode(mode) {
   document.body.classList.toggle("lite", LITE);
 }
 
+// The active theme (sent by the server; follows the date schedule)
+let THEME = { id: "default", accent: "#9146ff", float: "heart", float_colors: ["#ff2a6d", "#ff6fa8", "#ffffff"],
+  confetti: ["#ff3b3b", "#ff9f1c", "#ffe14d", "#3ddc84", "#3ba7ff", "#9146ff"], warp: ["#ffffff", "#ff2a6d", "#05d9e8"] };
+
 function setAccent(hex) {
-  document.documentElement.style.setProperty("--accent", hex ? "#" + hex : "#9146ff");
+  document.documentElement.style.setProperty("--accent", hex ? "#" + hex : THEME.accent);
 }
+const T = ev => ev.text || {};   // the event's words, already filled in by the server
 function accent() { return getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(); }
 
 function setLogo(info) {
   applyMode(info.tv_mode || "auto");
+  if (info.theme) {
+    const changed = info.theme.id !== THEME.id;
+    THEME = info.theme;
+    if (changed && !document.querySelector(".layer.go, .layer.show")) setAccent(null);
+  }
   document.documentElement.style.setProperty("--fit", info.logo_fit === "contain" ? "contain" : "cover");
   const src = info.logo || "";
   logoKind = info.logo_kind === "image" ? "image" : "video";
@@ -387,6 +470,7 @@ function dim(on, deep) {
 function hideAll() {
   ["card", "msg", "cliptag"].forEach(id => $(id).classList.remove("show"));
   ["raid", "follow", "gift"].forEach(id => $(id).classList.remove("go", "out"));
+  document.body.classList.remove("raiding");
 }
 
 function restartAnim(el) { el.classList.remove("go", "out"); void el.offsetWidth; el.classList.add("go"); }
@@ -416,8 +500,8 @@ function playShoutout(ev) {
   $("avatar").src = avatarSrc(u);
   $("name").textContent = u.display_name;
   $("url").textContent = "twitch.tv/" + u.login;
-  $("kicker").textContent = "GO FOLLOW";
-  $("sub").textContent = u.game ? `Last seen playing ${u.game}` : "";
+  $("kicker").textContent = T(ev).kicker ?? "GO FOLLOW";
+  $("sub").textContent = T(ev).sub ?? (u.game ? `Last seen playing ${u.game}` : "");
   dim(true);
   $("card").classList.add("show");
   startConfetti(LITE ? 50 : 120);
@@ -445,11 +529,19 @@ function playRaid(ev) {
   const total = ev.card_seconds * 1000;
   $("raidavatar").src = avatarSrc(u);
   $("raidname").textContent = u.display_name;
-  $("raidsub").textContent = u.game ? `is raiding from ${u.game} with` : "is raiding with";
-  const n = ev.viewers;
+  $("raidsub").textContent = T(ev).sub ?? (u.game ? `is raiding from ${u.game} with` : "is raiding with");
+  const n = ev.viewers, label = T(ev).label || "RAIDERS";
   $("raidnum").textContent = n ? "0" : "";
   $("raidnum").style.display = n ? "" : "none";
-  $("raidlabel").textContent = n ? (n === 1 ? "RAIDER" : "RAIDERS") : "RAIDERS INCOMING";
+  $("raidlabel").textContent = n ? (n === 1 && label === "RAIDERS" ? "RAIDER" : label) : label + " INCOMING";
+  // the title slams in letter by letter; a final ! or ? takes the accent colour
+  const title = [...(T(ev).title || "RAID!")].slice(0, 12);
+  $("raidtitle").innerHTML = title.map((ch, i) => {
+    const hl = i === title.length - 1 && /[!?.]/.test(ch) ? ' style="color:var(--accent);' : ' style="';
+    return `<span${hl}animation-delay:${(.35 + i * .12).toFixed(2)}s,${(2 + i * .4).toFixed(1)}s">${ch === " " ? "&nbsp;" : esc(ch)}</span>`;
+  }).join("");
+  $("raidtitle").style.fontSize = title.length > 6 ? (21 * 6 / title.length).toFixed(1) + "vh" : "";
+  document.body.classList.add("raiding");
   const strip = Array(8).fill(`<span>${esc("⚠ INCOMING RAID ⚠ " + u.display_name.toUpperCase())}</span>`).join("");
   $("tapeTop").innerHTML = strip + strip;
   $("tapeBot").innerHTML = strip + strip;
@@ -469,18 +561,32 @@ function playRaid(ev) {
   later(() => stopFx(), total);
 }
 
-/* ── follow ───────────────────────────────────────────────────────── */
-function playFollow(ev) {
-  const u = ev.user, f = $("follow"), total = ev.card_seconds * 1000;
+/* ── follow / sub / resub / bits: one card, different badge + particles ── */
+const DEFAULT_TITLES = { follow: "THANKS FOR THE FOLLOW!", sub: "THANKS FOR SUBSCRIBING!", resub: "THANKS FOR RESUBSCRIBING!", bits: "THANKS FOR THE BITS!" };
+
+// Bits gems take Twitch's cheer colours by amount
+function gemColor(n) { return n >= 10000 ? "#ff3b3b" : n >= 5000 ? "#0099fe" : n >= 1000 ? "#1db2a5" : n >= 100 ? "#a970ff" : "#b9b9c8"; }
+
+function playHero(ev) {
+  const u = ev.user, f = $("follow"), total = ev.card_seconds * 1000, kind = ev.type;
+  f.dataset.kind = kind;
   $("followavatar").src = avatarSrc(u);
   $("followname").textContent = u.display_name;
-  const words = ["THANKS", "FOR", "THE", "FOLLOW!"];
+  // highlight words with a number in them (12 MONTHS, 500 BITS), else the last word
+  const words = (T(ev).title || DEFAULT_TITLES[kind]).split(/\s+/).filter(Boolean);
+  const numbered = words.map(w => /\d/.test(w));
+  const any = numbered.some(Boolean);
   $("thanks").innerHTML = words.map((w, i) =>
-    `<span class="${i === 3 ? "hl" : ""}" style="animation-delay:${(.35 + i * .13).toFixed(2)}s">${w}</span>`).join("");
+    `<span class="${(any ? numbered[i] : i === words.length - 1) ? "hl" : ""}" style="animation-delay:${(.35 + i * .13).toFixed(2)}s">${esc(w)}</span>`).join("");
+  $("herosub").textContent = T(ev).sub || "";
+  $("heromsg").textContent = T(ev).message || "";
+  if (kind === "bits") $("gembadge").style.color = gemColor(ev.amount || 1);
   dim(true);
   restartAnim(f);
-  fitText($("followname"), innerWidth * .9, 7);
-  heartsFx(total);
+  fitText($("followname"), innerWidth * .9, kind === "follow" ? 7 : 6);
+  if (kind === "bits") gemsFx(ev.amount || 100, total);
+  else if (kind === "follow") floatsFx(total);
+  else { startConfetti(LITE ? 50 : 130); later(() => stopFx(), total - 1200); }
   later(() => f.classList.add("out"), Math.max(total - 600, 1500));
 }
 
@@ -490,7 +596,8 @@ function playGift(ev) {
   const people = ev.recipients || [], count = ev.count || people.length || 1;
   $("giftavatar").src = avatarSrc(u);
   $("giftname").textContent = u.display_name;
-  $("giftwhat").textContent = count === 1 ? "GIFTED A SUB" : `GIFTED ${count.toLocaleString()} SUBS`;
+  $("giftwhat").textContent = T(ev).title || (count === 1 ? "GIFTED A SUB" : `GIFTED ${count.toLocaleString()} SUBS`);
+  $("giftto").textContent = T(ev).to ?? "to";
   const list = $("giftlist"), big = $("giftbig");
   if (people.length) {
     const n = people.length;
@@ -546,13 +653,47 @@ function glowSprite(color) {
   x.fillStyle = gr; x.fillRect(0, 0, s, s);
   return (spriteCache[color] = c);
 }
-function heartSprite(color) {
-  const key = "h" + color;
+// Theme floats (follow screen): heart, bat, snowflake or clover, drawn once
+// into a 64x64 sprite.
+function floatSprite(shape, color) {
+  const key = shape + color;
   if (spriteCache[key]) return spriteCache[key];
-  const c = document.createElement("canvas"); c.width = 64; c.height = 58;
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const x = c.getContext("2d");
+  x.fillStyle = x.strokeStyle = color;
+  if (shape === "bat") {
+    x.translate(0, 12); x.scale(2, 2);
+    x.fill(new Path2D("M16 6c-1-2-2.6-2.6-2.6-2.6L14 6c-2.4-.4-4.6.4-6 2C6.6 6 3.6 5 0 6c2.4 1.6 3.4 3.6 3.6 6 1.4-1 3.4-1.2 4.8 0 .6-1.6 2.4-2.4 4-2 1 1.2 2.4 2.4 3.6 4 1.2-1.6 2.6-2.8 3.6-4 1.6-.4 3.4.4 4 2 1.4-1.2 3.4-1 4.8 0 .2-2.4 1.2-4.4 3.6-6-3.6-1-6.6 0-8 2-1.4-1.6-3.6-2.4-6-2l.6-2.6S17 4 16 6z"));
+  } else if (shape === "snow") {
+    x.translate(32, 32); x.lineWidth = 4; x.lineCap = "round";
+    for (let i = 0; i < 6; i++) {
+      x.rotate(Math.PI / 3);
+      x.beginPath(); x.moveTo(0, 0); x.lineTo(0, -27);
+      x.moveTo(0, -16); x.lineTo(-8, -23); x.moveTo(0, -16); x.lineTo(8, -23); x.stroke();
+    }
+  } else if (shape === "clover") {
+    x.translate(32, 30);
+    for (let i = 0; i < 3; i++) {
+      x.save(); x.rotate(i * 2.094 - 0.2);
+      x.beginPath(); x.arc(-6, -12, 10, 0, 6.283); x.arc(6, -12, 10, 0, 6.283); x.fill(); x.restore();
+    }
+    x.lineWidth = 4; x.lineCap = "round"; x.beginPath(); x.moveTo(0, 2); x.quadraticCurveTo(4, 18, 12, 28); x.stroke();
+  } else {
+    x.translate(0, 3); x.scale(2, 2);
+    x.fill(new Path2D("M16 27.5S2 19.2 2 9.6A6.9 6.9 0 0 1 9 2.5c2.8 0 5.2 1.6 7 4 1.8-2.4 4.2-4 7-4a6.9 6.9 0 0 1 7 7.1c0 9.6-14 17.9-14 17.9z"));
+  }
+  return (spriteCache[key] = c);
+}
+// Bits: a faceted gem in the cheer colour
+function gemSprite(color) {
+  const key = "gem" + color;
+  if (spriteCache[key]) return spriteCache[key];
+  const c = document.createElement("canvas"); c.width = c.height = 64;
   const x = c.getContext("2d"); x.scale(2, 2);
-  x.fillStyle = color;
-  x.fill(new Path2D("M16 27.5S2 19.2 2 9.6A6.9 6.9 0 0 1 9 2.5c2.8 0 5.2 1.6 7 4 1.8-2.4 4.2-4 7-4a6.9 6.9 0 0 1 7 7.1c0 9.6-14 17.9-14 17.9z"));
+  x.fillStyle = color; x.fill(new Path2D("M9 4h14l7 8-14 17L2 12z"));
+  x.fillStyle = "rgba(255,255,255,.45)"; x.fill(new Path2D("M9 4l3 8h8l3-8zM2 12h28l-14 17z"));
+  x.fillStyle = "rgba(0,0,0,.18)"; x.fill(new Path2D("M16 29l4-17h10z"));
+  x.strokeStyle = "rgba(255,255,255,.9)"; x.lineWidth = 1.2; x.lineJoin = "round"; x.stroke(new Path2D("M9 4h14l7 8-14 17L2 12z"));
   return (spriteCache[key] = c);
 }
 function hex6(c) {   // sprites need #rrggbb to append alpha
@@ -564,7 +705,7 @@ function hex6(c) {   // sprites need #rrggbb to append alpha
 
 function startConfetti(n) {
   stopFx(); sizeFx();
-  const colors = ["#ff3b3b", "#ff9f1c", "#ffe14d", "#3ddc84", "#3ba7ff", "#9146ff", accent()];
+  const colors = [...(THEME.confetti || []), accent()];
   const bits = Array.from({ length: n }, () => ({
     x: Math.random() * W, y: -Math.random() * H,
     w: 6 + Math.random() * 10, h: 10 + Math.random() * 14,
@@ -595,7 +736,7 @@ function startConfetti(n) {
 function raidFx(viewers, total) {
   stopFx(); sizeFx();
   const A = hex6(accent());
-  const palette = [A, A, "#ffffff", "#ff2a6d", "#05d9e8"];
+  const palette = [A, A, ...(THEME.warp || ["#ffffff", "#ff2a6d", "#05d9e8"])].map(hex6);
   const pick = () => palette[Math.floor(Math.random() * palette.length)];
   const stars = Array.from({ length: LITE ? 70 : 200 }, () => ({ a: Math.random() * 6.283, d: Math.random(), s: .5 + Math.random() * 1.5, c: pick() }));
   const count = Math.min(Math.max(viewers || 40, 24), LITE ? 45 : 160);
@@ -677,13 +818,15 @@ function raidFx(viewers, total) {
 }
 
 // Follow: hearts float up from the bottom and sway
-function heartsFx(total) {
+function floatsFx(total) {
   stopFx(); sizeFx();
-  const A = hex6(accent()), cols = [A, "#ff2a6d", "#ff6fa8", "#ffffff"];
+  const cols = [hex6(accent()), ...(THEME.float_colors || ["#ff2a6d", "#ff6fa8", "#ffffff"])];
+  const shape = THEME.float || "heart";
   const unit = Math.max(H / 1080, .6);
   const hearts = Array.from({ length: LITE ? 16 : 40 }, () => ({
-    x: Math.random() * W, y: H + Math.random() * H, s: (24 + Math.random() * 40) * unit,
-    v: (1.2 + Math.random() * 2.2) * unit, ph: Math.random() * 6.28, img: heartSprite(cols[Math.floor(Math.random() * cols.length)])
+    // some start already on screen (they fade in), the rest rise from below
+    x: Math.random() * W, y: H * .35 + Math.random() * H * 1.1, s: (34 + Math.random() * 46) * unit,
+    v: (1.6 + Math.random() * 2.4) * unit, ph: Math.random() * 6.28, img: floatSprite(shape, cols[Math.floor(Math.random() * cols.length)])
   }));
   let last = performance.now(), t0 = last;
   const tick = now => {
@@ -694,7 +837,41 @@ function heartsFx(total) {
       h.y -= h.v * k; h.ph += .03 * k;
       if (h.y < -h.s) { h.y = H + h.s; h.x = Math.random() * W; }
       g.globalAlpha = .75 * fade * Math.min(1, h.y / (H * .25));
-      g.drawImage(h.img, h.x + Math.sin(h.ph) * 22 * unit, h.y, h.s, h.s * .9);
+      g.drawImage(h.img, h.x + Math.sin(h.ph) * 22 * unit, h.y, h.s, h.s);
+    }
+    g.globalAlpha = 1;
+    fxRun = requestAnimationFrame(tick);
+  };
+  fxRun = requestAnimationFrame(tick);
+}
+
+// Bits: gems rain down, spinning, more of them for bigger cheers
+function gemsFx(amount, total) {
+  stopFx(); sizeFx();
+  const unit = Math.max(H / 1080, .6);
+  const n = Math.round(Math.min(24 + Math.sqrt(amount) * 3, LITE ? 50 : 150));
+  // mostly the cheer's own colour, with a few smaller-tier gems mixed in
+  const tiers = [1, 100, 1000, 5000, 10000].filter(t => t <= amount);
+  const gems = Array.from({ length: n }, () => ({
+    // the first gems are already falling when the card appears
+    x: Math.random() * W, y: H * .3 - Math.random() * H * 1.1, s: (26 + Math.random() * 34) * unit,
+    v: (4 + Math.random() * 5) * unit, sp: .02 + Math.random() * .05, ph: Math.random() * 6.28,
+    img: gemSprite(gemColor(Math.random() < .7 ? amount : tiers[Math.floor(Math.random() * tiers.length)]))
+  }));
+  let last = performance.now(), t0 = last;
+  const tick = now => {
+    const k = Math.min((now - last) / 16.7, 3); last = now;
+    const t = now - t0, fade = t > total - 900 ? Math.max((total - t) / 900, 0) : 1;
+    const s = fx.width / (W || 1);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, fx.width, fx.height);
+    g.globalAlpha = .95 * fade;
+    for (const gm of gems) {
+      gm.y += gm.v * k; gm.ph += gm.sp * k;
+      if (gm.y > H + gm.s && t < total - 1500) { gm.y = -gm.s - Math.random() * 120; gm.x = Math.random() * W; }
+      const flip = Math.cos(gm.ph);             // spins like a coin
+      g.setTransform(flip * s, 0, 0, s, gm.x * s, gm.y * s);
+      g.drawImage(gm.img, -gm.s / 2, -gm.s / 2, gm.s, gm.s);
     }
     g.globalAlpha = 1;
     fxRun = requestAnimationFrame(tick);
@@ -737,7 +914,7 @@ function playClip(ev) {
 
 function showMessage(ev) {
   clearTimers(); stopFx(); hideAll();
-  setAccent(null);
+  setAccent(ev.color || null);
   $("msgtext").textContent = ev.text;
   $("msgfrom").textContent = ev.from ? "— " + ev.from : "";
   dim(true);
@@ -751,11 +928,56 @@ function playEvent(ev) {
   clip.classList.remove("show");
   setAccent(ev.color);
   if (ev.type === "raid") playRaid(ev);
-  else if (ev.type === "follow") playFollow(ev);
+  else if (["follow", "sub", "resub", "bits"].includes(ev.type)) playHero(ev);
   else if (ev.type === "gift") playGift(ev);
   else playShoutout(ev);
   // the server sends "clip" or "logo" next; this is only a safety net
   later(() => showLogo(), (ev.card_seconds + (ev.clip_pending ? 70 : 4)) * 1000);
+}
+
+/* ── first-time chatter: corner pop-up, independent of the queue ───── */
+function showWelcome(ev) {
+  const box = $("welcomes");
+  while (box.children.length >= 3) box.firstElementChild.remove();      // keep it tidy
+  const el = document.createElement("div");
+  el.className = "wtoast";
+  el.style.setProperty("--wc", "#" + (ev.color || THEME.accent.slice(1)));
+  el.innerHTML = `<img alt=""><div><div class="wt"><span class="wave">👋</span> <span class="wtt"></span></div><div class="wn"></div><div class="ws"></div></div>`;
+  el.querySelector("img").src = avatarSrc(ev.user);
+  el.querySelector(".wtt").textContent = T(ev).title || "Welcome!";
+  el.querySelector(".wn").textContent = ev.user.display_name;
+  el.querySelector(".ws").textContent = T(ev).sub || "";
+  box.appendChild(el);
+  setTimeout(() => { el.classList.add("bye"); setTimeout(() => el.remove(), 500); }, (ev.seconds || 7) * 1000);
+}
+
+/* ── hype train bar ───────────────────────────────────────────────── */
+let hypeBannerTimer = null;
+function showHype(ev) {
+  const bar = $("hype"), st = ev.state;
+  document.documentElement.style.setProperty("--hc", "#" + (ev.color || THEME.accent.slice(1)));
+  if (st) {
+    $("hypetitle").textContent = st.title || "HYPE TRAIN";
+    $("hypelevel").textContent = "LEVEL " + st.level;
+    const known = st.percent !== null && st.percent !== undefined;
+    bar.classList.toggle("unknown", !known);
+    $("hypefill").style.width = known ? st.percent.toFixed(1) + "%" : "100%";
+    $("hypepct").textContent = known ? Math.round(st.percent) + "%" : "";
+    bar.classList.add("on");
+  } else {
+    bar.classList.remove("on");
+  }
+  if (ev.banner && ev.banner.text) {
+    const b = $("hypebanner");
+    b.textContent = ev.banner.text;
+    b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
+    clearTimeout(hypeBannerTimer);
+    hypeBannerTimer = setTimeout(() => b.classList.remove("show"), 3300);
+    if (!document.querySelector(".layer.go, .layer.show") && !fxRun) {
+      startConfetti(LITE ? 40 : 100);
+      setTimeout(() => { if (!document.querySelector(".layer.go, .layer.show")) stopFx(); }, 3000);
+    }
+  }
 }
 
 function connect() {
@@ -766,7 +988,9 @@ function connect() {
   ws.onmessage = e => {
     const ev = JSON.parse(e.data);
     if (ev.type === "hello" || ev.type === "logo_src") setLogo(ev);
-    else if (["shoutout", "raid", "follow", "gift"].includes(ev.type)) playEvent(ev);
+    else if (["shoutout", "raid", "follow", "gift", "sub", "resub", "bits"].includes(ev.type)) playEvent(ev);
+    else if (ev.type === "welcome") showWelcome(ev);
+    else if (ev.type === "hype") showHype(ev);
     else if (ev.type === "clip_preload") preloadClip(ev.src);
     else if (ev.type === "clip") playClip(ev);
     else if (ev.type === "message") showMessage(ev);

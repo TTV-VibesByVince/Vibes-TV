@@ -2,8 +2,9 @@
 
 A stream TV for the wall behind you. It loops your logo, and when
 [MixItUp](https://mixitupapp.com) sends a web request it shows a shoutout,
-raid, follow or gifted-sub screen. It can then play one of that streamer's
-Twitch clips, and set your room lights to the colour of their profile picture.
+raid, follow, sub, resub, bits or gifted-sub screen, welcomes first-time
+chatters and tracks hype trains. It can play one of that streamer's Twitch
+clips, and set your room lights to the colour of their profile picture.
 
 It runs in Docker (a NAS is ideal). The TV just opens a web page, and
 everything is set up from a settings page in the browser.
@@ -34,6 +35,18 @@ stream (needs [Twitch API keys](#twitch-api-keys-optional-recommended)).
 | --- | --- |
 | ![Thanks for the follow](docs/screenshots/follow.jpg) | ![Gifted subs](docs/screenshots/gifted-subs.jpg) |
 
+| New sub | Resub |
+| --- | --- |
+| ![New subscriber](docs/screenshots/sub.jpg) | ![Resub with month count and message](docs/screenshots/resub.jpg) |
+
+| Bits | First-time chatters |
+| --- | --- |
+| ![Bits with gem rain](docs/screenshots/bits.jpg) | ![Welcome pop-ups in the corner](docs/screenshots/welcome.jpg) |
+
+| Hype train | Halloween theme |
+| --- | --- |
+| ![Hype train bar and level-up banner](docs/screenshots/hype-train.jpg) | ![Follow screen with bats](docs/screenshots/theme-halloween.jpg) |
+
 ### Settings page
 
 ![Settings page with live preview](docs/screenshots/settings.jpg)
@@ -57,7 +70,23 @@ stream (needs [Twitch API keys](#twitch-api-keys-optional-recommended)).
 - **Follows**: "Thanks for the follow!" with their picture and floating hearts.
 - **Gifted subs**: the gifter, then every recipient's picture and name.
   One-at-a-time gift events from MixItUp are combined into one screen.
+- **Subs and resubs**: a star badge and confetti; resubs show the month
+  count big, plus their resub message.
+- **Bits**: gems rain down in Twitch's cheer colours (grey, purple, teal,
+  blue, red by amount), with the amount and their message.
+- **First-time chatters**: a small "Welcome!" pop-up in the corner that
+  doesn't interrupt whatever is on screen.
+- **Hype train**: a progress bar along the bottom that fills as it goes,
+  with banners when it starts, levels up and ends.
 - **Messages**: a big text bubble for chat commands.
+- **Your words**: every line of text on every screen can be changed, with
+  `{name}`, `{months}`, `{amount}` and so on filled in.
+- **Your colours**: each event uses the avatar's colour, the theme's colour,
+  or one you pick. Your lights follow it.
+- **Themes**: Halloween (bats, orange), Winter holidays (snowflakes),
+  Valentine's, St Patrick's (clovers). Switch in one click, or schedule
+  them by date so they turn on and off by themselves.
+- **Backup and restore** of all settings in one file.
 - **Logo library**: upload videos or images, pick which one loops.
 - **Light sync**: calls your light controller with the avatar's colour,
   e.g. [Govee Lights Controller](https://github.com/TTV-VibesByVince/Govee-Lights-Controller)
@@ -65,6 +94,8 @@ stream (needs [Twitch API keys](#twitch-api-keys-optional-recommended)).
 - **Lite mode** for TV sticks and smart-TV browsers (Fully Kiosk etc.).
 - A live preview and test buttons for every event on the settings page.
 - Events queue up and play one after another.
+- Everything is self-contained: fonts are bundled, so the TV page doesn't
+  need the internet (only Twitch lookups and clips do).
 
 ## Install
 
@@ -164,14 +195,31 @@ server's address.
 | Followed | `/follow/$username` |
 | Subscription Gifted | `/gift/$username?to=$targetusername` |
 | Mass Subscriptions Gifted (optional) | `/giftbomb/$username?count=<amount>` |
+| Subscribed | `/sub/$username?tier=<tier>` |
+| Resubscribed | `/resub/$username?months=<months>&message=<message>` |
+| Bits Cheered | `/bits/$username?amount=<bits>&message=<message>` |
+| First chat message | `/welcome/$username` |
+| Hype Train Start | `/hypetrain/start?level=<level>` |
+| Hype Train progress / Level Up | `/hypetrain/progress?level=<level>&percent=<percent>` |
+| Hype Train End | `/hypetrain/end?level=<level>` |
 | A chat command | `/message?text=$allargs&from=$username` |
-| | `/logo`: clear the queue and go back to the logo |
+| | `/logo`: clear the queue and the hype bar, back to the logo |
 | | `/reload`: reload every TV page |
 | | `/status`: JSON status |
 
-Check the exact variable names (raid viewer count, gift amount) in
-MixItUp's event editor. Shoutout and raid also take `&clip=0|1`,
-`&sound=0|1`, `&display=Name`, `&game=Game` and `&avatar=<picture link>`.
+Words in `<angle brackets>` are MixItUp's special identifiers for that
+event; pick the matching ones in MixItUp's event editor (the names vary by
+event and version). Everything after `?` is optional except the bits
+`amount`:
+
+- Shoutout and raid: `&clip=0|1`, `&sound=0|1`, `&display=Name`,
+  `&game=Game`, `&avatar=<picture link>`.
+- Sub and resub `tier`: `1`, `2`, `3`, `prime`, or Twitch's `1000/2000/3000`.
+- Hype train: `percent=` (0 to 100), or `progress=` and `goal=` as numbers.
+  A higher `level` than last time shows a level-up banner. If no update
+  arrives for 6 minutes, the bar hides by itself.
+- `/welcome` shows straight away in the corner, even over another screen;
+  everything else waits its turn in the queue.
 
 ## Twitch API keys (optional, recommended)
 
@@ -214,6 +262,49 @@ The Test buttons always send purple (`9146ff`); real events use the avatar
 colour. Give the PC a fixed address (a DHCP reservation in your router) so
 the URLs keep working.
 
+## Make it yours
+
+### Text
+
+Settings > **Text & colours** has a box for every line on every screen.
+Leave a box empty to keep the default. Placeholders like `{name}`,
+`{months}`, `{amount}`, `{tier}`, `{count}`, `{viewers}`, `{game}` and
+`{level}` are filled in (each event lists the ones it has). Text in
+`[square brackets]` only shows when its placeholder has a value, so
+`[Last seen playing {game}]` disappears for someone with no game.
+
+### Colours
+
+Each event's colour drives its glow, accents and your lights:
+
+- **Avatar colour** (default): picked from their profile picture.
+- **Theme colour**: the current theme's colour (e.g. orange at Halloween).
+- **Custom**: any colour you choose.
+
+### Themes
+
+Settings > **Theme**. A theme changes the confetti, the shapes that float up
+on the follow screen, the raid's warp colours and the theme colour.
+
+| Theme | Floats | Colour |
+| --- | --- | --- |
+| Vibe (default) | hearts | purple |
+| Halloween | bats | orange |
+| Winter holidays | snowflakes | red |
+| Valentine's | hearts | pink |
+| St Patrick's | clovers | green |
+
+Click one to switch every TV at once. Under **Schedule**, add date ranges
+(they repeat every year) and the theme turns itself on and off; **Add the
+holiday presets** fills in sensible dates. A scheduled theme beats the one
+you clicked while its dates last.
+
+### Backup
+
+Settings > **Backup** downloads every setting in one JSON file (the Twitch
+secret only if you tick the box) and restores it again, e.g. after
+reinstalling. Logo files aren't in it: they live in the `media` folder.
+
 ## Slow TVs
 
 Settings > Timing > **TV animation quality**. *Auto* (the default) uses lite
@@ -238,4 +329,6 @@ also updates yt-dlp, which fixes most "clips stopped working" problems.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The bundled fonts, [Bungee](https://fonts.google.com/specimen/Bungee)
+and [Outfit](https://fonts.google.com/specimen/Outfit), are under the SIL
+Open Font License 1.1 (see `app/static/fonts`).

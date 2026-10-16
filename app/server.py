@@ -13,6 +13,13 @@ Added in 1.2:
   /gift/<gifter>?to=<user>   one gifted sub; gifts from the same person that
                              arrive close together are shown as one screen
   /giftbomb/<gifter>?count=N a mass gift (recipients from /gift calls join it)
+Added in 1.3:
+  /sub/<user>                ?tier=1|2|3|prime       new subscriber card
+  /resub/<user>?months=N     &tier= &message=        resub card with the month count
+  /bits/<user>?amount=N      &message=               cheer card, gems rain down
+  /welcome/<user>            first-time chatter: a small corner pop-up (not queued)
+  /hypetrain/start|progress|end  ?level= &progress= &goal= (or &percent=)
+                             a progress bar along the bottom of the TV
 TV page: /  or  /tv  (?mode=lite or ?mode=full to override)   Settings: /admin
 """
 
@@ -32,7 +39,7 @@ import aiohttp
 from aiohttp import web
 from PIL import Image
 
-VERSION = "1.2"
+VERSION = "1.3"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -72,6 +79,13 @@ SCHEMA = {
     "message_seconds":      (float, _env_num("MESSAGE_SECONDS", 10)),
     "follow_seconds":       (float, _env_num("FOLLOW_SECONDS", 6)),
     "gift_seconds":         (float, _env_num("GIFT_SECONDS", 10)),
+    "sub_seconds":          (float, _env_num("SUB_SECONDS", 8)),      # subs and resubs
+    "bits_seconds":         (float, _env_num("BITS_SECONDS", 8)),
+    "welcome_seconds":      (float, _env_num("WELCOME_SECONDS", 7)),
+    "texts":                (dict,  {}),          # event text overrides, see TEXT_DEFAULTS
+    "colors":               (dict,  {}),          # event -> "auto" | "theme" | "#rrggbb"
+    "theme":                (str,   "default"),   # see THEMES
+    "theme_schedule":       (list,  []),          # [{"theme", "from": "MM-DD", "to": "MM-DD"}]
     "tv_mode":              (str,   os.getenv("TV_MODE", "auto")),   # auto | full | lite
     "max_clip_seconds":     (float, _env_num("MAX_CLIP_SECONDS", 30)),
     "clips":                (bool,  os.getenv("CLIPS", "1") == "1"),
@@ -85,10 +99,111 @@ SCHEMA = {
 SECRET_KEYS = {"twitch_client_secret"}
 LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "message_seconds": (2, 60), "max_clip_seconds": (5, 60),
-          "follow_seconds": (2, 60), "gift_seconds": (4, 60)}
+          "follow_seconds": (2, 60), "gift_seconds": (4, 60),
+          "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30)}
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
 GIFT_MAX_WAIT = 12.0    # never hold a batch longer than this
 MAX_QUEUE = 25          # follows are dropped beyond this (follow-bot floods)
+HYPE_TIMEOUT = 360      # hide the hype bar if no update arrives for this long
+
+# ── Words on screen ──────────────────────────────────────────────────────
+# Every line can be changed on the settings page. {placeholders} are filled
+# in; text in [square brackets] only shows when its placeholders have values.
+TEXT_DEFAULTS = {
+    "shoutout.kicker":  "GO FOLLOW",
+    "shoutout.sub":     "[Last seen playing {game}]",
+    "raid.title":       "RAID!",
+    "raid.sub":         "is raiding[ from {game}] with",
+    "raid.label":       "RAIDERS",
+    "follow.title":     "THANKS FOR THE FOLLOW!",
+    "gift.title":       "GIFTED {count} SUBS",
+    "gift.title_one":   "GIFTED A SUB",
+    "gift.to":          "to",
+    "sub.title":        "THANKS FOR SUBSCRIBING!",
+    "sub.sub":          "[{tier} sub]",
+    "resub.title":      "{months} MONTHS!",
+    "resub.sub":        "Thanks for resubscribing[ · {tier}]",
+    "bits.title":       "{amount} BITS!",
+    "bits.sub":         "Thanks for the cheer",
+    "welcome.title":    "Welcome!",
+    "welcome.sub":      "First time in chat",
+    "hype.title":       "HYPE TRAIN",
+    "hype.start":       "HYPE TRAIN!",
+    "hype.levelup":     "LEVEL {level}!",
+    "hype.end":         "HYPE TRAIN COMPLETE · LEVEL {level}",
+}
+COLOR_EVENTS = ["shoutout", "raid", "follow", "gift", "sub", "resub", "bits", "welcome", "hype", "message"]
+COLOR_DEFAULTS = {e: "auto" for e in COLOR_EVENTS} | {"hype": "theme", "message": "theme"}
+
+# ── Themes ───────────────────────────────────────────────────────────────
+# accent: used when an event's colour is "theme" (and when an avatar has no
+# usable colour). confetti / warp: particle colours. float: the shape that
+# drifts up on follow and sub screens.
+THEMES = {
+    "default":   {"name": "Vibe (default)", "accent": "#9146ff", "float": "heart",
+                  "float_colors": ["#ff2a6d", "#ff6fa8", "#ffffff"],
+                  "confetti": ["#ff3b3b", "#ff9f1c", "#ffe14d", "#3ddc84", "#3ba7ff", "#9146ff"],
+                  "warp": ["#ffffff", "#ff2a6d", "#05d9e8"]},
+    "halloween": {"name": "Halloween", "accent": "#ff7a00", "float": "bat",
+                  "float_colors": ["#8e44ff", "#ff7a00", "#b28dff"],
+                  "confetti": ["#ff7a00", "#ffb000", "#8e44ff", "#39ff14", "#ffffff"],
+                  "warp": ["#ff7a00", "#8e44ff", "#39ff14"]},
+    "holidays":  {"name": "Winter holidays", "accent": "#e3263c", "float": "snow",
+                  "float_colors": ["#ffffff", "#cfe9ff", "#a8d8ff"],
+                  "confetti": ["#e3263c", "#1fa64a", "#ffffff", "#ffd34d", "#9fd8ff"],
+                  "warp": ["#ffffff", "#e3263c", "#1fa64a"]},
+    "valentine": {"name": "Valentine's", "accent": "#ff2a6d", "float": "heart",
+                  "float_colors": ["#ff2a6d", "#ff8fb1", "#ffffff"],
+                  "confetti": ["#ff2a6d", "#ff8fb1", "#ffffff", "#c9184a", "#ffd6e0"],
+                  "warp": ["#ffffff", "#ff8fb1", "#ff2a6d"]},
+    "stpatricks": {"name": "St Patrick's", "accent": "#20c05c", "float": "clover",
+                   "float_colors": ["#20c05c", "#7cf29c", "#ffd34d"],
+                   "confetti": ["#20c05c", "#7cf29c", "#ffd34d", "#ffffff", "#0b8a3a"],
+                   "warp": ["#ffffff", "#7cf29c", "#ffd34d"]},
+}
+MMDD_RE = re.compile(r"^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _check_dict(key, val):
+    """Validate the dict / list settings; returns (clean value, error)."""
+    if key == "texts":
+        if not isinstance(val, dict):
+            return None, "texts: must be an object"
+        out = {}
+        for k, v in val.items():
+            if k not in TEXT_DEFAULTS:
+                continue
+            v = str(v).strip()[:120]
+            if v and v != TEXT_DEFAULTS[k]:
+                out[k] = v                      # blank = back to the default
+        return out, None
+    if key == "colors":
+        if not isinstance(val, dict):
+            return None, "colors: must be an object"
+        out = {}
+        for k, v in val.items():
+            v = str(v).strip().lower()
+            if k not in COLOR_EVENTS:
+                continue
+            if v not in ("auto", "theme") and not COLOR_RE.match(v):
+                return None, f"colors.{k}: auto, theme or a #rrggbb colour"
+            if v != COLOR_DEFAULTS[k]:
+                out[k] = v
+        return out, None
+    if key == "theme_schedule":
+        if not isinstance(val, list) or len(val) > 24:
+            return None, "theme_schedule: a list of up to 24 entries"
+        out = []
+        for i, e in enumerate(val, 1):
+            if not isinstance(e, dict):
+                return None, f"theme_schedule #{i}: bad entry"
+            t, a, b = e.get("theme"), str(e.get("from", "")), str(e.get("to", ""))
+            if t not in THEMES or not MMDD_RE.match(a) or not MMDD_RE.match(b):
+                return None, f"theme_schedule #{i}: needs a theme and dates as MM-DD"
+            out.append({"theme": t, "from": a, "to": b})
+        return out, None
+    return None, f"{key}: unsupported"
 
 
 class Settings:
@@ -120,6 +235,13 @@ class Settings:
             kind = SCHEMA[key][0]
             if key in SECRET_KEYS and val in (None, ""):
                 continue                        # blank = keep the saved secret
+            if kind in (dict, list):
+                val, err = _check_dict(key, val)
+                if err:
+                    errors.append(err)
+                else:
+                    clean[key] = val
+                continue
             try:
                 if kind is bool:
                     val = val if isinstance(val, bool) else str(val).lower() in ("1", "true", "yes", "on")
@@ -138,6 +260,9 @@ class Settings:
                 continue
             if key == "tv_mode" and val not in ("auto", "full", "lite"):
                 errors.append("tv_mode: auto, full or lite")
+                continue
+            if key == "theme" and val not in THEMES:
+                errors.append("theme: unknown theme")
                 continue
             if key == "logo" and val and not media_path(val):
                 errors.append("logo: no such file in the media folder")
@@ -178,7 +303,7 @@ def logo_info():
             if (MEDIA / cand).exists():
                 name = cand
                 break
-    common = {"logo_fit": S["logo_fit"], "tv_mode": S["tv_mode"]}
+    common = {"logo_fit": S["logo_fit"], "tv_mode": S["tv_mode"], "theme": theme_info()}
     if not name:
         return {"logo": "", "logo_kind": "", **common}
     kind = "image" if Path(name).suffix.lower() in IMAGE_EXT else "video"
@@ -187,6 +312,55 @@ def logo_info():
 
 def logo_url():
     return logo_info()["logo"]
+
+
+def active_theme_id(today=None):
+    """The scheduled theme for today (first match wins), else the chosen one.
+    Ranges may wrap the new year, e.g. 12-15 to 01-05."""
+    md = time.strftime("%m-%d", today or time.localtime())
+    for e in S["theme_schedule"]:
+        a, b = e["from"], e["to"]
+        if (a <= md <= b) if a <= b else (md >= a or md <= b):
+            return e["theme"]
+    return S["theme"] if S["theme"] in THEMES else "default"
+
+
+def theme_info():
+    tid = active_theme_id()
+    return {"id": tid, **THEMES[tid]}
+
+
+def text_for(key, **values):
+    """Fill one on-screen line: {placeholders}, and [optional parts] that only
+    show when every placeholder inside them has a value."""
+    tpl = S["texts"].get(key) or TEXT_DEFAULTS[key]
+    vals = {k: ("" if v is None else str(v)) for k, v in values.items()}
+
+    def fill(s):
+        return re.sub(r"\{(\w+)\}", lambda m: vals.get(m.group(1), ""), s)
+
+    def optional(m):
+        part = m.group(1)
+        names = re.findall(r"\{(\w+)\}", part)
+        return fill(part) if all(vals.get(n) for n in names) else ""
+
+    return re.sub(r"\s{2,}", " ", fill(re.sub(r"\[([^\[\]]*)\]", optional, tpl))).strip()
+
+
+def event_color(kind, avatar_hex):
+    """6-digit hex (no #) for an event: the avatar's colour, the theme's, or
+    a fixed one, as set on the settings page."""
+    mode = S["colors"].get(kind, COLOR_DEFAULTS.get(kind, "auto"))
+    theme_hex = theme_info()["accent"].lstrip("#")
+    if mode == "theme":
+        return theme_hex
+    if mode.startswith("#"):
+        return mode.lstrip("#")
+    return avatar_hex or theme_hex
+
+
+TIERS = {"1": "Tier 1", "1000": "Tier 1", "2": "Tier 2", "2000": "Tier 2",
+         "3": "Tier 3", "3000": "Tier 3", "prime": "Prime"}
 
 
 # ── Twitch ───────────────────────────────────────────────────────────────
@@ -313,6 +487,8 @@ class TV:
         self.running = None
         self.last_govee = ""
         self.gifts = {}            # gifter login -> batch being collected
+        self.hype = None           # running hype train, or None
+        self.hype_expiry = None
 
     @property
     def tv_count(self):
@@ -417,6 +593,70 @@ class TV:
                                   "display": b["display"], "recipients": b["recipients"],
                                   "count": b["count"] or len(b["recipients"]), "clip": False})
 
+    # ── first-time chatter: a corner pop-up, shown at once, never queued ──
+    async def welcome(self, ev):
+        try:
+            profile = await self.build_profile(ev)
+            color = event_color("welcome", await self.avatar_color(profile["avatar"]))
+            ctx = {"name": profile["display_name"]}
+            await self.broadcast({"type": "welcome", "user": profile, "color": color,
+                                  "seconds": S["welcome_seconds"],
+                                  "text": {"title": text_for("welcome.title", **ctx),
+                                           "sub": text_for("welcome.sub", **ctx)}})
+        except Exception as e:
+            log.warning("welcome failed: %s", e)
+
+    # ── hype train: a bar along the bottom that lives alongside everything ──
+    def hype_message(self, banner=None):
+        h = self.hype
+        state = None
+        if h:
+            state = {"level": h["level"], "percent": h["percent"], "progress": h["progress"],
+                     "goal": h["goal"], "title": text_for("hype.title", level=h["level"])}
+        return {"type": "hype", "state": state, "banner": banner, "color": event_color("hype", None)}
+
+    async def hype_update(self, action, level=None, progress=None, goal=None, percent=None):
+        prev = self.hype
+        if action == "end":
+            lvl = level or (prev["level"] if prev else 1)
+            self.hype = None
+            if self.hype_expiry:
+                self.hype_expiry.cancel()
+            await self.broadcast(self.hype_message({"kind": "end", "text": text_for("hype.end", level=lvl)}))
+            return
+        lvl = level or (prev["level"] if prev else 1)
+        if percent is None and progress is not None and goal:
+            percent = progress / goal * 100
+        if percent is None and prev and prev["level"] == lvl:
+            percent = prev["percent"]
+        banner = None
+        if action == "start" or prev is None:
+            banner = {"kind": "start", "text": text_for("hype.start", level=lvl)}
+        elif lvl > prev["level"]:
+            banner = {"kind": "levelup", "text": text_for("hype.levelup", level=lvl)}
+        self.hype = {"level": lvl, "percent": None if percent is None else max(0.0, min(100.0, percent)),
+                     "progress": progress, "goal": goal}
+        await self.broadcast(self.hype_message(banner))
+        if self.hype_expiry:
+            self.hype_expiry.cancel()
+        self.hype_expiry = asyncio.create_task(self._hype_timeout())
+
+    async def _hype_timeout(self):
+        await asyncio.sleep(HYPE_TIMEOUT)
+        self.hype = None
+        await self.broadcast(self.hype_message())
+
+    async def theme_watch(self):
+        """Switch the TVs over when a scheduled theme's dates begin or end."""
+        current = active_theme_id()
+        while True:
+            await asyncio.sleep(60)
+            now = active_theme_id()
+            if now != current:
+                current = now
+                log.info("theme is now %s", now)
+                await self.broadcast({"type": "logo_src", **logo_info()})
+
     async def fetch_clip(self, broadcaster_id):
         if not (self.twitch.enabled and broadcaster_id):
             return None
@@ -438,7 +678,14 @@ class TV:
         kind = ev["type"]
         if kind in ("shoutout", "raid"):
             profile = await self.build_profile(ev)
-            color = await self.avatar_color(profile["avatar"])
+            color = event_color(kind, await self.avatar_color(profile["avatar"]))
+            ctx = {"name": profile["display_name"], "game": profile.get("game"),
+                   "viewers": ev.get("viewers")}
+            if kind == "raid":
+                text = {"title": text_for("raid.title", **ctx), "sub": text_for("raid.sub", **ctx),
+                        "label": text_for("raid.label", **ctx)}
+            else:
+                text = {"kicker": text_for("shoutout.kicker", **ctx), "sub": text_for("shoutout.sub", **ctx)}
             # The clip downloads while the card is on screen instead of
             # holding the card back.
             want_clip = ev["clip"] if ev.get("clip") is not None else S["clips"]
@@ -447,7 +694,8 @@ class TV:
             card_time = S["raid_seconds"] if kind == "raid" else S["card_seconds"]
             sound = ev["sound"] if ev.get("sound") is not None else S["clip_sound"]
             payload = {"type": kind, "user": profile, "color": color, "viewers": ev.get("viewers"),
-                       "sound": sound, "card_seconds": card_time, "clip_pending": bool(clip_task)}
+                       "sound": sound, "card_seconds": card_time, "clip_pending": bool(clip_task),
+                       "text": text}
             self.current = payload
             await self.broadcast(payload)
             if color:
@@ -476,18 +724,33 @@ class TV:
             finally:
                 if preload:
                     preload.cancel()
-        elif kind in ("follow", "gift"):
+        elif kind in ("follow", "gift", "sub", "resub", "bits"):
             profile = await self.build_profile(ev)
-            color = await self.avatar_color(profile["avatar"])
+            color = event_color(kind, await self.avatar_color(profile["avatar"]))
             payload = {"type": kind, "user": profile, "color": color}
+            ctx = {"name": profile["display_name"], "tier": ev.get("tier"),
+                   "months": ev.get("months"), "amount": ev.get("amount")}
             if kind == "follow":
                 secs = S["follow_seconds"]
-            else:
+                text = {"title": text_for("follow.title", **ctx)}
+            elif kind == "gift":
                 recipients = await self.recipient_profiles(ev.get("recipients", []))
                 count = max(ev.get("count") or 0, len(recipients))
+                ctx["count"] = f"{count:,}"
                 # big gift bombs get a little longer so the names can be read
                 secs = S["gift_seconds"] + min(max(len(recipients) - 8, 0) * 0.25, 8)
                 payload.update({"recipients": recipients, "count": count})
+                text = {"title": text_for("gift.title_one" if count == 1 else "gift.title", **ctx),
+                        "to": text_for("gift.to", **ctx)}
+            else:                                   # sub, resub, bits
+                secs = S["bits_seconds"] if kind == "bits" else S["sub_seconds"]
+                if ctx["amount"] is not None:
+                    ctx["amount"] = f"{ctx['amount']:,}"
+                text = {"title": text_for(f"{kind}.title", **ctx), "sub": text_for(f"{kind}.sub", **ctx),
+                        "message": (ev.get("message") or "")[:140]}
+                payload.update({"months": ev.get("months"), "amount": ev.get("amount"),
+                                "tier": ev.get("tier")})
+            payload["text"] = text
             payload["card_seconds"] = secs
             self.current = payload
             await self.broadcast(payload)
@@ -496,7 +759,8 @@ class TV:
             await asyncio.sleep(secs + 0.6)
         elif kind == "message":
             secs = S["message_seconds"]
-            payload = {"type": "message", "text": ev["text"][:140], "from": ev.get("from", ""), "seconds": secs}
+            payload = {"type": "message", "text": ev["text"][:140], "from": ev.get("from", ""), "seconds": secs,
+                       "color": event_color("message", None)}
             self.current = payload
             await self.broadcast(payload)
             await asyncio.sleep(secs + 1)
@@ -561,6 +825,8 @@ async def ws_handler(request):
     tv.clients[ws] = {"preview": preview}
     log.info("%s connected (%d tvs)", "preview" if preview else "tv", tv.tv_count)
     await ws.send_str(json.dumps({"type": "hello", "version": VERSION, **logo_info()}))
+    if tv.hype:                               # a TV that (re)connects mid hype train
+        await ws.send_str(json.dumps(tv.hype_message()))
     try:
         async for _ in ws:
             pass
@@ -627,6 +893,76 @@ async def giftbomb(request):
     return web.json_response({"ok": True, "collected": n})
 
 
+def _int(request, name, lo=0, hi=10**7):
+    raw = (request.query.get(name) or "").strip().replace(",", "")
+    try:
+        return max(lo, min(hi, int(float(raw))))
+    except ValueError:
+        return None
+
+
+def _tier(request):
+    return TIERS.get((request.query.get("tier") or request.query.get("plan") or "").strip().lower())
+
+
+def _queue_or_skip(ev):
+    if tv.queue.qsize() >= MAX_QUEUE:
+        return web.json_response({"ok": False, "skipped": "queue full"})
+    tv.queue.put_nowait(ev)
+    return queued()
+
+
+async def sub(request):
+    """New subscriber: /sub/<user>?tier=1|2|3|prime"""
+    ev = _card_event(request, "sub")
+    ev.update({"clip": False, "tier": _tier(request)})
+    return _queue_or_skip(ev)
+
+
+async def resub(request):
+    """Resub: /resub/<user>?months=N&tier=&message="""
+    ev = _card_event(request, "resub")
+    months = _int(request, "months", 1, 1000) or _int(request, "cumulative", 1, 1000)
+    ev.update({"clip": False, "tier": _tier(request), "months": months,
+               "message": (request.query.get("message") or "").strip()})
+    return _queue_or_skip(ev)
+
+
+async def bits(request):
+    """Cheer: /bits/<user>?amount=N&message="""
+    amount = _int(request, "amount", 1) or _int(request, "bits", 1)
+    if not amount:
+        raise web.HTTPBadRequest(text="amount required, e.g. /bits/name?amount=100")
+    ev = _card_event(request, "bits")
+    ev.update({"clip": False, "amount": amount,
+               "message": (request.query.get("message") or "").strip()})
+    return _queue_or_skip(ev)
+
+
+async def welcome(request):
+    """First-time chatter: a corner pop-up that shows right away."""
+    ev = _card_event(request, "welcome")
+    asyncio.create_task(tv.welcome(ev))
+    return web.json_response({"ok": True})
+
+
+async def hypetrain(request):
+    """/hypetrain/start, /hypetrain/progress (or /hypetrain/levelup), /hypetrain/end
+    with ?level= and either &progress=&goal= or &percent="""
+    action = request.match_info.get("action", "progress").lower()
+    if action not in ("start", "progress", "levelup", "update", "end"):
+        raise web.HTTPNotFound(text="use /hypetrain/start, /hypetrain/progress or /hypetrain/end")
+    pct = request.query.get("percent", "").strip().rstrip("%")
+    try:
+        pct = float(pct) if pct else None
+    except ValueError:
+        pct = None
+    await tv.hype_update("start" if action == "start" else "end" if action == "end" else "progress",
+                         level=_int(request, "level", 1, 100), progress=_int(request, "progress"),
+                         goal=_int(request, "goal", 1), percent=pct)
+    return web.json_response({"ok": True, "hype": tv.hype})
+
+
 async def message(request):
     text = (request.query.get("text") or "").strip()
     if not text:
@@ -646,6 +982,9 @@ async def logo(request):
     if tv.running and not tv.running.done():
         tv.running.cancel()
     tv.current = None
+    if tv.hype:                                 # /logo also clears the hype bar
+        tv.hype = None
+        await tv.broadcast(tv.hype_message())
     await tv.broadcast({"type": "logo"})
     await tv.govee(None)
     return web.json_response({"ok": True})
@@ -713,7 +1052,47 @@ async def api_state(request):
                    **logo_info()},
         "media": list_media(),
         "password_protected": bool(ADMIN_PASSWORD),
+        "text_defaults": TEXT_DEFAULTS,
+        "color_events": COLOR_EVENTS,
+        "color_defaults": COLOR_DEFAULTS,
+        "themes": THEMES,
+        "active_theme": active_theme_id(),
     })
+
+
+async def api_backup(request):
+    """All settings in one JSON file. The Twitch secret only with ?secrets=1."""
+    data = dict(S.data)
+    if request.query.get("secrets") != "1":
+        for k in SECRET_KEYS:
+            data.pop(k, None)
+    body = {"vibe_tv_backup": 1, "version": VERSION, "created": time.strftime("%Y-%m-%d %H:%M"),
+            "settings": data}
+    name = f"vibe-tv-settings-{time.strftime('%Y-%m-%d')}.json"
+    return web.Response(text=json.dumps(body, indent=2), content_type="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+async def api_restore(request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise web.HTTPBadRequest(text="Not a Vibe TV backup file (not JSON)")
+    settings = body.get("settings") if isinstance(body, dict) else None
+    if not (isinstance(body, dict) and body.get("vibe_tv_backup") and isinstance(settings, dict)):
+        return web.json_response({"ok": False, "errors": ["Not a Vibe TV backup file"]}, status=400)
+    notes = []
+    settings = {k: v for k, v in settings.items() if k in SCHEMA}
+    if settings.get("logo") and not media_path(settings["logo"]):
+        notes.append(f"Logo '{settings['logo']}' isn't on this server; upload it, then pick it again.")
+        settings.pop("logo")
+    before = logo_info()
+    errors = S.update(settings)
+    if errors:
+        return web.json_response({"ok": False, "errors": errors}, status=400)
+    if logo_info() != before:
+        await tv.broadcast({"type": "logo_src", **logo_info()})
+    return web.json_response({"ok": True, "notes": notes, "restored": len(settings)})
 
 
 async def api_settings(request):
@@ -813,12 +1192,14 @@ async def on_startup(app):
     tv.session = aiohttp.ClientSession()
     tv.twitch = Twitch(tv.session)
     app["worker"] = asyncio.create_task(tv.worker())
+    app["themes"] = asyncio.create_task(tv.theme_watch())
     log.info("Vibe TV v%s on :%d (twitch api: %s, logo: %s, admin password: %s)",
              VERSION, PORT, tv.twitch.enabled, logo_url() or "none", "on" if ADMIN_PASSWORD else "off")
 
 
 async def on_cleanup(app):
     app["worker"].cancel()
+    app["themes"].cancel()
     await tv.session.close()
 
 
@@ -836,6 +1217,12 @@ def make_app():
     app.router.add_route("*", "/follow/{user}", follow)
     app.router.add_route("*", "/gift/{user}", gift)
     app.router.add_route("*", "/giftbomb/{user}", giftbomb)
+    app.router.add_route("*", "/sub/{user}", sub)
+    app.router.add_route("*", "/resub/{user}", resub)
+    app.router.add_route("*", "/bits/{user}", bits)
+    app.router.add_route("*", "/welcome/{user}", welcome)
+    app.router.add_route("*", "/hypetrain", hypetrain)
+    app.router.add_route("*", "/hypetrain/{action}", hypetrain)
     app.router.add_route("*", "/message", message)
     app.router.add_route("*", "/logo", logo)
     app.router.add_route("*", "/reload", reload)
@@ -847,6 +1234,8 @@ def make_app():
     app.router.add_delete("/api/media/{name}", api_delete_media)
     app.router.add_post("/api/test/lights", api_test_lights)
     app.router.add_post("/api/test/twitch", api_test_twitch)
+    app.router.add_get("/api/backup", api_backup)
+    app.router.add_post("/api/restore", api_restore)
     app.router.add_static("/media", MEDIA, show_index=False)
     app.router.add_static("/cache", CACHE, show_index=False)
     app.router.add_static("/static", STATIC, show_index=False)

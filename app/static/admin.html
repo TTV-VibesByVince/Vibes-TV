@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vibe TV Settings</title>
-<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link href="/static/fonts/fonts.css" rel="stylesheet">
 <style>
   :root {
     --bg: #0d0b14; --card: #16131f; --card2: #1d1929; --line: #2a2539; --text: #f1eef8;
@@ -86,7 +86,29 @@
     opacity: 0; transition: all .25s; pointer-events: none; z-index: 10; }
   .toast.show { opacity: 1; transform: translateX(-50%); }
 
+  h3.sub { font-size: 14px; margin: 20px 0 4px; }
+  .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+  .theme { text-align: left; display: block; padding: 0; overflow: hidden; border-radius: 12px; background: var(--card2); }
+  .theme.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px rgba(145,70,255,.35); }
+  .theme .sw { display: flex; height: 44px; }
+  .theme .sw i { flex: 1; }
+  .theme .sw i:first-child { flex: 2.2; }
+  .theme .tn { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; font-size: 13px; }
+  .theme .tn span { font-size: 18px; }
+  .sched-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 8px; align-items: center; margin-top: 8px; }
+  .sched-row label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .evlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+  .ev { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .ev h4 { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; margin-bottom: 4px; }
+  .ev .cm { display: flex; align-items: center; gap: 6px; }
+  .ev .cm select { width: auto; padding: 6px 8px; font-size: 12px; }
+  .ev input[type=color] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); cursor: pointer; }
+  .ev label.f { margin-top: 8px; }
+  .ev label.f > span { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .ev input[type=text] { padding: 8px 10px; font-size: 13px; }
+
   @media (max-width: 860px) {
+    .sched-row { grid-template-columns: 1fr 1fr; }
     main { grid-template-columns: minmax(0, 1fr); padding: 16px; }
     .grid2 { grid-template-columns: 1fr; }
     header { padding: 12px 16px; }
@@ -117,6 +139,11 @@
       <div class="row"><button onclick="test('raid')" style="flex:1">Test raid</button><input type="number" id="tViewers" value="42" min="0" style="width:90px;flex:none" title="Raiders"></div>
       <button onclick="test('follow')">Test follow</button>
       <div class="row"><button onclick="test('gift')" style="flex:1">Test gifted subs</button><input type="number" id="tGifts" value="5" min="0" max="60" style="width:90px;flex:none" title="How many recipients (0 = a mass gift with no names)"></div>
+      <button onclick="test('sub')">Test sub</button>
+      <div class="row"><button onclick="test('resub')" style="flex:1">Test resub</button><input type="number" id="tMonths" value="12" min="1" style="width:90px;flex:none" title="Months"></div>
+      <div class="row"><button onclick="test('bits')" style="flex:1">Test bits</button><input type="number" id="tBits" value="500" min="1" style="width:90px;flex:none" title="Bits"></div>
+      <button onclick="test('welcome')">Test first-time chatter</button>
+      <div class="row full"><span class="hint" style="flex:none;margin-right:2px">Hype train:</span><button onclick="hype('start')" style="flex:1">Start</button><button onclick="hype('progress')" style="flex:1">Progress</button><button onclick="hype('levelup')" style="flex:1">Level up</button><button onclick="hype('end')" style="flex:1">End</button></div>
       <div class="row full"><input type="text" id="tMsg" placeholder="Message text" value="Welcome to the stream!"><button onclick="test('message')">Show message</button></div>
       <button onclick="call('/logo')">Back to logo</button>
       <button onclick="call('/reload')">Reload TVs</button>
@@ -147,6 +174,9 @@
       <label class="f"><span>Longest clip (seconds)</span><input type="number" data-k="max_clip_seconds" min="5" max="60" step="1"></label>
       <label class="f"><span>Follow (seconds)</span><input type="number" data-k="follow_seconds" min="2" max="60" step="0.5"></label>
       <label class="f"><span>Gifted subs (seconds)</span><input type="number" data-k="gift_seconds" min="4" max="60" step="0.5"></label>
+      <label class="f"><span>Subs and resubs (seconds)</span><input type="number" data-k="sub_seconds" min="3" max="60" step="0.5"></label>
+      <label class="f"><span>Bits (seconds)</span><input type="number" data-k="bits_seconds" min="3" max="60" step="0.5"></label>
+      <label class="f"><span>First-time chatter pop-up (seconds)</span><input type="number" data-k="welcome_seconds" min="2" max="30" step="0.5"></label>
     </div>
     <label class="f"><span>TV animation quality</span>
       <select data-k="tv_mode">
@@ -180,6 +210,42 @@
       <label class="f"><span>Back-to-normal URL</span><div class="row"><input type="url" class="mono" data-k="govee_reset_url" placeholder="http://<pc-ip>:8765/default"><button onclick="testLights('reset')">Test</button></div></label>
       <div class="f"><span style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Last light call</span><div class="result mono" id="lightRes" style="margin:0">—</div></div>
     </div>
+  </section>
+
+  <section class="wide">
+    <h2>Theme <span class="chip" id="themeNow" style="font-weight:600"></span></h2>
+    <p class="hint">Changes the confetti, the floating shapes on the follow screen (hearts, bats, snowflakes, clovers), the raid's warp colours and the theme colour.
+      Clicking a theme switches every TV right away.</p>
+    <div class="themes" id="themes"></div>
+    <h3 class="sub">Schedule</h3>
+    <p class="hint">Between these dates (every year) the scheduled theme is used instead. The first matching row wins; outside them, the theme picked above.</p>
+    <div id="sched"></div>
+    <div class="row" style="margin-top:10px"><button onclick="addSched()">Add a date range</button>
+      <button onclick="addSched('halloween','10-01','10-31');addSched('holidays','12-01','01-01');addSched('valentine','02-07','02-14');addSched('stpatricks','03-14','03-17')">Add the holiday presets</button></div>
+  </section>
+
+  <section class="wide">
+    <h2>Text &amp; colours</h2>
+    <p class="hint">Change the words on each screen. Leave a box empty to use the default (shown in grey).
+      <span class="mono">{name}</span>, <span class="mono">{months}</span>, <span class="mono">{amount}</span> and the like are filled in;
+      text in <span class="mono">[square brackets]</span> only shows when its <span class="mono">{placeholder}</span> has a value, e.g.
+      <span class="mono">[Last seen playing {game}]</span>.
+      The colour is used for the screen's glow and accent, and for your lights.</p>
+    <div class="evlist" id="evlist"></div>
+  </section>
+
+  <section class="wide">
+    <h2>Backup</h2>
+    <p class="hint">All your settings in one file: timings, text, colours, theme and schedule, light URLs and Twitch keys. Logo files aren't included;
+      they're in the <span class="mono">media</span> folder.</p>
+    <div class="row" style="margin-top:12px">
+      <button onclick="backup()">Download backup</button>
+      <label class="row hint" style="gap:6px;cursor:pointer"><input type="checkbox" id="bkSecret"> Include the Twitch client secret</label>
+      <span style="flex:1"></span>
+      <button onclick="$('restoreFile').click()">Restore from a backup…</button>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+    </div>
+    <div class="result" id="bkRes"></div>
   </section>
 
   <section class="wide">
@@ -222,7 +288,120 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents();
+}
+
+/* ── themes ─────────────────────────────────────────────────────────── */
+const FLOAT_ICON = { heart: "💗", bat: "🦇", snow: "❄️", clover: "🍀" };
+function renderThemes() {
+  const s = state.settings, active = state.active_theme;
+  $("themeNow").textContent = "On the TV now: " + state.themes[active].name + (active !== s.theme ? " (scheduled)" : "");
+  $("themes").innerHTML = Object.entries(state.themes).map(([id, t]) => `
+    <button class="theme${id === s.theme ? " on" : ""}" onclick="pickTheme('${id}')">
+      <div class="sw"><i style="background:${t.accent}"></i>${t.confetti.slice(0, 4).map(c => `<i style="background:${c}"></i>`).join("")}</div>
+      <div class="tn"><b>${esc(t.name)}</b><span>${FLOAT_ICON[t.float] || ""}</span></div>
+    </button>`).join("");
+}
+async function pickTheme(id) {
+  const r = await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme: id }) });
+  if (!r.ok) return toast((r.errors || ["Failed"]).join(" "));
+  const s = await api("/api/state");
+  state.settings.theme = id; state.active_theme = s.active_theme;
+  renderThemes();
+  toast(s.active_theme === id ? "Theme changed on every TV" : "Saved. A scheduled theme is on today, so the TV shows that one until it ends");
+}
+function themeOptions(sel) {
+  return Object.entries(state.themes).map(([id, t]) => `<option value="${id}"${id === sel ? " selected" : ""}>${esc(t.name)}</option>`).join("");
+}
+function renderSched(rows) {
+  $("sched").innerHTML = rows.length ? "" : '<p class="hint">No dates scheduled.</p>';
+  rows.forEach(r => addSched(r.theme, r.from, r.to, true));
+}
+function mmddToDate(md) { return md ? "2000-" + md : ""; }
+function addSched(theme = "halloween", from = "10-01", to = "10-31", quiet) {
+  if (!$("sched").querySelector(".sched-row")) $("sched").innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "sched-row";
+  row.innerHTML = `<select>${themeOptions(theme)}</select>
+    <label>From <input type="date" value="${mmddToDate(from)}"></label>
+    <label>To <input type="date" value="${mmddToDate(to)}"></label>
+    <button class="danger" title="Remove">Remove</button>`;
+  row.querySelector("button").onclick = () => { row.remove(); markDirty(); };
+  row.querySelectorAll("select, input").forEach(el => el.addEventListener("input", markDirty));
+  $("sched").appendChild(row);
+  if (!quiet) markDirty();
+}
+function collectSched() {
+  // the year in the date boxes is ignored: ranges repeat every year
+  return [...document.querySelectorAll(".sched-row")].map(r => {
+    const [a, b] = r.querySelectorAll("input");
+    return { theme: r.querySelector("select").value, from: a.value.slice(5), to: b.value.slice(5) };
+  }).filter(r => r.from && r.to);
+}
+
+/* ── text & colours ─────────────────────────────────────────────────── */
+const EVENTS = [
+  ["shoutout", "Shoutout", "{name} {game}", [["shoutout.kicker", "Top line"], ["shoutout.sub", "Under the name"]]],
+  ["raid", "Raid", "{name} {game} {viewers}", [["raid.title", "Title (letters slam in, up to 12)"], ["raid.sub", "Above the number"], ["raid.label", "After the number"]]],
+  ["follow", "Follow", "{name}", [["follow.title", "Title (last word in colour)"]]],
+  ["gift", "Gifted subs", "{name} {count}", [["gift.title", "Title (several)"], ["gift.title_one", "Title (one)"], ["gift.to", "Before the names"]]],
+  ["sub", "New sub", "{name} {tier}", [["sub.title", "Title"], ["sub.sub", "Under the name"]]],
+  ["resub", "Resub", "{name} {months} {tier}", [["resub.title", "Title (numbers in colour)"], ["resub.sub", "Under the name"]]],
+  ["bits", "Bits", "{name} {amount}", [["bits.title", "Title (numbers in colour)"], ["bits.sub", "Under the name"]]],
+  ["welcome", "First-time chatter", "{name}", [["welcome.title", "Title"], ["welcome.sub", "Under the name"]]],
+  ["hype", "Hype train", "{level}", [["hype.title", "Bar label"], ["hype.start", "Start banner"], ["hype.levelup", "Level-up banner"], ["hype.end", "End banner"]]],
+  ["message", "Message", "", []],
+];
+function renderEvents() {
+  const texts = state.settings.texts || {}, colors = state.settings.colors || {};
+  $("evlist").innerHTML = EVENTS.map(([ev, label, ph, fields]) => {
+    const mode = colors[ev] || state.color_defaults[ev] || "auto", custom = mode.startsWith("#");
+    return `<div class="ev">
+      <h4>${esc(label)}<span class="cm">
+        <select data-color="${ev}">
+          <option value="auto"${mode === "auto" ? " selected" : ""}>Avatar colour</option>
+          <option value="theme"${mode === "theme" ? " selected" : ""}>Theme colour</option>
+          <option value="custom"${custom ? " selected" : ""}>Custom</option>
+        </select>
+        <input type="color" data-color-hex="${ev}" value="${custom ? mode : "#9146ff"}" style="${custom ? "" : "display:none"}"></span></h4>
+      ${ph ? `<div class="hint mono">${esc(ph)}</div>` : '<div class="hint">Colour only: the words are the message itself.</div>'}
+      ${fields.map(([k, l]) => `<label class="f"><span>${esc(l)}</span>
+        <input type="text" data-text="${k}" maxlength="120" placeholder="${esc(state.text_defaults[k])}" value="${esc(texts[k] || "")}"></label>`).join("")}
+    </div>`;
+  }).join("");
+  $("evlist").querySelectorAll("input, select").forEach(el => el.addEventListener("input", () => {
+    if (el.dataset.color) $("evlist").querySelector(`[data-color-hex="${el.dataset.color}"]`).style.display = el.value === "custom" ? "" : "none";
+    markDirty();
+  }));
+}
+function collectEvents() {
+  const texts = {}, colors = {};
+  document.querySelectorAll("[data-text]").forEach(el => { texts[el.dataset.text] = el.value.trim(); });
+  document.querySelectorAll("[data-color]").forEach(el => {
+    colors[el.dataset.color] = el.value === "custom" ? document.querySelector(`[data-color-hex="${el.dataset.color}"]`).value : el.value;
+  });
+  return { texts, colors };
+}
+function markDirty() { dirty = true; setRes($("saveRes"), null, "Unsaved changes"); }
+
+/* ── backup ─────────────────────────────────────────────────────────── */
+function backup() {
+  const a = document.createElement("a");          // a download, not a page change
+  a.href = "/api/backup" + ($("bkSecret").checked ? "?secrets=1" : "");
+  a.download = "";
+  document.body.appendChild(a); a.click(); a.remove();
+  setRes($("bkRes"), true, "Backup downloaded" + ($("bkSecret").checked ? " (includes your Twitch secret: keep it private)." : "."));
+}
+async function restore(file) {
+  if (!file) return;
+  if (!confirm(`Restore settings from ${file.name}? Your current settings will be replaced.`)) return;
+  let body;
+  try { body = await file.text(); JSON.parse(body); } catch (e) { return setRes($("bkRes"), false, "That file isn't a Vibe TV backup."); }
+  const r = await api("/api/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+  if (!r.ok) return setRes($("bkRes"), false, (r.errors || [r.result || "Restore failed"]).join(" · "));
+  await load();
+  setRes($("bkRes"), true, "Restored. " + (r.notes || []).join(" "));
+  toast("Settings restored");
 }
 
 function renderStatus() {
@@ -262,6 +441,13 @@ function renderUrls() {
     ["/follow/$username", "Thanks for the follow (use in the Followed event)"],
     ["/gift/$username?to=$targetusername", "One gifted sub (Subscription Gifted event). Gifts arriving together become one screen"],
     ["/giftbomb/$username?count=<amount>", "Mass gift (Mass Subscriptions Gifted event). Optional if /gift already fires per sub"],
+    ["/sub/$username?tier=<tier>", "New subscriber (Subscribed event). tier = 1, 2, 3 or prime (optional)"],
+    ["/resub/$username?months=<months>&message=<their message>", "Resub with the month count (Resubscribed event)"],
+    ["/bits/$username?amount=<bits>&message=<their message>", "Cheer card, gems rain down (Bits Cheered event)"],
+    ["/welcome/$username", "Small corner pop-up for a first-time chatter (doesn't interrupt anything)"],
+    ["/hypetrain/start?level=<level>", "Hype train begins: shows the bar"],
+    ["/hypetrain/progress?level=<level>&percent=<percent>", "Hype train update; also &progress=N&goal=N. A higher level shows a level-up banner"],
+    ["/hypetrain/end?level=<level>", "Hype train over: end banner, bar hides"],
     ["/message?text=$allargs&from=$username", "Big message bubble"],
     ["/logo", "Clear the queue and go back to the logo"],
     ["/reload", "Reload every TV page"],
@@ -281,7 +467,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return out;
+  return { ...out, ...collectEvents(), theme_schedule: collectSched() };
 }
 
 async function save() {
@@ -340,7 +526,20 @@ function test(kind) {
     const to = Array.from({ length: n }, (_, i) => pool[i % pool.length] + (i >= pool.length ? "_" + i : "")).join(",");
     call(n ? `/gift/${user}?to=${to}&count=${n}` : `/giftbomb/${user}?count=10`);
   }
+  else if (kind === "sub") call(`/sub/${user}?tier=1`);
+  else if (kind === "resub") call(`/resub/${user}?months=${encodeURIComponent($("tMonths").value || "12")}&tier=1&message=${encodeURIComponent("Love this stream!")}`);
+  else if (kind === "bits") call(`/bits/${user}?amount=${encodeURIComponent($("tBits").value || "500")}&message=${encodeURIComponent("Cheer500 let's go!")}`);
+  else if (kind === "welcome") call(`/welcome/${user}`);
   else call(`/message?text=${encodeURIComponent($("tMsg").value || "Hello!")}&from=${user}`);
+}
+// hype train test: walks through start -> progress -> level up -> end
+let hypeTest = { level: 1, pct: 0 };
+function hype(step) {
+  if (step === "start") hypeTest = { level: 1, pct: 15 };
+  else if (step === "progress") hypeTest.pct = Math.min(95, hypeTest.pct + 30);
+  else if (step === "levelup") hypeTest = { level: hypeTest.level + 1, pct: 10 };
+  call(step === "end" ? `/hypetrain/end?level=${hypeTest.level}`
+    : `/hypetrain/${step === "start" ? "start" : "progress"}?level=${hypeTest.level}&percent=${hypeTest.pct}`);
 }
 async function testLights(which) {
   if (dirty) return toast("Save settings first");
@@ -367,8 +566,9 @@ async function refresh(withMedia) {
 // inputs
 document.querySelectorAll("[data-k]").forEach(el => el.addEventListener("input", () => {
   if (el.dataset.k === "logo_fit") return;
-  dirty = true; setRes($("saveRes"), null, "Unsaved changes");
+  markDirty();
 }));
+$("restoreFile").onchange = e => { restore(e.target.files[0]); e.target.value = ""; };
 $("logo_fit").addEventListener("change", async e => {
   const r = await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logo_fit: e.target.value }) });
   toast(r.ok ? "Updated on every TV" : "Failed");
