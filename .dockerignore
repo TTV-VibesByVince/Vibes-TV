@@ -1,6 +1,9 @@
 media/
 cache/
 config/
+docs/
+.github/
 **/__pycache__/
 *.zip
+*.tar
 .git/
