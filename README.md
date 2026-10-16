@@ -8,11 +8,31 @@ Twitch clips, and set your room lights to the colour of their profile picture.
 It runs in Docker (a NAS is ideal). The TV just opens a web page, and
 everything is set up from a settings page in the browser.
 
-![Raid animation](docs/screenshots/raid.jpg)
+## See it in action
 
-| Shoutout | Follow | Gifted subs |
-| --- | --- | --- |
-| ![Shoutout card](docs/screenshots/shoutout.jpg) | ![Thanks for the follow](docs/screenshots/follow.jpg) | ![Gifted subs](docs/screenshots/gifted-subs.jpg) |
+[![Vibe TV demo: logo loop, raid, gifted subs](docs/vibe-tv-demo.webp)](docs/vibe-tv-demo.mp4)
+
+This is an example of what can play on the TV in the background of your
+stream. Your logo loops (a video or an image) until something happens: here
+a raid comes in, the screen takes over with the raid animation, then it goes
+back to the logo until gifted subs arrive.
+
+You can also have it **play a clip from that person's channel** after a
+shoutout or a raid. It picks one of their most-viewed Twitch clips and plays
+it full screen right after their card, so your viewers get a taste of their
+stream (needs [Twitch API keys](#twitch-api-keys-optional-recommended)).
+
+[▶ Watch the full-quality video](docs/vibe-tv-demo.mp4) (22 seconds, silent)
+
+### Screenshots
+
+| Raid | Shoutout |
+| --- | --- |
+| ![Raid animation](docs/screenshots/raid.jpg) | ![Shoutout card](docs/screenshots/shoutout.jpg) |
+
+| Follow | Gifted subs |
+| --- | --- |
+| ![Thanks for the follow](docs/screenshots/follow.jpg) | ![Gifted subs](docs/screenshots/gifted-subs.jpg) |
 
 ### Settings page
 
