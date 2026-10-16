@@ -1,13 +1,16 @@
 services:
   vibe-tv:
-    build: .
-    image: vibe-tv:latest
+    # Ready-built by GitHub on every update. To build from this folder
+    # instead, replace the image line with:  build: .
+    image: ghcr.io/ttv-vibesbyvince/vibes-tv:latest
     container_name: vibe-tv
     restart: unless-stopped
     ports:
       - "8777:8777"
     environment:
-      - TZ=Etc/UTC   # your timezone, e.g. America/New_York (only affects log times)
+      # your timezone, e.g. America/New_York: log times, and the day
+      # scheduled themes start and end
+      - TZ=Etc/UTC
       # Optional: protects the /admin settings page (user name: anything).
       # The TV page and the MixItUp URLs stay open on your network.
       - ADMIN_PASSWORD=

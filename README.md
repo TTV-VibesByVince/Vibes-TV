@@ -102,27 +102,26 @@ stream (needs [Twitch API keys](#twitch-api-keys-optional-recommended)).
 You need a machine that runs Docker all the time (a NAS, a mini PC, a
 Raspberry Pi 4/5) on the same network as the TV and the PC running MixItUp.
 
+The image is built by GitHub on every update and published as
+**`ghcr.io/ttv-vibesbyvince/vibes-tv:latest`** (Intel/AMD and ARM), so
+there's nothing to build yourself.
+
 ### Portainer
 
-1. Download this repository as a ZIP (green **Code** button > Download ZIP),
-   unzip it, and make a `.tar` of the build files. In PowerShell, inside the
-   unzipped folder, run:
-   `tar -cf vibe-tv.tar Dockerfile requirements.txt app`
-2. **Images > Build a new image**: name `vibe-tv:latest`, method **Upload**,
-   select `vibe-tv.tar`, then **Build the image**.
-3. **Stacks > Add stack**, name `vibe-tv`, **Web editor**, paste this, and
-   change the folder paths on the left to a folder on your server:
+1. **Stacks > Add stack**, name `vibe-tv`, **Web editor**, paste this, and
+   change the folder paths on the left to a folder on your server and `TZ`
+   to your timezone:
 
    ```yaml
    services:
      vibe-tv:
-       image: vibe-tv:latest
+       image: ghcr.io/ttv-vibesbyvince/vibes-tv:latest
        container_name: vibe-tv
        restart: unless-stopped
        ports:
          - "8777:8777"
        environment:
-         - TZ=Etc/UTC
+         - TZ=America/New_York
          - ADMIN_PASSWORD=
        volumes:
          - /volume1/docker/vibe-tv/media:/media
@@ -130,13 +129,18 @@ Raspberry Pi 4/5) on the same network as the TV and the PC running MixItUp.
          - /volume1/docker/vibe-tv/cache:/cache
    ```
 
-4. **Deploy the stack**.
+2. **Deploy the stack**.
 
-### Synology Container Manager (or plain Docker Compose)
+### Synology Container Manager, or plain Docker Compose
 
-1. Copy this folder to the server, e.g. `/volume1/docker/vibe-tv`.
+1. Make a folder on the server, e.g. `/volume1/docker/vibe-tv`, and put
+   this repository's `docker-compose.yml` in it.
 2. Container Manager > **Project** > **Create**, choose that folder; it finds
-   `docker-compose.yml`. Anywhere else: `docker compose up -d --build`.
+   `docker-compose.yml`. Anywhere else: `docker compose up -d`.
+
+To build the image yourself instead (e.g. after changing the code), put the
+whole repository in that folder and replace the `image:` line with
+`build: .`.
 
 ### Then
 
@@ -322,10 +326,23 @@ URLs stay open on your network.
 
 ## Updating
 
-Rebuild the image from the new files (Portainer: **Images > Build** with the
-same name, then **Containers > vibe-tv > Recreate**). Your logos and
-settings live in the `media` and `config` folders and are kept. Rebuilding
-also updates yt-dlp, which fixes most "clips stopped working" problems.
+Pull the latest image and recreate the container. Your logos and settings
+live in the `media` and `config` folders and are kept.
+
+- **Portainer**: **Stacks > vibe-tv > Editor**, click **Update the stack**,
+  turn on **Re-pull image and redeploy**, and confirm. (Or **Containers >
+  vibe-tv > Recreate** with **Re-pull image** on.)
+- **Container Manager**: pull the image again (it offers an **Update** on
+  the image when a newer one exists), then restart the project. Menu names
+  vary a little between DSM versions.
+- **Docker Compose**: `docker compose pull && docker compose up -d`.
+
+The image is also rebuilt every Monday with the newest yt-dlp, so updating
+fixes most "clips stopped working" problems even when nothing else changed.
+Then click **Reload TVs** on the settings page.
+
+Pinning a version instead of `latest` (e.g. `:1.3`) keeps you on it until
+you change the tag.
 
 ## License
 
