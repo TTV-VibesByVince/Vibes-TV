@@ -20,11 +20,18 @@ Added in 1.3:
   /welcome/<user>            first-time chatter: a small corner pop-up (not queued)
   /hypetrain/start|progress|end  ?level= &progress= &goal= (or &percent=)
                              a progress bar along the bottom of the TV
+Added in 1.4:
+  /sub/<user>?tier=2 (or /sub/<user>/tier2), same for /resub: tier 2 and 3
+                             get bigger animations
+  /streak/<user>?count=N     watch streak    &message=
+  /modiversary/<user>?years=N (or &months=N) mod anniversary, with swords
+  /gigantify/<user>?emote=<emote ID, name or image link>   a giant emote
 TV page: /  or  /tv  (?mode=lite or ?mode=full to override)   Settings: /admin
 """
 
 import asyncio
 import base64
+import collections
 import hmac
 import io
 import json
@@ -40,7 +47,7 @@ import aiohttp
 from aiohttp import web
 from PIL import Image
 
-VERSION = "1.3.1"
+VERSION = "1.4"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -51,6 +58,9 @@ PORT = int(os.getenv("PORT", "8777"))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{1,25}$")
+EMOTE_ID_RE = re.compile(r"^(emotesv2_[0-9a-f]{8,}|\d{1,12})$")
+# "default" = animated when the emote is animated, otherwise the still image
+EMOTE_CDN = "https://static-cdn.jtvnw.net/emoticons/v2/{id}/default/dark/3.0"
 HEX_RE = re.compile(r"^[0-9a-fA-F]{6}$")
 VIDEO_EXT = {".mp4", ".webm", ".mov", ".m4v"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -83,6 +93,9 @@ SCHEMA = {
     "sub_seconds":          (float, _env_num("SUB_SECONDS", 8)),      # subs and resubs
     "bits_seconds":         (float, _env_num("BITS_SECONDS", 8)),
     "welcome_seconds":      (float, _env_num("WELCOME_SECONDS", 7)),
+    "streak_seconds":       (float, _env_num("STREAK_SECONDS", 8)),
+    "modiversary_seconds":  (float, _env_num("MODIVERSARY_SECONDS", 9)),
+    "gigantify_seconds":    (float, _env_num("GIGANTIFY_SECONDS", 7)),
     "texts":                (dict,  {}),          # event text overrides, see TEXT_DEFAULTS
     "colors":               (dict,  {}),          # event -> "auto" | "theme" | "#rrggbb"
     "theme":                (str,   "default"),   # see THEMES
@@ -93,15 +106,21 @@ SCHEMA = {
     "clip_sound":           (bool,  os.getenv("CLIP_SOUND", "0") == "1"),
     "twitch_client_id":     (str,   os.getenv("TWITCH_CLIENT_ID", "")),
     "twitch_client_secret": (str,   os.getenv("TWITCH_CLIENT_SECRET", "")),
+    "twitch_channel":       (str,   os.getenv("TWITCH_CHANNEL", "")),   # your channel: finds its emotes by name
     "govee_color_url":      (str,   os.getenv("GOVEE_COLOR_URL", "")),
     "govee_raid_url":       (str,   os.getenv("GOVEE_RAID_URL", "")),
+    "govee_tier2_url":      (str,   os.getenv("GOVEE_TIER2_URL", "")),  # blank = card colour URL
+    "govee_tier3_url":      (str,   os.getenv("GOVEE_TIER3_URL", "")),
     "govee_reset_url":      (str,   os.getenv("GOVEE_RESET_URL", "")),
 }
 SECRET_KEYS = {"twitch_client_secret"}
 LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "message_seconds": (2, 60), "max_clip_seconds": (5, 60),
           "follow_seconds": (2, 60), "gift_seconds": (4, 60),
-          "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30)}
+          "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30),
+          "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60)}
+TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
+REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
 GIFT_MAX_WAIT = 12.0    # never hold a batch longer than this
 MAX_QUEUE = 25          # follows are dropped beyond this (follow-bot floods)
@@ -124,6 +143,8 @@ TEXT_DEFAULTS = {
     "sub.sub":          "[{tier} sub]",
     "resub.title":      "{months} MONTHS!",
     "resub.sub":        "Thanks for resubscribing[ · {tier}]",
+    "sub.tier2_banner": "TIER 2",
+    "sub.tier3_banner": "TIER 3",
     "bits.title":       "{amount} BITS!",
     "bits.sub":         "Thanks for the cheer",
     "welcome.title":    "Welcome!",
@@ -132,9 +153,16 @@ TEXT_DEFAULTS = {
     "hype.start":       "HYPE TRAIN!",
     "hype.levelup":     "LEVEL {level}!",
     "hype.end":         "HYPE TRAIN COMPLETE · LEVEL {level}",
+    "streak.title":     "{count}-STREAM STREAK!",
+    "streak.sub":       "Thanks for being here, stream after stream",
+    "modiversary.title": "{duration} OF MODDING",
+    "modiversary.sub":  "Thank you for keeping the peace",
+    "gigantify.caption": "{name} gigantified[ {emote}]",
 }
-COLOR_EVENTS = ["shoutout", "raid", "follow", "gift", "sub", "resub", "bits", "welcome", "hype", "message"]
-COLOR_DEFAULTS = {e: "auto" for e in COLOR_EVENTS} | {"hype": "theme", "message": "theme"}
+COLOR_EVENTS = ["shoutout", "raid", "follow", "gift", "sub", "resub", "bits", "streak", "modiversary",
+                "gigantify", "welcome", "hype", "message"]
+COLOR_DEFAULTS = {e: "auto" for e in COLOR_EVENTS} | {"hype": "theme", "message": "theme",
+                                                      "modiversary": "#00ad03"}   # Twitch's mod green
 
 # ── Themes ───────────────────────────────────────────────────────────────
 # accent: used when an event's colour is "theme" (and when an avatar has no
@@ -362,6 +390,18 @@ def event_color(kind, avatar_hex):
 
 TIERS = {"1": "Tier 1", "1000": "Tier 1", "2": "Tier 2", "2000": "Tier 2",
          "3": "Tier 3", "3000": "Tier 3", "prime": "Prime"}
+TIER_LEVEL = {"Tier 1": 1, "Prime": 1, "Tier 2": 2, "Tier 3": 3}
+
+
+def duration_text(years=None, months=None):
+    """2 YEARS, 1 YEAR, 18 MONTHS, 1 MONTH."""
+    if years:
+        return f"{years} YEAR" + ("S" if years != 1 else "")
+    if months:
+        if months % 12 == 0:
+            return duration_text(years=months // 12)
+        return f"{months} MONTH" + ("S" if months != 1 else "")
+    return ""
 
 
 # ── Twitch ───────────────────────────────────────────────────────────────
@@ -423,6 +463,14 @@ class Twitch:
             for u in await self._get("users", batch):
                 out[u["login"]] = {"display_name": u["display_name"], "avatar": u["profile_image_url"]}
         return out
+
+    async def emotes(self, broadcaster_id=None):
+        """{name: id} for Twitch's global emotes, or one channel's emotes."""
+        if broadcaster_id:
+            data = await self._get("chat/emotes", {"broadcaster_id": broadcaster_id})
+        else:
+            data = await self._get("chat/emotes/global", {})
+        return {e["name"]: e["id"] for e in data}
 
     async def pick_clip(self, broadcaster_id):
         clips = await self._get("clips", {"broadcaster_id": broadcaster_id, "first": 20})
@@ -489,6 +537,9 @@ class TV:
         self.last_govee = ""
         self.gifts = {}            # gifter login -> batch being collected
         self.hype = None           # running hype train, or None
+        self.requests = collections.deque(maxlen=REQUEST_LOG_SIZE)   # what MixItUp sent
+        self.emote_names = {}      # emote name -> id (global + your channel)
+        self.emote_names_at = 0
         self.hype_expiry = None
 
     @property
@@ -517,11 +568,13 @@ class TV:
         self.last_govee = result
         return result
 
-    async def govee(self, hex_color, raid=False):
+    async def govee(self, hex_color, raid=False, tier=1):
         if not hex_color:
             await self.call_url(S["govee_reset_url"])
         elif raid and S["govee_raid_url"]:
             await self.call_url(S["govee_raid_url"], hex_color)
+        elif tier >= 2 and S[f"govee_tier{tier}_url"]:      # optional bigger effect for big subs
+            await self.call_url(S[f"govee_tier{tier}_url"], hex_color)
         else:
             await self.call_url(S["govee_color_url"], hex_color)
 
@@ -593,6 +646,36 @@ class TV:
             await self.queue.put({"type": "gift", "user": b["user"], "avatar": b["avatar"],
                                   "display": b["display"], "recipients": b["recipients"],
                                   "count": b["count"] or len(b["recipients"]), "clip": False})
+
+    # ── gigantified emotes: an ID or link works as is, a name is looked up ──
+    async def resolve_emote(self, value):
+        value = value.strip()
+        if value.startswith(("https://", "http://")):
+            return {"url": value, "name": ""}
+        if EMOTE_ID_RE.match(value):
+            return {"id": value, "url": EMOTE_CDN.format(id=value), "name": ""}
+        name = value[:60]
+        if name and self.twitch.enabled:
+            try:
+                emote_id = await self.emote_by_name(name)
+                if emote_id:
+                    return {"id": emote_id, "url": EMOTE_CDN.format(id=emote_id), "name": name}
+            except Exception as e:
+                log.warning("emote lookup failed for %s: %s", name, e)
+        return {"url": "", "name": name}      # the TV shows the name itself, big
+
+    async def emote_by_name(self, name):
+        stale = time.time() - self.emote_names_at
+        # refresh hourly, or sooner (at most once a minute) for a name we don't know yet
+        if stale > 3600 or (name not in self.emote_names and stale > 60):
+            names = await self.twitch.emotes()
+            channel = S["twitch_channel"].strip().lower()
+            if channel:
+                user = await self.twitch.user(channel)
+                if user:
+                    names.update(await self.twitch.emotes(user["id"]))
+            self.emote_names, self.emote_names_at = names, time.time()
+        return self.emote_names.get(name)
 
     # ── first-time chatter: a corner pop-up, shown at once, never queued ──
     async def welcome(self, ev):
@@ -725,12 +808,13 @@ class TV:
             finally:
                 if preload:
                     preload.cancel()
-        elif kind in ("follow", "gift", "sub", "resub", "bits"):
+        elif kind in ("follow", "gift", "sub", "resub", "bits", "streak", "modiversary", "gigantify"):
             profile = await self.build_profile(ev)
             color = event_color(kind, await self.avatar_color(profile["avatar"]))
             payload = {"type": kind, "user": profile, "color": color}
             ctx = {"name": profile["display_name"], "tier": ev.get("tier"),
                    "months": ev.get("months"), "amount": ev.get("amount")}
+            tier = 1
             if kind == "follow":
                 secs = S["follow_seconds"]
                 text = {"title": text_for("follow.title", **ctx)}
@@ -743,20 +827,41 @@ class TV:
                 payload.update({"recipients": recipients, "count": count})
                 text = {"title": text_for("gift.title_one" if count == 1 else "gift.title", **ctx),
                         "to": text_for("gift.to", **ctx)}
+            elif kind == "streak":
+                secs = S["streak_seconds"]
+                ctx["count"] = ev.get("count")
+                text = {"title": text_for("streak.title", **ctx), "sub": text_for("streak.sub", **ctx),
+                        "message": (ev.get("message") or "")[:140]}
+                payload["count"] = ev.get("count")
+            elif kind == "modiversary":
+                secs = S["modiversary_seconds"]
+                ctx.update({"years": ev.get("years"), "duration": duration_text(ev.get("years"), ev.get("months"))})
+                text = {"title": text_for("modiversary.title", **ctx), "sub": text_for("modiversary.sub", **ctx)}
+            elif kind == "gigantify":
+                secs = S["gigantify_seconds"]
+                emote = await self.resolve_emote(ev.get("emote") or "")
+                ctx["emote"] = emote.get("name") or ""
+                text = {"caption": text_for("gigantify.caption", **ctx)}
+                payload["emote"] = emote
             else:                                   # sub, resub, bits
                 secs = S["bits_seconds"] if kind == "bits" else S["sub_seconds"]
                 if ctx["amount"] is not None:
                     ctx["amount"] = f"{ctx['amount']:,}"
                 text = {"title": text_for(f"{kind}.title", **ctx), "sub": text_for(f"{kind}.sub", **ctx),
                         "message": (ev.get("message") or "")[:140]}
+                if kind in ("sub", "resub"):
+                    tier = TIER_LEVEL.get(ev.get("tier"), 1)
+                    secs += TIER_EXTRA_SECONDS.get(tier, 0)
+                    if tier >= 2:
+                        text["banner"] = text_for(f"sub.tier{tier}_banner", **ctx)
                 payload.update({"months": ev.get("months"), "amount": ev.get("amount"),
-                                "tier": ev.get("tier")})
+                                "tier": ev.get("tier"), "tier_level": tier})
             payload["text"] = text
             payload["card_seconds"] = secs
             self.current = payload
             await self.broadcast(payload)
             if color:
-                asyncio.create_task(self.govee(color))
+                asyncio.create_task(self.govee(color, tier=tier))
             await asyncio.sleep(secs + 0.6)
         elif kind == "message":
             secs = S["message_seconds"]
@@ -907,7 +1012,10 @@ def _int(request, name, lo=0, hi=10**7):
 
 
 def _tier(request):
-    return TIERS.get((request.query.get("tier") or request.query.get("plan") or "").strip().lower())
+    """Tier from ?tier= / ?plan= or the URL (/sub/<user>/tier3). Accepts 1, 1000,
+    Tier 1, tier1, prime."""
+    raw = request.match_info.get("tier") or request.query.get("tier") or request.query.get("plan") or ""
+    return TIERS.get(raw.strip().lower().replace("tier", "").replace(" ", ""))
 
 
 def _queue_or_skip(ev):
@@ -930,6 +1038,31 @@ async def resub(request):
     months = _int(request, "months", 1, 1000) or _int(request, "cumulative", 1, 1000)
     ev.update({"clip": False, "tier": _tier(request), "months": months,
                "message": (request.query.get("message") or "").strip()})
+    return _queue_or_skip(ev)
+
+
+async def streak(request):
+    """Watch streak shared in chat: /streak/<user>?count=N&message="""
+    ev = _card_event(request, "streak")
+    ev.update({"clip": False, "count": _int(request, "count", 1, 10000) or _int(request, "streak", 1, 10000),
+               "message": (request.query.get("message") or "").strip()})
+    return _queue_or_skip(ev)
+
+
+async def modiversary(request):
+    """Mod anniversary: /modiversary/<user>?years=N (or ?months=N)"""
+    ev = _card_event(request, "modiversary")
+    ev.update({"clip": False, "years": _int(request, "years", 1, 100), "months": _int(request, "months", 1, 1200)})
+    return _queue_or_skip(ev)
+
+
+async def gigantify(request):
+    """Gigantified emote: /gigantify/<user>?emote=<emote ID, name or image link>"""
+    emote = next((request.query.get(k) for k in ("emote", "emote_id", "id", "name", "url") if request.query.get(k)), "")
+    if not emote.strip():
+        raise web.HTTPBadRequest(text="emote required, e.g. /gigantify/name?emote=emotesv2_... or ?emote=LUL")
+    ev = _card_event(request, "gigantify")
+    ev.update({"clip": False, "emote": emote})
     return _queue_or_skip(ev)
 
 
@@ -1013,6 +1146,28 @@ async def status(request):
 
 # ── Admin page + API ─────────────────────────────────────────────────────
 
+EVENT_PATHS = ("/shoutout/", "/raid/", "/follow/", "/gift/", "/giftbomb/", "/sub/", "/resub/", "/bits/",
+               "/streak/", "/modiversary/", "/gigantify/", "/welcome/", "/hypetrain", "/message", "/logo")
+
+
+@web.middleware
+async def request_log(request, handler):
+    """Remember the last event URLs received, so the settings page can show
+    exactly what MixItUp sent (and whether a variable came through empty)."""
+    if not request.path.startswith(EVENT_PATHS):
+        return await handler(request)
+    entry = {"time": time.strftime("%H:%M:%S"), "method": request.method,
+             "url": unquote(request.path_qs), "status": 500}
+    tv.requests.appendleft(entry)
+    try:
+        resp = await handler(request)
+        entry["status"] = resp.status
+        return resp
+    except web.HTTPException as e:
+        entry["status"], entry["note"] = e.status, (e.text or "")[:100]
+        raise
+
+
 @web.middleware
 async def admin_auth(request, handler):
     if ADMIN_PASSWORD and (request.path == "/admin" or request.path.startswith("/api/")):
@@ -1062,6 +1217,7 @@ async def api_state(request):
         "color_defaults": COLOR_DEFAULTS,
         "themes": THEMES,
         "active_theme": active_theme_id(),
+        "requests": list(tv.requests),
     })
 
 
@@ -1175,6 +1331,7 @@ async def api_test_lights(request):
     if not HEX_RE.match(hex_color):
         raise web.HTTPBadRequest(text="hex must be 6 digits")
     template = {"color": S["govee_color_url"], "raid": S["govee_raid_url"],
+                "tier2": S["govee_tier2_url"], "tier3": S["govee_tier3_url"],
                 "reset": S["govee_reset_url"]}.get(which, "")
     result = await tv.call_url(template, hex_color.lower())
     return web.json_response({"ok": not result.startswith(("failed", "not set")), "result": result})
@@ -1212,7 +1369,7 @@ async def on_cleanup(app):
 def make_app():
     for d in (MEDIA, CACHE, CONFIG):
         d.mkdir(parents=True, exist_ok=True)
-    app = web.Application(middlewares=[admin_auth], client_max_size=4 * 1024 * 1024)
+    app = web.Application(middlewares=[request_log, admin_auth], client_max_size=4 * 1024 * 1024)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     app.router.add_get("/", index)
@@ -1224,6 +1381,11 @@ def make_app():
     app.router.add_route("*", "/gift/{user}", gift)
     app.router.add_route("*", "/giftbomb/{user}", giftbomb)
     app.router.add_route("*", "/sub/{user}", sub)
+    app.router.add_route("*", "/sub/{user}/{tier}", sub)
+    app.router.add_route("*", "/resub/{user}/{tier}", resub)
+    app.router.add_route("*", "/streak/{user}", streak)
+    app.router.add_route("*", "/modiversary/{user}", modiversary)
+    app.router.add_route("*", "/gigantify/{user}", gigantify)
     app.router.add_route("*", "/resub/{user}", resub)
     app.router.add_route("*", "/bits/{user}", bits)
     app.router.add_route("*", "/welcome/{user}", welcome)

@@ -81,6 +81,8 @@
   .urls td:first-child { width: 55%; word-break: break-all; }
   .urls td:last-child { width: 1%; }
   .urls button { padding: 5px 10px; font-size: 12px; }
+  .reqs td:first-child { width: 1%; } .reqs td.ok { color: var(--green); } .reqs td.bad { color: var(--red); }
+  .reqs td:nth-child(2) { word-break: break-all; }
   .result { margin-top: 8px; font-size: 13px; min-height: 18px; color: var(--muted); word-break: break-word; }
   .result.ok { color: var(--green); } .result.bad { color: var(--red); }
   .savebar { position: sticky; bottom: 0; grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 14px 18px;
@@ -143,10 +145,13 @@
       <div class="row"><button onclick="test('raid')" style="flex:1">Test raid</button><input type="number" id="tViewers" value="42" min="0" style="width:90px;flex:none" title="Raiders"></div>
       <button onclick="test('follow')">Test follow</button>
       <div class="row"><button onclick="test('gift')" style="flex:1">Test gifted subs</button><input type="number" id="tGifts" value="5" min="0" max="60" style="width:90px;flex:none" title="How many recipients (0 = a mass gift with no names)"></div>
-      <button onclick="test('sub')">Test sub</button>
+      <div class="row"><button onclick="test('sub')" style="flex:1">Test sub</button><select id="tTier" style="width:110px;flex:none" title="Sub tier"><option value="1">Tier 1</option><option value="2">Tier 2</option><option value="3">Tier 3</option></select></div>
       <div class="row"><button onclick="test('resub')" style="flex:1">Test resub</button><input type="number" id="tMonths" value="12" min="1" style="width:90px;flex:none" title="Months"></div>
       <div class="row"><button onclick="test('bits')" style="flex:1">Test bits</button><input type="number" id="tBits" value="500" min="1" style="width:90px;flex:none" title="Bits"></div>
       <button onclick="test('welcome')">Test first-time chatter</button>
+      <div class="row"><button onclick="test('streak')" style="flex:1">Test watch streak</button><input type="number" id="tStreak" value="12" min="1" style="width:90px;flex:none" title="Streams in a row"></div>
+      <div class="row"><button onclick="test('modiversary')" style="flex:1">Test modiversary</button><input type="number" id="tModYears" value="2" min="1" style="width:90px;flex:none" title="Years"></div>
+      <div class="row full"><button onclick="test('gigantify')">Test gigantified emote</button><input type="text" id="tEmote" value="25" placeholder="Emote ID, name or image link" title="Emote ID (e.g. 25 = Kappa), name or image link"></div>
       <div class="row full"><span class="hint" style="flex:none;margin-right:2px">Hype train:</span><button onclick="hype('start')" style="flex:1">Start</button><button onclick="hype('progress')" style="flex:1">Progress</button><button onclick="hype('levelup')" style="flex:1">Level up</button><button onclick="hype('end')" style="flex:1">End</button></div>
       <div class="row full"><input type="text" id="tMsg" placeholder="Message text" value="Welcome to the stream!"><button onclick="test('message')">Show message</button></div>
       <button onclick="call('/logo')">Back to logo</button>
@@ -170,7 +175,7 @@
 
   <section>
     <h2>Timing</h2>
-    <p class="hint">How long each card stays up. Clips play after the card.</p>
+    <p class="hint">How long each card stays up. Clips play after the card. Tier 2 subs stay 2 seconds longer, Tier 3 subs 4.</p>
     <div class="grid2">
       <label class="f"><span>Shoutout card (seconds)</span><input type="number" data-k="card_seconds" min="2" max="60" step="0.5"></label>
       <label class="f"><span>Raid animation (seconds)</span><input type="number" data-k="raid_seconds" min="4" max="60" step="0.5"></label>
@@ -181,6 +186,9 @@
       <label class="f"><span>Subs and resubs (seconds)</span><input type="number" data-k="sub_seconds" min="3" max="60" step="0.5"></label>
       <label class="f"><span>Bits (seconds)</span><input type="number" data-k="bits_seconds" min="3" max="60" step="0.5"></label>
       <label class="f"><span>First-time chatter pop-up (seconds)</span><input type="number" data-k="welcome_seconds" min="2" max="30" step="0.5"></label>
+      <label class="f"><span>Watch streak (seconds)</span><input type="number" data-k="streak_seconds" min="3" max="60" step="0.5"></label>
+      <label class="f"><span>Modiversary (seconds)</span><input type="number" data-k="modiversary_seconds" min="4" max="60" step="0.5"></label>
+      <label class="f"><span>Gigantified emote (seconds)</span><input type="number" data-k="gigantify_seconds" min="3" max="60" step="0.5"></label>
     </div>
     <label class="f"><span>TV animation quality</span>
       <select data-k="tv_mode">
@@ -199,6 +207,7 @@
       <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv/console</a> (any redirect URL, e.g. http://localhost).</p>
     <label class="f"><span>Client ID</span><input type="text" class="mono" data-k="twitch_client_id" autocomplete="off" spellcheck="false"></label>
     <label class="f"><span>Client secret</span><input type="password" class="mono" data-k="twitch_client_secret" id="secret" autocomplete="new-password" spellcheck="false"></label>
+    <label class="f"><span>Your Twitch channel <span class="hint">(optional: lets gigantified emotes be found by name)</span></span><input type="text" class="mono" data-k="twitch_channel" placeholder="your_channel" autocomplete="off" spellcheck="false"></label>
     <div class="row" style="margin-top:12px"><button onclick="testTwitch()">Test connection</button><span class="hint">Save first.</span></div>
     <div class="result" id="twRes"></div>
   </section>
@@ -211,6 +220,8 @@
     <div class="grid2">
       <label class="f"><span>Card colour URL</span><div class="row"><input type="url" class="mono" data-k="govee_color_url" placeholder="http://<pc-ip>:8765/color/{hex}"><button onclick="testLights('color')">Test</button></div></label>
       <label class="f"><span>Raid URL <span class="hint">(optional, blank = card colour URL)</span></span><div class="row"><input type="url" class="mono" data-k="govee_raid_url" placeholder="http://<pc-ip>:8765/sparkle/{hex}/12"><button onclick="testLights('raid')">Test</button></div></label>
+      <label class="f"><span>Tier 2 sub URL <span class="hint">(optional, blank = card colour URL)</span></span><div class="row"><input type="url" class="mono" data-k="govee_tier2_url" placeholder="http://<pc-ip>:8765/breathe/{hex}/10"><button onclick="testLights('tier2')">Test</button></div></label>
+      <label class="f"><span>Tier 3 sub URL <span class="hint">(optional, blank = card colour URL)</span></span><div class="row"><input type="url" class="mono" data-k="govee_tier3_url" placeholder="http://<pc-ip>:8765/sparkle/gold/12"><button onclick="testLights('tier3')">Test</button></div></label>
       <label class="f"><span>Back-to-normal URL</span><div class="row"><input type="url" class="mono" data-k="govee_reset_url" placeholder="http://<pc-ip>:8765/default"><button onclick="testLights('reset')">Test</button></div></label>
       <div class="f"><span style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Last light call</span><div class="result mono" id="lightRes" style="margin:0">—</div></div>
     </div>
@@ -253,6 +264,13 @@
   </section>
 
   <section class="wide">
+    <h2>Last requests received</h2>
+    <p class="hint">The last event URLs that reached Vibe TV, newest first, exactly as they arrived. Use it to check MixItUp filled in its variables:
+      an empty <span class="mono">tier=</span> or a leftover <span class="mono">$variable</span> means that identifier didn't exist for that event.</p>
+    <table class="urls reqs" id="reqs"></table>
+  </section>
+
+  <section class="wide">
     <h2>MixItUp URLs</h2>
     <p class="hint">Use these in MixItUp's Web Request action. They point at this server's address.</p>
     <table class="urls" id="urls"></table>
@@ -292,7 +310,7 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderReqs();
 }
 
 /* ── themes ─────────────────────────────────────────────────────────── */
@@ -349,9 +367,12 @@ const EVENTS = [
   ["raid", "Raid", "{name} {game} {viewers}", [["raid.title", "Title (letters slam in, up to 12)"], ["raid.sub", "Above the number"], ["raid.label", "After the number"]]],
   ["follow", "Follow", "{name}", [["follow.title", "Title (last word in colour)"]]],
   ["gift", "Gifted subs", "{name} {count}", [["gift.title", "Title (several)"], ["gift.title_one", "Title (one)"], ["gift.to", "Before the names"]]],
-  ["sub", "New sub", "{name} {tier}", [["sub.title", "Title"], ["sub.sub", "Under the name"]]],
+  ["sub", "New sub", "{name} {tier}", [["sub.title", "Title"], ["sub.sub", "Under the name"], ["sub.tier2_banner", "Tier 2 banner (subs and resubs)"], ["sub.tier3_banner", "Tier 3 banner (subs and resubs)"]]],
   ["resub", "Resub", "{name} {months} {tier}", [["resub.title", "Title (numbers in colour)"], ["resub.sub", "Under the name"]]],
   ["bits", "Bits", "{name} {amount}", [["bits.title", "Title (numbers in colour)"], ["bits.sub", "Under the name"]]],
+  ["streak", "Watch streak", "{name} {count}", [["streak.title", "Title (number counts up)"], ["streak.sub", "Under the name"]]],
+  ["modiversary", "Modiversary", "{name} {duration} {years} {months}", [["modiversary.title", "Title"], ["modiversary.sub", "Under the name"]]],
+  ["gigantify", "Gigantified emote", "{name} {emote}", [["gigantify.caption", "Caption under the emote"]]],
   ["welcome", "First-time chatter", "{name}", [["welcome.title", "Title"], ["welcome.sub", "Under the name"]]],
   ["hype", "Hype train", "{level}", [["hype.title", "Bar label"], ["hype.start", "Start banner"], ["hype.levelup", "Level-up banner"], ["hype.end", "End banner"]]],
   ["message", "Message", "", []],
@@ -445,10 +466,13 @@ function renderUrls() {
     ["/follow/$username", "Thanks for the follow (use in the Followed event)"],
     ["/gift/$username?to=$targetusername", "One gifted sub (Subscription Gifted event). Gifts arriving together become one screen"],
     ["/giftbomb/$username?count=<amount>", "Mass gift (Mass Subscriptions Gifted event). Optional if /gift already fires per sub"],
-    ["/sub/$username?tier=<tier>", "New subscriber (Subscribed event). tier = 1, 2, 3 or prime (optional)"],
+    ["/sub/$username?tier=<tier>", "New subscriber (Subscribed event). tier = 1, 2, 3, prime, 1000/2000/3000 or Tier 2. Tier 2 and 3 get bigger animations"],
     ["/resub/$username?months=<months>&message=<their message>", "Resub with the month count (Resubscribed event)"],
     ["/bits/$username?amount=<bits>&message=<their message>", "Cheer card, gems rain down (Bits Cheered event)"],
     ["/welcome/$username", "Small corner pop-up for a first-time chatter (doesn't interrupt anything)"],
+    ["/streak/$username?count=<streak count>&message=<their message>", "Watch streak shared in chat"],
+    ["/modiversary/$username?years=<years>", "Mod anniversary, with swords (or &months=<months>)"],
+    ["/gigantify/$username?emote=<emote ID or name>", "Gigantified emote, giant on the TV. An emote ID or image link always works; a name needs your channel set under Twitch API"],
     ["/hypetrain/start?level=<level>", "Hype train begins: shows the bar"],
     ["/hypetrain/progress?level=<level>&percent=<percent>", "Hype train update; also &progress=N&goal=N. A higher level shows a level-up banner"],
     ["/hypetrain/end?level=<level>", "Hype train over: end banner, bar hides"],
@@ -530,7 +554,10 @@ function test(kind) {
     const to = Array.from({ length: n }, (_, i) => pool[i % pool.length] + (i >= pool.length ? "_" + i : "")).join(",");
     call(n ? `/gift/${user}?to=${to}&count=${n}` : `/giftbomb/${user}?count=10`);
   }
-  else if (kind === "sub") call(`/sub/${user}?tier=1`);
+  else if (kind === "sub") call(`/sub/${user}?tier=${$("tTier").value}`);
+  else if (kind === "streak") call(`/streak/${user}?count=${encodeURIComponent($("tStreak").value || "12")}&message=${encodeURIComponent("Never missing a stream!")}`);
+  else if (kind === "modiversary") call(`/modiversary/${user}?years=${encodeURIComponent($("tModYears").value || "1")}`);
+  else if (kind === "gigantify") call(`/gigantify/${user}?emote=${encodeURIComponent($("tEmote").value.trim() || "25")}`);
   else if (kind === "resub") call(`/resub/${user}?months=${encodeURIComponent($("tMonths").value || "12")}&tier=1&message=${encodeURIComponent("Love this stream!")}`);
   else if (kind === "bits") call(`/bits/${user}?amount=${encodeURIComponent($("tBits").value || "500")}&message=${encodeURIComponent("Cheer500 let's go!")}`);
   else if (kind === "welcome") call(`/welcome/${user}`);
@@ -558,10 +585,18 @@ async function testTwitch() {
   refresh();
 }
 
+function renderReqs() {
+  const rows = state.requests || [];
+  $("reqs").innerHTML = rows.length ? rows.map(r => `<tr><td class="mono" style="width:1%;white-space:nowrap">${esc(r.time)}</td>
+      <td class="mono">${esc(r.url)}</td><td style="width:1%;white-space:nowrap" class="${r.status < 300 ? "ok" : "bad"}">${r.status}${r.note ? " · " + esc(r.note) : ""}</td></tr>`).join("")
+    : '<tr><td class="hint">Nothing yet. Fire a test above, or trigger the event in MixItUp.</td></tr>';
+}
+
 async function refresh(withMedia) {
   try {
     const s = await api("/api/state");
-    state.status = s.status; state.media = s.media;
+    state.status = s.status; state.media = s.media; state.requests = s.requests;
+    renderReqs();
     renderStatus();
     if (withMedia) renderMedia();
   } catch (e) { /* server restarting */ }

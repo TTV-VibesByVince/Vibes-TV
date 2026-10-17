@@ -11,7 +11,9 @@ Vibe TV calls your lights itself: **don't** add light URLs to MixItUp.
 3. When the TV goes back to the logo, it calls the **Back-to-normal URL**.
 
 The **Raid URL** (optional) is used instead of the card colour for raids,
-e.g. a sparkle effect in the raider's colour.
+e.g. a sparkle effect in the raider's colour. The **Tier 2** and **Tier 3
+sub URLs** (optional) do the same for big subs and resubs, e.g. a gold
+sparkle for Tier 3.
 
 ## With Govee Lights Controller
 

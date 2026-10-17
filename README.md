@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/brand/vibe-tv-icon-256.png" width="120" alt="Vibe TV icon: a neon TV with a play button"></p>
 <h1 align="center">Vibe TV</h1>
 <p align="center"><b>Your stream's alerts, on the TV behind you.</b><br>
-Raids, shoutouts, follows, subs, bits and gifted subs take over the screen on your wall, with Twitch clips and room lights to match.</p>
+Raids, shoutouts, subs, bits, watch streaks, modiversaries and giant emotes take over the screen on your wall, with Twitch clips and room lights to match.</p>
 <p align="center"><i>Because a raid deserves more than a corner of an overlay.</i></p>
 <p align="center">
   <a href="https://github.com/TTV-VibesByVince/Vibes-TV/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/TTV-VibesByVince/Vibes-TV?style=flat-square&color=9146ff&label=release"></a>
@@ -16,7 +16,7 @@ Raids, shoutouts, follows, subs, bits and gifted subs take over the screen on yo
 <p align="center"><a href="docs/vibe-tv-demo.mp4"><img src="docs/vibe-tv-demo.webp" width="900" alt="Demo: an animated logo loops, a raid takes over the screen with hazard tape, a slamming RAID! title, a portal around the raider's picture and a raider count, then the logo returns until a gifted-sub screen shows the gifter and six recipients."></a></p>
 <p align="center"><sub>A placeholder logo and made-up channel names; everything else is exactly what the TV shows. <a href="docs/vibe-tv-demo.mp4">Full-quality video</a> (22 s, silent).</sub></p>
 
-Vibe TV is a small web server that runs in Docker on a NAS or any always-on machine. Your TV opens one web page and loops your logo. When [MixItUp](https://mixitupapp.com) (or anything that can send a web request) reports a raid, shoutout, follow, sub, bits or gifted subs, that screen takes over: their profile picture, their name, an animation, then one of their Twitch clips. Your room lights can switch to the colour of their picture. Everything is set up from a settings page in your browser.
+Vibe TV is a small web server that runs in Docker on a NAS or any always-on machine. Your TV opens one web page and loops your logo. When [MixItUp](https://mixitupapp.com) (or anything that can send a web request) reports a raid, shoutout, follow, sub, bits, gifted subs, a watch streak, a modiversary or a gigantified emote, that screen takes over: their profile picture, their name, an animation, then one of their Twitch clips. Your room lights can switch to the colour of their picture. Everything is set up from a settings page in your browser.
 
 > [!NOTE]
 > You need a machine that runs Docker all the time (a NAS, mini PC or Raspberry Pi 4/5), a TV with a web browser, and MixItUp or a similar bot to send the events.
@@ -77,6 +77,14 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
     <td><img src="docs/screenshots/hype-train.jpg" alt="Hype train bar at level 3, 35 percent, with a LEVEL 3! banner"><br><sub><b>Hype train</b> bar and level-up banners, plus <b>welcome</b> pop-ups for first-time chatters</sub></td>
   </tr>
   <tr>
+    <td><img src="docs/screenshots/sub-tier3.jpg" alt="Tier 3 sub: spotlights, a gold crown on the subscriber's picture, TIER 3 and gold coins raining"><br><sub><b>Tier 3 sub</b>: spotlights, a crown and gold rain (Tier 2 gets its own bigger card too)</sub></td>
+    <td><img src="docs/screenshots/streak.jpg" alt="Watch streak: a ring of fire around the picture, twelve lit dots and 12-STREAM STREAK!"><br><sub><b>Watch streak</b>: a fuse of dots and a bed of fire</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/modiversary.jpg" alt="Modiversary: two swords crossed behind a green shield with the mod's picture, 2 YEARS OF MODDING"><br><sub><b>Modiversary</b>: a sword slash, then crossed swords</sub></td>
+    <td><img src="docs/screenshots/gigantify.jpg" alt="A gigantified emote filling the TV, with a caption saying who gigantified it"><br><sub><b>Gigantified emote</b>, huge on the TV (a made-up emote here)</sub></td>
+  </tr>
+  <tr>
     <td><img src="docs/screenshots/follow.jpg" alt="Thanks for the follow screen with the follower's picture"><br><sub><b>Follow</b> and <b>sub</b> cards</sub></td>
     <td><img src="docs/screenshots/theme-halloween.jpg" alt="Halloween theme: the follow screen with bats floating up"><br><sub><b>Themes</b>: Halloween bats, holiday snow, St Patrick's clovers</sub></td>
   </tr>
@@ -88,7 +96,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 ## Features
 
-**Screens.** Shoutouts (picture, last game, `twitch.tv/` link). Raids (hazard tape, slamming title, a portal, warp streaks, one glowing dot per raider and a count-up). Follows. Subs and resubs (month count and their message). Bits (gems in Twitch's cheer colours). Gifted subs (one-at-a-time gift events are combined into one screen with every recipient). Messages from chat commands. Events queue up and play one after another.
+**Screens.** Shoutouts (picture, last game, `twitch.tv/` link). Raids (hazard tape, slamming title, a portal, warp streaks, one glowing dot per raider and a count-up). Follows. Subs and resubs (month count and their message), bigger for Tier 2 and biggest for Tier 3. Bits (gems in Twitch's cheer colours). Watch streaks. Modiversaries (swords!). Gigantified emotes, giant on the TV. Gifted subs (one-at-a-time gift events are combined into one screen with every recipient). Messages from chat commands. Events queue up and play one after another.
 
 **Alongside everything.** First-time chatters get a small "Welcome!" pop-up in the corner that never interrupts. A hype train shows a progress bar along the bottom, with banners when it starts, levels up and ends.
 
@@ -98,7 +106,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Under the hood.** One small Python server (aiohttp) and two web pages, no database. The image is built by GitHub for Intel/AMD and ARM, and rebuilt weekly with the newest yt-dlp. Fonts are bundled, so the TV page works without internet. Lite mode keeps animations smooth on TV sticks and smart TVs. Optional password for the settings page.
 
-## Status: 1.3.1
+## Status: 1.4
 
 > [!IMPORTANT]
 > Vibe TV is young. It works and it's tested, but it is a hobby project made for one channel first, so expect rough edges. The [changelog](CHANGELOG.md) lists what changed in each version.
@@ -106,7 +114,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 - **Running for real** on a NAS with Portainer, shown on an Android TV with Fully Kiosk Browser.
 - **Tested automatically on every change** ([tests](tests/)): settings, every MixItUp URL, gift batching, the hype train, themes and the date schedule, backup and restore, uploads, the settings password, and the calls to your lights.
 - **Checked by hand and by screenshots**: every animation in full and lite mode, the settings page, Twitch lookups and clips.
-- **Known gaps**: MixItUp's variable names for the sub, resub, bits and hype train events vary, so pick them in MixItUp's event editor ([MixItUp URLs](docs/mixitup.md)). No alert sounds yet, no transparent OBS overlay mode yet, and it needs a bot like MixItUp to report events (it doesn't connect to Twitch by itself). See the [roadmap](ROADMAP.md).
+- **Known gaps**: MixItUp's variable names for the sub, resub, bits, watch streak, modiversary, gigantified emote and hype train events vary, so pick them in MixItUp's event editor; **Settings > Last requests received** shows what actually arrived ([MixItUp URLs](docs/mixitup.md)). No alert sounds yet, no transparent OBS overlay mode yet, and it needs a bot like MixItUp to report events (it doesn't connect to Twitch by itself). See the [roadmap](ROADMAP.md).
 
 ## FAQ
 
@@ -139,6 +147,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 - **Lights don't change**: the light URLs must use the PC's address, not the server's. The **Last light call** box on the settings page shows the exact error. More in [Lights](docs/lights.md).
 - **Clips don't play**: check **Settings > Twitch API > Test connection**, and that the streamer has clips shorter than **Longest clip**. Pulling the latest image updates the clip downloader.
 - **Animations are choppy on the TV**: set **Timing > TV animation quality** to **Lite**.
+- **A gigantified emote shows as text, or a Tier 3 sub shows as Tier 1**: MixItUp sent something Vibe TV couldn't use. **Settings > Last requests received** shows the exact URL; see [MixItUp URLs](docs/mixitup.md) for what each option accepts.
 - **The settings page asks for a password**: `ADMIN_PASSWORD` is set on the container. Any user name works.
 
 Still stuck? [Open an issue](https://github.com/TTV-VibesByVince/Vibes-TV/issues/new/choose) with the version (top of the settings page), your TV and browser, and what you expected to see.

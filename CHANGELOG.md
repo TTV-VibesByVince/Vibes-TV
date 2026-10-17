@@ -4,6 +4,25 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 1.4 (2026-10-17)
+
+- **Bigger subs for bigger tiers**: Tier 2 subs and resubs get two stars,
+  confetti cannons and a short shake; Tier 3 gets spotlights, a gold crown,
+  a slamming "TIER 3" and gold coins raining. Optional light URLs per tier.
+  The tier can also be part of the URL: `/sub/<user>/tier3`.
+- **Watch streak** (`/streak`): a fuse of dots lights up, the streak counts
+  up, and a bed of fire burns along the bottom.
+- **Modiversary** (`/modiversary`): a sword slash across the screen, then
+  two swords cross behind a shield with their picture, in mod green.
+- **Gigantified emotes** (`/gigantify`): the emote bursts onto the TV, huge
+  and wobbling (animated emotes play animated). Works with an emote ID, an
+  image link, or a name (looked up on Twitch).
+- **Last requests received** on the settings page: the exact URLs MixItUp
+  sent, to check its variables came through.
+- **GO FOLLOW** on the shoutout card is twice as big.
+- Settings: your Twitch channel (for finding emotes by name), timings and
+  text for the new screens, test buttons for all of them.
+
 ## 1.3.1 (2026-10-17)
 
 - **Icon**: Vibe TV has an icon, used for the browser tab on the TV and
