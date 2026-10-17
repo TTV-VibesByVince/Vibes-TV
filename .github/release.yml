@@ -1,0 +1,13 @@
+# Groups GitHub's auto-generated release notes.
+changelog:
+  exclude:
+    labels: [skip-changelog]
+  categories:
+    - title: New
+      labels: [feature, enhancement]
+    - title: Fixes
+      labels: [bug, fix]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Other changes
+      labels: ["*"]

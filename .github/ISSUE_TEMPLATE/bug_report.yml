@@ -1,0 +1,56 @@
+name: Bug report
+description: Something on the TV or the settings page doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it! The [troubleshooting list](https://github.com/TTV-VibesByVince/Vibes-TV#troubleshooting) fixes the most common problems.
+
+        **Keep private things out**: write `<server-ip>` instead of your addresses, and never paste your Twitch client secret.
+  - type: input
+    id: version
+    attributes:
+      label: Vibe TV version
+      description: Shown at the top of the settings page.
+      placeholder: v1.3.1
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run it?
+      options:
+        - Portainer
+        - Synology Container Manager
+        - Docker Compose
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: tv
+    attributes:
+      label: TV and browser
+      placeholder: e.g. Android TV with Fully Kiosk Browser, lite mode
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: And what did you expect to see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The test button you pressed, or the URL MixItUp sent (with names and addresses replaced).
+      placeholder: |
+        1. Open the settings page
+        2. Click "Test raid"
+        3. ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The output of `docker logs vibe-tv` around when it happened (Portainer: Containers > vibe-tv > Logs).
+      render: text

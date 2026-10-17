@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="neon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff2a6d"/>
+      <stop offset=".5" stop-color="#9146ff"/>
+      <stop offset="1" stop-color="#2b45ff"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff2a6d"/>
+      <stop offset=".55" stop-color="#9146ff"/>
+      <stop offset="1" stop-color="#2b45ff"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22123d"/>
+      <stop offset="1" stop-color="#0c0816"/>
+    </linearGradient>
+    <radialGradient id="halo" cx=".5" cy=".55" r=".5">
+      <stop offset="0" stop-color="#9146ff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#9146ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".28"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="scr"><rect x="122" y="196" width="268" height="186" rx="30"/></clipPath>
+  </defs>
+
+  <!-- app-icon tile -->
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#bg)"/>
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#halo)"/>
+
+  <!-- antennae -->
+  <g stroke="url(#neon)" stroke-width="16" stroke-linecap="round" fill="none" filter="url(#glow)">
+    <path d="M256 158 L190 88"/>
+    <path d="M256 158 L322 88"/>
+  </g>
+  <circle cx="186" cy="84" r="15" fill="#ff2a6d" filter="url(#glow)"/>
+  <circle cx="326" cy="84" r="15" fill="#2b45ff" filter="url(#glow)"/>
+
+  <!-- set -->
+  <rect x="86" y="160" width="340" height="258" rx="60" fill="#140f22" stroke="url(#neon)" stroke-width="18" filter="url(#glow)"/>
+
+  <!-- screen -->
+  <rect x="122" y="196" width="268" height="186" rx="30" fill="url(#screen)"/>
+  <g clip-path="url(#scr)" opacity=".18" stroke="#000" stroke-width="3">
+    <path d="M110 206h300M110 218h300M110 230h300M110 242h300M110 254h300M110 266h300M110 278h300M110 290h300M110 302h300M110 314h300M110 326h300M110 338h300M110 350h300M110 362h300M110 374h300"/>
+  </g>
+  <rect x="122" y="196" width="268" height="93" rx="30" fill="url(#gloss)"/>
+
+  <!-- play mark -->
+  <path d="M232 244 Q232 232 243 238 L300 278 Q309 284 300 290 L243 330 Q232 336 232 324 Z" fill="#fff"/>
+
+  <!-- feet -->
+  <g stroke="url(#neon)" stroke-width="16" stroke-linecap="round">
+    <path d="M168 418 L150 446"/>
+    <path d="M344 418 L362 446"/>
+  </g>
+
+  <!-- sparkles -->
+  <g fill="#fff">
+    <path d="M412 150 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6z"/>
+    <path d="M100 118 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4z" opacity=".85"/>
+  </g>
+</svg>

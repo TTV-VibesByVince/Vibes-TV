@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vibe TV Settings</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/static/icon/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon/apple-touch-icon.png">
 <link href="/static/fonts/fonts.css" rel="stylesheet">
 <style>
   :root {
@@ -15,6 +18,7 @@
   a { color: var(--accent2); }
   header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 24px;
     background: rgba(13,11,20,.88); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .logo { width: 34px; height: 34px; margin-right: -6px; flex: none; }
   .brand { font-family: "Bungee", sans-serif; font-size: 22px; letter-spacing: .04em; background: linear-gradient(90deg, #ff2a6d, var(--accent), #05d9e8); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .ver { color: var(--muted); font-size: 13px; }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
@@ -119,7 +123,7 @@
 </head>
 <body>
 <header>
-  <div class="brand">VIBE TV</div><div class="ver" id="ver"></div>
+  <img class="logo" src="/static/icon/icon.svg" alt="" width="34" height="34"><div class="brand">VIBE TV</div><div class="ver" id="ver"></div>
   <div class="chips">
     <span class="chip" id="cTv"><i></i><span>TVs</span></span>
     <span class="chip" id="cShow"><i></i><span>Showing</span></span>

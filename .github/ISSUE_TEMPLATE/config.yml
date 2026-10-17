@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup help and docs
+    url: https://github.com/TTV-VibesByVince/Vibes-TV/tree/main/docs
+    about: Install, the TV, MixItUp URLs, lights and customising.
+  - name: Report a security problem
+    url: https://github.com/TTV-VibesByVince/Vibes-TV/security/advisories/new
+    about: Please report security problems privately, not as a public issue.

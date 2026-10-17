@@ -34,12 +34,13 @@ import random
 import re
 import time
 from pathlib import Path
+from urllib.parse import unquote
 
 import aiohttp
 from aiohttp import web
 from PIL import Image
 
-VERSION = "1.3"
+VERSION = "1.3.1"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -818,6 +819,10 @@ async def index(request):
     return web.FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
+async def favicon(request):
+    return web.FileResponse(STATIC / "icon" / "favicon.ico", headers={"Cache-Control": "max-age=86400"})
+
+
 async def ws_handler(request):
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
@@ -1124,7 +1129,8 @@ async def api_upload(request):
         field = await reader.next()
     if field is None or not field.filename:
         raise web.HTTPBadRequest(text="no file")
-    name = safe_upload_name(field.filename)
+    # some clients send the name percent-encoded (my%20logo.png)
+    name = safe_upload_name(unquote(field.filename))
     if Path(name).suffix not in VIDEO_EXT | IMAGE_EXT:
         raise web.HTTPBadRequest(text="Use a video (mp4, webm, mov) or an image (png, jpg, gif, webp)")
     dest = MEDIA / name
@@ -1227,6 +1233,7 @@ def make_app():
     app.router.add_route("*", "/logo", logo)
     app.router.add_route("*", "/reload", reload)
     app.router.add_get("/status", status)
+    app.router.add_get("/favicon.ico", favicon)
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/api/state", api_state)
     app.router.add_post("/api/settings", api_settings)

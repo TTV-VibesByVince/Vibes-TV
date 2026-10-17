@@ -1,0 +1,24 @@
+# Opens a pull request when a newer version of a dependency is out. The test
+# workflow runs on each one, so a green check means it is safe to merge.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies]
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies]

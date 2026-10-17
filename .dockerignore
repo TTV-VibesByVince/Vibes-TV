@@ -2,8 +2,10 @@ media/
 cache/
 config/
 docs/
+tests/
 .github/
 **/__pycache__/
+.pytest_cache/
 *.zip
 *.tar
 .git/
