@@ -3,3 +3,6 @@ pillow==11.3.0
 # Left unpinned on purpose: Twitch changes break old versions. Rebuild the
 # image to pick up the latest one if clips stop downloading.
 yt-dlp
+# Optional TikTok LIVE alerts (off unless switched on in the settings).
+# Unofficial; its license allows use in overlays and bots like this one.
+TikTokLive>=7,<8

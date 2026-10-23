@@ -4,21 +4,7 @@ import asyncio
 import json
 import time
 
-import pytest
 from aiohttp import web
-
-from conftest import TVSocket
-
-
-@pytest.fixture
-async def overlay(client):
-    ws = await client.ws_connect("/ws?screen=overlay&preview=1")
-    hello = await ws.receive_json()
-    assert hello["type"] == "hello" and hello["screen"] == "overlay"
-    sock = TVSocket(ws)
-    sock.hello = hello
-    yield sock
-    await ws.close()
 
 
 async def test_hello_tells_each_screen_what_it_needs(client, tv, overlay):

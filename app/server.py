@@ -47,6 +47,8 @@ import aiohttp
 from aiohttp import web
 from PIL import Image
 
+from tiktok import TikTokWatcher
+
 VERSION = "1.4"
 
 BASE = Path(__file__).parent
@@ -119,14 +121,21 @@ SCHEMA = {
     "overlay_opacity":      (float, 0.85),        # the alert panel's background
     "overlay_seconds":      (float, 6.0),         # how long each overlay alert stays up
     "overlay_clips":        (bool,  False),       # clips also play on the overlay (off: no double audio)
+    # TikTok LIVE (optional): follows, subs and gifts from your own live, via TikTokLive
+    "tiktok_enabled":       (bool,  os.getenv("TIKTOK_ENABLED", "0") == "1"),
+    "tiktok_username":      (str,   os.getenv("TIKTOK_USERNAME", "")),
+    "tiktok_sign_key":      (str,   os.getenv("TIKTOK_SIGN_KEY", "")),   # optional eulerstream.com key
+    "tiktok_min_coins":     (float, 1.0),         # smaller gifts (in coins, combo total) aren't shown
 }
-SECRET_KEYS = {"twitch_client_secret"}
+SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
+TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
 LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "message_seconds": (2, 60), "max_clip_seconds": (5, 60),
           "follow_seconds": (2, 60), "gift_seconds": (4, 60),
           "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30),
           "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60),
-          "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30)}
+          "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30),
+          "tiktok_min_coins": (0, 1000000)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
 REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
@@ -166,9 +175,11 @@ TEXT_DEFAULTS = {
     "modiversary.title": "{duration} OF MODDING",
     "modiversary.sub":  "Thank you for keeping the peace",
     "gigantify.caption": "{name} gigantified[ {emote}]",
+    "tiktok_gift.title": "[{count}× ]{gift}!",
+    "tiktok_gift.sub":  "Thanks for the gift[ · {coins} coins]",
 }
 COLOR_EVENTS = ["shoutout", "raid", "follow", "gift", "sub", "resub", "bits", "streak", "modiversary",
-                "gigantify", "welcome", "hype", "message"]
+                "gigantify", "welcome", "hype", "message", "tiktok_gift"]
 COLOR_DEFAULTS = {e: "auto" for e in COLOR_EVENTS} | {"hype": "theme", "message": "theme",
                                                       "modiversary": "#00ad03"}   # Twitch's mod green
 
@@ -202,7 +213,7 @@ THEMES = {
 SCREENS = ("tv", "overlay")
 # Where each kind of alert plays. Subs and resubs share "sub".
 ROUTE_EVENTS = ["shoutout", "raid", "follow", "sub", "bits", "gift", "streak", "modiversary",
-                "gigantify", "message", "welcome", "hype"]
+                "gigantify", "message", "welcome", "hype", "tiktok_gift"]
 ROUTE_DEFAULTS = {e: "both" for e in ROUTE_EVENTS} | {"gigantify": "tv"}
 ROUTE_CHOICES = ("tv", "overlay", "both")
 OVERLAY_POSITIONS = ("top-left", "top-right", "bottom-left", "bottom-right", "bottom-center")
@@ -296,6 +307,7 @@ class Settings:
     def public(self):
         out = {k: v for k, v in self.data.items() if k not in SECRET_KEYS}
         out["twitch_client_secret_set"] = bool(self.data["twitch_client_secret"])
+        out["tiktok_sign_key_set"] = bool(self.data["tiktok_sign_key"])
         return out
 
     def update(self, changes):
@@ -345,7 +357,12 @@ class Settings:
             if key.startswith("govee_") and val and not val.startswith(("http://", "https://")):
                 errors.append(f"{key}: must start with http://")
                 continue
-            if key == "twitch_client_secret" and val == "-":
+            if key == "tiktok_username":
+                val = val.lstrip("@").strip()
+                if val and not TIKTOK_USER_RE.match(val):
+                    errors.append("tiktok_username: letters, numbers, . and _ only")
+                    continue
+            if key in SECRET_KEYS and val == "-":
                 val = ""                        # "-" clears it
             clean[key] = val
         if errors:
@@ -717,6 +734,9 @@ class TV:
         login = ev["user"]
         info = {"login": login.lower(), "display_name": ev.get("display") or login,
                 "avatar": ev.get("avatar") or "", "game": ev.get("game") or "", "id": None}
+        if ev.get("platform"):
+            info["platform"] = ev["platform"]
+            return info                         # TikTok people aren't on Twitch
         if self.twitch.enabled:
             try:
                 api = await self.twitch.user(login.lower())
@@ -937,6 +957,13 @@ class TV:
             secs = S["modiversary_seconds"]
             ctx.update({"years": ev.get("years"), "duration": duration_text(ev.get("years"), ev.get("months"))})
             text = {"title": text_for("modiversary.title", **ctx), "sub": text_for("modiversary.sub", **ctx)}
+        elif kind == "tiktok_gift":
+            secs = S["bits_seconds"]
+            count, coins = ev.get("count") or 1, ev.get("coins") or 0
+            ctx.update({"gift": ev["gift"]["name"], "count": count if count > 1 else None,
+                        "coins": f"{coins:,}" if coins else None})
+            text = {"title": text_for("tiktok_gift.title", **ctx), "sub": text_for("tiktok_gift.sub", **ctx)}
+            payload.update({"gift": ev["gift"], "count": count, "coins": coins, "amount": coins})
         elif kind == "gigantify":
             secs = S["gigantify_seconds"]
             emote = await self.resolve_emote(ev.get("emote") or "")
@@ -1019,6 +1046,7 @@ class TV:
                 await self.govee(None)
 
 tv = TV()
+tiktok = TikTokWatcher(S, lambda ev: tv.dispatch(ev, limit=True))
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -1357,7 +1385,7 @@ async def api_state(request):
                    "overlays_connected": tv.count("overlay"), "queued_overlay": tv.screens["overlay"].queue.qsize(),
                    "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
                    "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee,
-                   **logo_info()},
+                   "tiktok": tiktok.status(), **logo_info()},
         "media": list_media(),
         "password_protected": bool(ADMIN_PASSWORD),
         "text_defaults": TEXT_DEFAULTS,
@@ -1404,6 +1432,7 @@ async def api_restore(request):
         return web.json_response({"ok": False, "errors": errors}, status=400)
     if screen_info() != before:
         await tv.broadcast({"type": "logo_src", **screen_info()})
+    tiktok.reconfigure()
     return web.json_response({"ok": True, "notes": notes, "restored": len(settings)})
 
 
@@ -1419,6 +1448,7 @@ async def api_settings(request):
     after = screen_info()
     if after != before:
         await tv.broadcast({"type": "logo_src", **after})
+    tiktok.reconfigure()
     return web.json_response({"ok": True, "settings": S.public()})
 
 
@@ -1500,6 +1530,29 @@ async def api_test_twitch(request):
         return web.json_response({"ok": False, "result": f"{e.__class__.__name__}: {e}"})
 
 
+TIKTOK_TEST_GIFTS = {"small": ("Rose", 1, 5), "medium": ("Doughnut", 30, 4), "big": ("Lion", 29999, 1)}
+
+
+async def api_test_tiktok(request):
+    """Play a made-up TikTok alert (no TikTok connection needed):
+    ?kind=follow|sub|gift&size=small|medium|big, plus the usual &screen=."""
+    kind = request.query.get("kind", "gift")
+    who = {"user": "tiktok_tester", "display": "TikTok Tester", "avatar": ""}
+    override = screen_param(request)
+    if kind == "follow":
+        ev = {"type": "follow", "platform": "tiktok", **who, "clip": False}
+    elif kind == "sub":
+        ev = {"type": "sub", "platform": "tiktok", **who, "clip": False, "tier": None}
+    elif kind == "gift":
+        name, coins, count = TIKTOK_TEST_GIFTS.get(request.query.get("size", "small"), TIKTOK_TEST_GIFTS["small"])
+        ev = {"type": "tiktok_gift", "platform": "tiktok", **who, "clip": False,
+              "gift": {"name": name, "image": ""}, "count": count, "coins": coins * count}
+    else:
+        raise web.HTTPBadRequest(text="kind must be follow, sub or gift")
+    ev["screen"] = override
+    return queued(tv.dispatch(ev))
+
+
 # ── app ──────────────────────────────────────────────────────────────────
 
 async def on_startup(app):
@@ -1507,6 +1560,7 @@ async def on_startup(app):
     tv.twitch = Twitch(tv.session)
     app["workers"] = [asyncio.create_task(screen.worker()) for screen in tv.screens.values()]
     app["themes"] = asyncio.create_task(tv.theme_watch())
+    tiktok.reconfigure()
     log.info("Vibe TV v%s on :%d (twitch api: %s, logo: %s, admin password: %s)",
              VERSION, PORT, tv.twitch.enabled, logo_url() or "none", "on" if ADMIN_PASSWORD else "off")
 
@@ -1515,6 +1569,8 @@ async def on_cleanup(app):
     for w in app["workers"]:
         w.cancel()
     app["themes"].cancel()
+    await tiktok.stop()
+    tiktok.config = None
     await tv.session.close()
 
 
@@ -1556,6 +1612,7 @@ def make_app():
     app.router.add_delete("/api/media/{name}", api_delete_media)
     app.router.add_post("/api/test/lights", api_test_lights)
     app.router.add_post("/api/test/twitch", api_test_twitch)
+    app.router.add_post("/api/test/tiktok", api_test_tiktok)
     app.router.add_get("/api/backup", api_backup)
     app.router.add_post("/api/restore", api_restore)
     app.router.add_static("/media", MEDIA, show_index=False)
