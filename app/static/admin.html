@@ -56,6 +56,24 @@
 
   .preview { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line); }
   .preview iframe { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: 0; transform-origin: 0 0; }
+  /* the overlay preview sits on a checkerboard + a made-up game scene, so its transparency shows */
+  .preview.ov { background:
+      radial-gradient(ellipse at 70% 115%, rgba(255,140,40,.55), transparent 55%),
+      linear-gradient(180deg, rgba(40,90,170,.75), rgba(25,30,60,.6) 60%, rgba(30,60,35,.85) 61%, rgba(20,40,25,.9)),
+      repeating-conic-gradient(#3a3a46 0 25%, #2b2b35 0 50%) 0 0 / 28px 28px; }
+  .preview.ov::before { content: "GAME / CAMERA"; position: absolute; top: 38%; width: 100%; text-align: center; font: 900 clamp(18px, 4vw, 40px) "Outfit", sans-serif;
+    letter-spacing: .2em; color: rgba(255,255,255,.18); }
+  .preview.ov iframe { background: transparent; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-left: auto; }
+  .seg button { border: 0; border-radius: 0; padding: 6px 12px; font-size: 13px; background: transparent; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .routes { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px 14px; margin-top: 8px; }
+  .routes label { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .routes select { width: 130px; padding: 6px 8px; font-size: 13px; }
+  .routes select.changed { border-color: var(--accent); }
+  .tips { margin: 10px 0 0 18px; color: var(--muted); font-size: 13px; }
+  .tips li { margin-top: 4px; }
+  .tips b { color: var(--text); }
   .tests { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
   .tests .full { grid-column: 1 / -1; }
 
@@ -129,6 +147,7 @@
   <div class="chips">
     <span class="chip" id="cTv"><i></i><span>TVs</span></span>
     <span class="chip" id="cShow"><i></i><span>Showing</span></span>
+    <span class="chip" id="cOv"><i></i><span>Overlays</span></span>
     <span class="chip" id="cTw"><i></i><span>Twitch API</span></span>
     <a class="btn" href="/tv" target="_blank">Open TV page</a>
   </div>
@@ -136,11 +155,13 @@
 
 <main>
   <section>
-    <h2>Live preview</h2>
-    <p class="hint">What the TV shows right now. Test buttons play on every connected TV.</p>
+    <h2>Live preview <span class="seg" id="pvSeg"><button class="on" data-pv="tv">TV</button><button data-pv="overlay">Stream overlay</button></span></h2>
+    <p class="hint" id="pvHint">What the TV shows right now. Test buttons play on every connected TV.</p>
     <div class="preview" id="pv"><iframe id="pvframe" src="/tv?preview=1" title="TV preview"></iframe></div>
     <div class="tests">
-      <label class="f full" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="" placeholder="Your channel name (blank = twitch)" maxlength="25"></label>
+      <label class="f" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="" placeholder="Your channel name (blank = twitch)" maxlength="25"></label>
+      <label class="f" style="margin-top:0"><span>Send tests to</span><select id="tScreen" title="Where test alerts play">
+        <option value="">Each alert's setting</option><option value="tv">TV only</option><option value="overlay">Stream overlay only</option><option value="both">TV and overlay</option></select></label>
       <button onclick="test('shoutout')">Test shoutout</button>
       <div class="row"><button onclick="test('raid')" style="flex:1">Test raid</button><input type="number" id="tViewers" value="42" min="0" style="width:90px;flex:none" title="Raiders"></div>
       <button onclick="test('follow')">Test follow</button>
@@ -154,8 +175,8 @@
       <div class="row full"><button onclick="test('gigantify')">Test gigantified emote</button><input type="text" id="tEmote" value="25" placeholder="Emote ID, name or image link" title="Emote ID (e.g. 25 = Kappa), name or image link"></div>
       <div class="row full"><span class="hint" style="flex:none;margin-right:2px">Hype train:</span><button onclick="hype('start')" style="flex:1">Start</button><button onclick="hype('progress')" style="flex:1">Progress</button><button onclick="hype('levelup')" style="flex:1">Level up</button><button onclick="hype('end')" style="flex:1">End</button></div>
       <div class="row full"><input type="text" id="tMsg" placeholder="Message text" value="Welcome to the stream!"><button onclick="test('message')">Show message</button></div>
-      <button onclick="call('/logo')">Back to logo</button>
-      <button onclick="call('/reload')">Reload TVs</button>
+      <button onclick="clearScreens()">Clear alerts</button>
+      <button onclick="call('/reload')">Reload screens</button>
     </div>
     <div class="result" id="tRes"></div>
   </section>
@@ -213,6 +234,47 @@
   </section>
 
   <section class="wide">
+    <h2>Stream overlay</h2>
+    <p class="hint">The same alerts on your stream, as small see-through cards in a corner. No logo, no background: it's empty between alerts.
+      It has its own queue, so it never waits for a TV clip.</p>
+    <label class="f"><span>Overlay address</span><div class="row"><input type="text" class="mono" id="ovUrl" readonly><button onclick="copy($('ovUrl').value)">Copy</button><a class="btn" id="ovOpen" target="_blank">Open</a></div></label>
+    <ul class="tips">
+      <li>In OBS, add a <b>Browser</b> source with this address, <b>Width 1920</b> and <b>Height 1080</b>. No custom CSS needed: the page is already transparent.</li>
+      <li>Turn <b>Shutdown source when not visible</b> off, so it stays connected when you switch scenes.</li>
+      <li>Want the alert sounds on stream? Tick <b>Control audio via OBS</b>. Clips are off on the overlay by default so their sound doesn't play twice.</li>
+    </ul>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(200px, 1fr))">
+      <label class="f"><span>Position</span><select data-k="overlay_position">
+        <option value="top-left">Top left</option><option value="top-right">Top right</option>
+        <option value="bottom-left">Bottom left</option><option value="bottom-right">Bottom right</option><option value="bottom-center">Bottom centre</option></select></label>
+      <label class="f"><span>Size <span class="hint">(0.5 to 2, 1 = normal)</span></span><input type="number" data-k="overlay_scale" min="0.5" max="2" step="0.05"></label>
+      <label class="f"><span>Panel opacity <span class="hint">(0.2 to 1)</span></span><input type="number" data-k="overlay_opacity" min="0.2" max="1" step="0.05"></label>
+      <label class="f"><span>Each alert (seconds)</span><input type="number" data-k="overlay_seconds" min="2" max="30" step="0.5"></label>
+    </div>
+    <label class="switch"><span>Play clips on the overlay too<br><span class="hint">After shoutouts and raids, in a small player in the same corner. Off by default: the TV usually plays them.</span></span><input type="checkbox" data-k="overlay_clips"></label>
+    <h3 class="sub">Where each alert plays</h3>
+    <p class="hint">A URL's <span class="mono">&amp;screen=tv</span>, <span class="mono">overlay</span> or <span class="mono">both</span> overrides this for that one alert. Room lights always follow the TV.</p>
+    <div class="routes" id="routes"></div>
+  </section>
+
+  <section class="wide">
+    <h2>TikTok LIVE <span class="chip" id="ttChip"><i></i><span>Off</span></span></h2>
+    <p class="hint">Optional. Shows follows, subscriptions and gifts from your own TikTok LIVE, with the same cards, queues and routing.
+      It uses <a href="https://github.com/isaackogan/TikTokLive" target="_blank" rel="noopener">TikTokLive</a>, an unofficial open source library
+      that reads the same live feed the TikTok app shows. TikTok doesn't support it, so it can stop working for a while when TikTok changes things.</p>
+    <label class="switch"><span>Listen to my TikTok LIVE<br><span class="hint">Checks every minute whether you're live, and connects when you are.</span></span><input type="checkbox" data-k="tiktok_enabled"></label>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(240px, 1fr))">
+      <label class="f"><span>Your TikTok username</span><input type="text" class="mono" data-k="tiktok_username" placeholder="your_username" autocomplete="off" spellcheck="false"></label>
+      <label class="f"><span>Smallest gift shown <span class="hint">(coins, combo total)</span></span><input type="number" data-k="tiktok_min_coins" min="0" step="1"></label>
+      <label class="f"><span>Signing key <span class="hint">(optional, from eulerstream.com)</span></span><input type="password" class="mono" data-k="tiktok_sign_key" id="ttKey" autocomplete="new-password" spellcheck="false"></label>
+    </div>
+    <div class="result" id="ttRes"></div>
+    <div class="row" style="margin-top:8px"><span class="hint" style="flex:none">Test (no TikTok needed):</span>
+      <button onclick="testTikTok('follow')">Follow</button><button onclick="testTikTok('sub')">Subscription</button>
+      <button onclick="testTikTok('gift', 'small')">Small gift</button><button onclick="testTikTok('gift', 'big')">Big gift</button></div>
+  </section>
+
+  <section class="wide">
     <h2>Lights</h2>
     <p class="hint">Vibe TV calls these when a card starts and ends. <span class="mono">{hex}</span> becomes the colour picked from the raider's avatar.
       For <a href="https://github.com/TTV-VibesByVince/Govee-Lights-Controller" target="_blank" rel="noopener">Govee Lights Controller</a> (V1.3+), turn on <b>Settings &gt; Accept requests from my network</b> on the PC, then use its address, e.g.
@@ -255,7 +317,7 @@
       they're in the <span class="mono">media</span> folder.</p>
     <div class="row" style="margin-top:12px">
       <button onclick="backup()">Download backup</button>
-      <label class="row hint" style="gap:6px;cursor:pointer"><input type="checkbox" id="bkSecret"> Include the Twitch client secret</label>
+      <label class="row hint" style="gap:6px;cursor:pointer"><input type="checkbox" id="bkSecret"> Include the secrets (Twitch client secret, TikTok signing key)</label>
       <span style="flex:1"></span>
       <button onclick="$('restoreFile').click()">Restore from a backup…</button>
       <input type="file" id="restoreFile" accept=".json,application/json" hidden>
@@ -306,11 +368,34 @@ async function load() {
   document.querySelectorAll("[data-k]").forEach(el => {
     const k = el.dataset.k;
     if (el.type === "checkbox") el.checked = !!s[k];
-    else if (k === "twitch_client_secret") { el.value = ""; el.placeholder = s.twitch_client_secret_set ? "Saved. Leave blank to keep it" : "Not set"; }
+    else if (k === "twitch_client_secret" || k === "tiktok_sign_key") { el.value = ""; el.placeholder = s[k + "_set"] ? "Saved. Leave blank to keep it (- clears it)" : "Not set"; }
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderReqs();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderReqs();
+}
+
+/* ── stream overlay: where each alert plays ─────────────────────────── */
+const ROUTE_LABELS = { shoutout: "Shoutout", raid: "Raid", follow: "Follow", sub: "Subs and resubs", bits: "Bits", gift: "Gifted subs",
+  streak: "Watch streak", modiversary: "Modiversary", gigantify: "Gigantified emote", message: "Message", welcome: "First-time chatter", hype: "Hype train",
+  tiktok_gift: "TikTok gift" };
+const ROUTE_NAMES = { tv: "TV only", overlay: "Overlay only", both: "Both" };
+function renderRoutes() {
+  const routes = state.settings.routes || {}, defs = state.route_defaults;
+  $("routes").innerHTML = state.route_events.map(ev => {
+    const v = routes[ev] || defs[ev];
+    return `<label>${esc(ROUTE_LABELS[ev] || ev)}<select data-route="${ev}" class="${v !== defs[ev] ? "changed" : ""}">${
+      Object.entries(ROUTE_NAMES).map(([k, n]) => `<option value="${k}"${k === v ? " selected" : ""}>${n}${k === defs[ev] ? " (default)" : ""}</option>`).join("")}</select></label>`;
+  }).join("");
+  $("routes").querySelectorAll("select").forEach(el => el.addEventListener("input", () => {
+    el.classList.toggle("changed", el.value !== defs[el.dataset.route]);
+    markDirty();
+  }));
+}
+function collectRoutes() {
+  const out = {};
+  document.querySelectorAll("[data-route]").forEach(el => { out[el.dataset.route] = el.value; });
+  return out;
 }
 
 /* ── themes ─────────────────────────────────────────────────────────── */
@@ -376,6 +461,7 @@ const EVENTS = [
   ["welcome", "First-time chatter", "{name}", [["welcome.title", "Title"], ["welcome.sub", "Under the name"]]],
   ["hype", "Hype train", "{level}", [["hype.title", "Bar label"], ["hype.start", "Start banner"], ["hype.levelup", "Level-up banner"], ["hype.end", "End banner"]]],
   ["message", "Message", "", []],
+  ["tiktok_gift", "TikTok gift", "{name} {gift} {count} {coins}", [["tiktok_gift.title", "Title (count only shows for combos)"], ["tiktok_gift.sub", "Under the name"]]],
 ];
 function renderEvents() {
   const texts = state.settings.texts || {}, colors = state.settings.colors || {};
@@ -415,7 +501,7 @@ function backup() {
   a.href = "/api/backup" + ($("bkSecret").checked ? "?secrets=1" : "");
   a.download = "";
   document.body.appendChild(a); a.click(); a.remove();
-  setRes($("bkRes"), true, "Backup downloaded" + ($("bkSecret").checked ? " (includes your Twitch secret: keep it private)." : "."));
+  setRes($("bkRes"), true, "Backup downloaded" + ($("bkSecret").checked ? " (includes your secrets: keep it private)." : "."));
 }
 async function restore(file) {
   if (!file) return;
@@ -436,9 +522,19 @@ function renderStatus() {
   tv.lastChild.textContent = st.tvs_connected === 1 ? "1 TV connected" : `${st.tvs_connected} TVs connected`;
   $("cShow").lastChild.textContent = "Showing: " + st.showing + (st.queued ? ` (+${st.queued} queued)` : "");
   $("cShow").className = "chip " + (st.showing === "logo" ? "" : "ok");
+  const ov = $("cOv"), n = st.overlays_connected || 0;
+  ov.className = "chip " + (n ? "ok" : "");
+  ov.lastChild.textContent = (n === 1 ? "1 overlay" : `${n} overlays`)
+    + (st.showing_overlay && st.showing_overlay !== "nothing" ? ": " + st.showing_overlay : "") + (st.queued_overlay ? ` (+${st.queued_overlay})` : "");
   const tw = $("cTw"); tw.className = "chip " + (st.twitch_api ? "ok" : "");
   tw.lastChild.textContent = st.twitch_api ? "Twitch API on" : "Twitch API off";
   if (st.last_lights) $("lightRes").textContent = st.last_lights;
+  const tt = st.tiktok || { state: "off" }, chip = $("ttChip");
+  const TT = { off: "Off", connecting: "Connecting", live: "Connected to your live", waiting: "Waiting for you to go live", error: "Problem" };
+  chip.className = "chip " + (tt.state === "live" ? "ok" : tt.state === "error" ? "bad" : "");
+  chip.lastChild.textContent = TT[tt.state] || tt.state;
+  setRes($("ttRes"), tt.state === "error" ? false : tt.state === "live" ? true : null,
+    (tt.detail || "") + (tt.state === "live" ? ` · this session: ${tt.counts.follow} follows, ${tt.counts.sub} subs, ${tt.counts.gift} gifts` : ""));
 }
 
 function renderMedia() {
@@ -477,7 +573,8 @@ function renderUrls() {
     ["/hypetrain/progress?level=<level>&percent=<percent>", "Hype train update; also &progress=N&goal=N. A higher level shows a level-up banner"],
     ["/hypetrain/end?level=<level>", "Hype train over: end banner, bar hides"],
     ["/message?text=$allargs&from=$username", "Big message bubble"],
-    ["/logo", "Clear the queue and go back to the logo"],
+    ["/logo", "Clear the queues: the TV goes back to the logo, the overlay goes empty. Add ?screen=tv or ?screen=overlay to clear just one"],
+    ["/follow/$username?screen=overlay", "Any alert URL can take &screen=tv, overlay or both to override where it plays"],
     ["/reload", "Reload every TV page"],
     ["/status", "JSON status"],
   ];
@@ -495,7 +592,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched() };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes() };
 }
 
 async function save() {
@@ -536,10 +633,25 @@ function upload(file) {
   x.open("POST", "/api/media"); x.send(fd);
 }
 
-async function call(path) {
+async function send(path) {
   const r = await api(path, { method: "POST" });
-  setRes($("tRes"), r.ok !== false, r.ok === false ? (r.result || "Failed") : (r.queued ? `Queued (#${r.queued})` : "Done"));
+  const where = r.screens ? " on " + r.screens.map(s => s === "tv" ? "TV" : "overlay").join(" + ") : "";
+  const waiting = Math.max(r.queued || 0, r.queued_overlay || 0);
+  setRes($("tRes"), r.ok !== false, r.skipped ? "Skipped: the queue is full"
+    : r.ok === false ? (r.result || "Failed")
+    : r.cleared ? "Cleared: " + r.cleared.map(s => s === "tv" ? "TV" : "overlay").join(" + ")
+    : (waiting ? `Queued (#${waiting})` : "Done") + where);
   refresh();
+}
+// test alerts go where "Send tests to" says (blank = each alert's own setting)
+function call(path) {
+  const s = $("tScreen").value;
+  if (s && path !== "/reload") path += (path.includes("?") ? "&" : "?") + "screen=" + s;
+  return send(path);
+}
+function clearScreens() {
+  const s = $("tScreen").value;
+  send(s && s !== "both" ? "/logo?screen=" + s : "/logo");
 }
 function test(kind) {
   const user = encodeURIComponent(($("tUser").value.trim() || "twitch").replace(/^@/, ""));
@@ -571,6 +683,9 @@ function hype(step) {
   else if (step === "levelup") hypeTest = { level: hypeTest.level + 1, pct: 10 };
   call(step === "end" ? `/hypetrain/end?level=${hypeTest.level}`
     : `/hypetrain/${step === "start" ? "start" : "progress"}?level=${hypeTest.level}&percent=${hypeTest.pct}`);
+}
+function testTikTok(kind, size) {
+  send(`/api/test/tiktok?kind=${kind}${size ? "&size=" + size : ""}` + ($("tScreen").value ? "&screen=" + $("tScreen").value : ""));
 }
 async function testLights(which) {
   if (dirty) return toast("Save settings first");
@@ -624,6 +739,21 @@ addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.retur
 // scale the 1920x1080 preview to the box
 const pv = $("pv"), frame = $("pvframe");
 new ResizeObserver(() => { frame.style.transform = `scale(${pv.clientWidth / 1920})`; }).observe(pv);
+
+// preview switch: the TV, or the stream overlay over a stand-in game scene
+const PV_HINT = { tv: "What the TV shows right now.", overlay: "The stream overlay, over a stand-in game scene so you can see what's see-through." };
+function showPreview(which) {
+  $("pvSeg").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.pv === which));
+  pv.classList.toggle("ov", which === "overlay");
+  frame.title = which === "tv" ? "TV preview" : "Stream overlay preview";
+  frame.src = (which === "tv" ? "/tv" : "/overlay") + "?preview=1";
+  $("pvHint").textContent = PV_HINT[which] + " Test alerts go where \"Send tests to\" says.";
+  try { localStorage.setItem("vibetv.pv", which); } catch (e) {}
+}
+$("pvSeg").querySelectorAll("button").forEach(b => b.onclick = () => showPreview(b.dataset.pv));
+try { if (localStorage.getItem("vibetv.pv") === "overlay") showPreview("overlay"); } catch (e) {}
+$("ovUrl").value = location.origin + "/overlay";
+$("ovOpen").href = "/overlay";
 
 load();
 setInterval(() => refresh(false), 3000);

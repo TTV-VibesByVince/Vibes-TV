@@ -47,7 +47,9 @@ import aiohttp
 from aiohttp import web
 from PIL import Image
 
-VERSION = "1.4"
+from tiktok import TikTokWatcher
+
+VERSION = "1.5"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -112,13 +114,28 @@ SCHEMA = {
     "govee_tier2_url":      (str,   os.getenv("GOVEE_TIER2_URL", "")),  # blank = card colour URL
     "govee_tier3_url":      (str,   os.getenv("GOVEE_TIER3_URL", "")),
     "govee_reset_url":      (str,   os.getenv("GOVEE_RESET_URL", "")),
+    # Stream overlay (/overlay): where each alert plays, and how the overlay looks
+    "routes":               (dict,  {}),          # event -> "tv" | "overlay" | "both", see ROUTE_DEFAULTS
+    "overlay_position":     (str,   "bottom-left"),
+    "overlay_scale":        (float, 1.0),
+    "overlay_opacity":      (float, 0.85),        # the alert panel's background
+    "overlay_seconds":      (float, 6.0),         # how long each overlay alert stays up
+    "overlay_clips":        (bool,  False),       # clips also play on the overlay (off: no double audio)
+    # TikTok LIVE (optional): follows, subs and gifts from your own live, via TikTokLive
+    "tiktok_enabled":       (bool,  os.getenv("TIKTOK_ENABLED", "0") == "1"),
+    "tiktok_username":      (str,   os.getenv("TIKTOK_USERNAME", "")),
+    "tiktok_sign_key":      (str,   os.getenv("TIKTOK_SIGN_KEY", "")),   # optional eulerstream.com key
+    "tiktok_min_coins":     (float, 1.0),         # smaller gifts (in coins, combo total) aren't shown
 }
-SECRET_KEYS = {"twitch_client_secret"}
+SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
+TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
 LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "message_seconds": (2, 60), "max_clip_seconds": (5, 60),
           "follow_seconds": (2, 60), "gift_seconds": (4, 60),
           "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30),
-          "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60)}
+          "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60),
+          "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30),
+          "tiktok_min_coins": (0, 1000000)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
 REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
@@ -158,9 +175,11 @@ TEXT_DEFAULTS = {
     "modiversary.title": "{duration} OF MODDING",
     "modiversary.sub":  "Thank you for keeping the peace",
     "gigantify.caption": "{name} gigantified[ {emote}]",
+    "tiktok_gift.title": "[{count}× ]{gift}!",
+    "tiktok_gift.sub":  "Thanks for the gift[ · {coins} coins]",
 }
 COLOR_EVENTS = ["shoutout", "raid", "follow", "gift", "sub", "resub", "bits", "streak", "modiversary",
-                "gigantify", "welcome", "hype", "message"]
+                "gigantify", "welcome", "hype", "message", "tiktok_gift"]
 COLOR_DEFAULTS = {e: "auto" for e in COLOR_EVENTS} | {"hype": "theme", "message": "theme",
                                                       "modiversary": "#00ad03"}   # Twitch's mod green
 
@@ -190,6 +209,28 @@ THEMES = {
                    "confetti": ["#20c05c", "#7cf29c", "#ffd34d", "#ffffff", "#0b8a3a"],
                    "warp": ["#ffffff", "#7cf29c", "#ffd34d"]},
 }
+# ── Screens: the TV and the stream overlay each have their own queue ─────
+SCREENS = ("tv", "overlay")
+# Where each kind of alert plays. Subs and resubs share "sub".
+ROUTE_EVENTS = ["shoutout", "raid", "follow", "sub", "bits", "gift", "streak", "modiversary",
+                "gigantify", "message", "welcome", "hype", "tiktok_gift"]
+ROUTE_DEFAULTS = {e: "both" for e in ROUTE_EVENTS} | {"gigantify": "tv"}
+ROUTE_CHOICES = ("tv", "overlay", "both")
+OVERLAY_POSITIONS = ("top-left", "top-right", "bottom-left", "bottom-right", "bottom-center")
+
+
+def route_key(kind):
+    return "sub" if kind == "resub" else kind
+
+
+def destinations(kind, override=None):
+    """The screens an alert goes to: the URL's ?screen= if given, otherwise
+    the setting for that kind of alert."""
+    choice = override if override in ROUTE_CHOICES else \
+        S["routes"].get(route_key(kind), ROUTE_DEFAULTS.get(route_key(kind), "both"))
+    return list(SCREENS) if choice == "both" else [choice]
+
+
 MMDD_RE = re.compile(r"^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -218,6 +259,19 @@ def _check_dict(key, val):
             if v not in ("auto", "theme") and not COLOR_RE.match(v):
                 return None, f"colors.{k}: auto, theme or a #rrggbb colour"
             if v != COLOR_DEFAULTS[k]:
+                out[k] = v
+        return out, None
+    if key == "routes":
+        if not isinstance(val, dict):
+            return None, "routes: must be an object"
+        out = {}
+        for k, v in val.items():
+            v = str(v).strip().lower()
+            if k not in ROUTE_EVENTS:
+                continue
+            if v not in ROUTE_CHOICES:
+                return None, f"routes.{k}: tv, overlay or both"
+            if v != ROUTE_DEFAULTS[k]:
                 out[k] = v
         return out, None
     if key == "theme_schedule":
@@ -253,6 +307,7 @@ class Settings:
     def public(self):
         out = {k: v for k, v in self.data.items() if k not in SECRET_KEYS}
         out["twitch_client_secret_set"] = bool(self.data["twitch_client_secret"])
+        out["tiktok_sign_key_set"] = bool(self.data["tiktok_sign_key"])
         return out
 
     def update(self, changes):
@@ -290,6 +345,9 @@ class Settings:
             if key == "tv_mode" and val not in ("auto", "full", "lite"):
                 errors.append("tv_mode: auto, full or lite")
                 continue
+            if key == "overlay_position" and val not in OVERLAY_POSITIONS:
+                errors.append("overlay_position: " + ", ".join(OVERLAY_POSITIONS))
+                continue
             if key == "theme" and val not in THEMES:
                 errors.append("theme: unknown theme")
                 continue
@@ -299,7 +357,12 @@ class Settings:
             if key.startswith("govee_") and val and not val.startswith(("http://", "https://")):
                 errors.append(f"{key}: must start with http://")
                 continue
-            if key == "twitch_client_secret" and val == "-":
+            if key == "tiktok_username":
+                val = val.lstrip("@").strip()
+                if val and not TIKTOK_USER_RE.match(val):
+                    errors.append("tiktok_username: letters, numbers, . and _ only")
+                    continue
+            if key in SECRET_KEYS and val == "-":
                 val = ""                        # "-" clears it
             clean[key] = val
         if errors:
@@ -341,6 +404,17 @@ def logo_info():
 
 def logo_url():
     return logo_info()["logo"]
+
+
+def overlay_info():
+    return {"position": S["overlay_position"], "scale": S["overlay_scale"],
+            "opacity": S["overlay_opacity"], "seconds": S["overlay_seconds"]}
+
+
+def screen_info():
+    """Sent to every screen on connect and whenever these settings change.
+    The TV uses the logo part; the overlay uses the overlay part."""
+    return {**logo_info(), "overlay": overlay_info()}
 
 
 def active_theme_id(today=None):
@@ -526,14 +600,49 @@ def dominant_hex(image_bytes):
 
 # ── The show ─────────────────────────────────────────────────────────────
 
-class TV:
-    def __init__(self):
-        self.clients = {}          # ws -> {"preview": bool}
+class Screen:
+    """One destination (the TV or the overlay): its own queue of alerts, the
+    one playing now, and a worker that plays them one after another."""
+
+    def __init__(self, name, tv):
+        self.name, self.tv = name, tv
         self.queue = asyncio.Queue()
         self.current = None
+        self.running = None
+
+    def clear(self):
+        while not self.queue.empty():
+            self.queue.get_nowait()
+            self.queue.task_done()
+        if self.running and not self.running.done():
+            self.running.cancel()
+        self.current = None
+
+    async def worker(self):
+        while True:
+            ev, prep = await self.queue.get()
+            try:
+                self.running = asyncio.create_task(self.tv.play(self, ev, prep))
+                await self.running
+            except asyncio.CancelledError:
+                if asyncio.current_task().cancelling():
+                    raise
+                self.current = None
+            except Exception as e:
+                log.exception("%s: event failed: %s", self.name, e)
+                self.current = None
+                await self.tv.broadcast({"type": "logo"}, self.name)
+            finally:
+                self.running = None
+                self.queue.task_done()
+
+
+class TV:
+    def __init__(self):
+        self.clients = {}          # ws -> {"screen": "tv" | "overlay", "preview": bool}
+        self.screens = {name: Screen(name, self) for name in SCREENS}
         self.session = None
         self.twitch = None
-        self.running = None
         self.last_govee = ""
         self.gifts = {}            # gifter login -> batch being collected
         self.hype = None           # running hype train, or None
@@ -542,17 +651,48 @@ class TV:
         self.emote_names_at = 0
         self.hype_expiry = None
 
+    # the TV screen, under the names the rest of the code has always used
+    @property
+    def queue(self):
+        return self.screens["tv"].queue
+
+    @property
+    def current(self):
+        return self.screens["tv"].current
+
+    def count(self, screen):
+        """Connected screens of one kind, not counting settings-page previews."""
+        return sum(1 for c in self.clients.values() if c["screen"] == screen and not c["preview"])
+
     @property
     def tv_count(self):
-        return sum(1 for c in self.clients.values() if not c["preview"])
+        return self.count("tv")
 
-    async def broadcast(self, payload):
+    async def broadcast(self, payload, screen=None):
+        """Send to every client of one screen, or to all of them (screen=None)."""
         msg = json.dumps(payload)
-        for ws in list(self.clients):
+        for ws, info in list(self.clients.items()):
+            if screen and info["screen"] != screen:
+                continue
             try:
                 await ws.send_str(msg)
             except Exception:
                 self.clients.pop(ws, None)
+
+    def dispatch(self, ev, limit=False):
+        """Send an alert to its screens. The person is looked up once (shared
+        by both screens), then each screen plays it in its own queue, on its
+        own timing. With limit=True, a screen whose queue is full is skipped.
+        Returns the screens it was queued on."""
+        dests = destinations(ev["type"], ev.get("screen"))
+        if limit:
+            dests = [d for d in dests if self.screens[d].queue.qsize() < MAX_QUEUE]
+        if not dests:
+            return []
+        prep = asyncio.create_task(self.prepare(ev, dests))
+        for d in dests:
+            self.screens[d].queue.put_nowait((ev, prep))
+        return dests
 
     async def call_url(self, template, hex_color=""):
         if not template:
@@ -594,6 +734,9 @@ class TV:
         login = ev["user"]
         info = {"login": login.lower(), "display_name": ev.get("display") or login,
                 "avatar": ev.get("avatar") or "", "game": ev.get("game") or "", "id": None}
+        if ev.get("platform"):
+            info["platform"] = ev["platform"]
+            return info                         # TikTok people aren't on Twitch
         if self.twitch.enabled:
             try:
                 api = await self.twitch.user(login.lower())
@@ -619,7 +762,7 @@ class TV:
         return people
 
     # ── gifted subs arrive one request per recipient; batch them ──
-    async def add_gift(self, gifter, recipient=None, count=None, avatar=None, display=None):
+    async def add_gift(self, gifter, recipient=None, count=None, avatar=None, display=None, screen=None):
         key = gifter.lower()
         now = time.monotonic()
         b = self.gifts.get(key)
@@ -632,6 +775,7 @@ class TV:
             b["count"] = max(b["count"] or 0, count)
         b["avatar"] = avatar or b["avatar"]
         b["display"] = display or b["display"]
+        b["screen"] = screen or b.get("screen")
         if b["task"]:
             b["task"].cancel()
         complete = b["count"] and len(b["recipients"]) >= b["count"]
@@ -643,9 +787,10 @@ class TV:
         await asyncio.sleep(wait)
         b = self.gifts.pop(key, None)
         if b:
-            await self.queue.put({"type": "gift", "user": b["user"], "avatar": b["avatar"],
-                                  "display": b["display"], "recipients": b["recipients"],
-                                  "count": b["count"] or len(b["recipients"]), "clip": False})
+            self.dispatch({"type": "gift", "user": b["user"], "avatar": b["avatar"],
+                           "display": b["display"], "recipients": b["recipients"],
+                           "count": b["count"] or len(b["recipients"]), "clip": False,
+                           "screen": b.get("screen")})
 
     # ── gigantified emotes: an ID or link works as is, a name is looked up ──
     async def resolve_emote(self, value):
@@ -683,10 +828,10 @@ class TV:
             profile = await self.build_profile(ev)
             color = event_color("welcome", await self.avatar_color(profile["avatar"]))
             ctx = {"name": profile["display_name"]}
-            await self.broadcast({"type": "welcome", "user": profile, "color": color,
-                                  "seconds": S["welcome_seconds"],
-                                  "text": {"title": text_for("welcome.title", **ctx),
-                                           "sub": text_for("welcome.sub", **ctx)}})
+            msg = {"type": "welcome", "user": profile, "color": color, "seconds": S["welcome_seconds"],
+                   "text": {"title": text_for("welcome.title", **ctx), "sub": text_for("welcome.sub", **ctx)}}
+            for screen in destinations("welcome", ev.get("screen")):
+                await self.broadcast(msg, screen)
         except Exception as e:
             log.warning("welcome failed: %s", e)
 
@@ -699,14 +844,18 @@ class TV:
                      "goal": h["goal"], "title": text_for("hype.title", level=h["level"])}
         return {"type": "hype", "state": state, "banner": banner, "color": event_color("hype", None)}
 
-    async def hype_update(self, action, level=None, progress=None, goal=None, percent=None):
+    async def hype_broadcast(self, msg, override=None):
+        for screen in destinations("hype", override):
+            await self.broadcast(msg, screen)
+
+    async def hype_update(self, action, level=None, progress=None, goal=None, percent=None, screen=None):
         prev = self.hype
         if action == "end":
             lvl = level or (prev["level"] if prev else 1)
             self.hype = None
             if self.hype_expiry:
                 self.hype_expiry.cancel()
-            await self.broadcast(self.hype_message({"kind": "end", "text": text_for("hype.end", level=lvl)}))
+            await self.hype_broadcast(self.hype_message({"kind": "end", "text": text_for("hype.end", level=lvl)}), screen)
             return
         lvl = level or (prev["level"] if prev else 1)
         if percent is None and progress is not None and goal:
@@ -720,7 +869,7 @@ class TV:
             banner = {"kind": "levelup", "text": text_for("hype.levelup", level=lvl)}
         self.hype = {"level": lvl, "percent": None if percent is None else max(0.0, min(100.0, percent)),
                      "progress": progress, "goal": goal}
-        await self.broadcast(self.hype_message(banner))
+        await self.hype_broadcast(self.hype_message(banner), screen)
         if self.hype_expiry:
             self.hype_expiry.cancel()
         self.hype_expiry = asyncio.create_task(self._hype_timeout())
@@ -739,7 +888,7 @@ class TV:
             if now != current:
                 current = now
                 log.info("theme is now %s", now)
-                await self.broadcast({"type": "logo_src", **logo_info()})
+                await self.broadcast({"type": "logo_src", **screen_info()})
 
     async def fetch_clip(self, broadcaster_id):
         if not (self.twitch.enabled and broadcaster_id):
@@ -758,43 +907,124 @@ class TV:
             log.warning("clip fetch failed: %s", e)
             return None
 
-    async def run_event(self, ev):
+    async def prepare(self, ev, dests):
+        """Everything both screens share: who it is, their colour, the words,
+        and (for shoutouts and raids) the clip, which starts downloading now.
+        Done once per alert, however many screens it goes to."""
         kind = ev["type"]
+        if kind == "message":
+            return {"payload": {"type": "message", "text": ev["text"][:140], "from": ev.get("from", ""),
+                                "seconds": S["message_seconds"], "color": event_color("message", None)}}
+        profile = await self.build_profile(ev)
+        color = event_color(kind, await self.avatar_color(profile["avatar"]))
+        payload = {"type": kind, "user": profile, "color": color}
+        out = {"payload": payload, "color": color, "tier": 1, "raid": kind == "raid", "clip_task": None}
+        ctx = {"name": profile["display_name"], "tier": ev.get("tier"),
+               "months": ev.get("months"), "amount": ev.get("amount")}
         if kind in ("shoutout", "raid"):
-            profile = await self.build_profile(ev)
-            color = event_color(kind, await self.avatar_color(profile["avatar"]))
-            ctx = {"name": profile["display_name"], "game": profile.get("game"),
-                   "viewers": ev.get("viewers")}
+            ctx.update({"game": profile.get("game"), "viewers": ev.get("viewers")})
             if kind == "raid":
                 text = {"title": text_for("raid.title", **ctx), "sub": text_for("raid.sub", **ctx),
                         "label": text_for("raid.label", **ctx)}
             else:
                 text = {"kicker": text_for("shoutout.kicker", **ctx), "sub": text_for("shoutout.sub", **ctx)}
-            # The clip downloads while the card is on screen instead of
-            # holding the card back.
             want_clip = ev["clip"] if ev.get("clip") is not None else S["clips"]
-            can_clip = want_clip and self.twitch.enabled and profile.get("id")
-            clip_task = asyncio.create_task(self.fetch_clip(profile["id"])) if can_clip else None
-            card_time = S["raid_seconds"] if kind == "raid" else S["card_seconds"]
-            sound = ev["sound"] if ev.get("sound") is not None else S["clip_sound"]
-            payload = {"type": kind, "user": profile, "color": color, "viewers": ev.get("viewers"),
-                       "sound": sound, "card_seconds": card_time, "clip_pending": bool(clip_task),
-                       "text": text}
-            self.current = payload
-            await self.broadcast(payload)
-            if color:
-                asyncio.create_task(self.govee(color, raid=kind == "raid"))
+            clip_somewhere = "tv" in dests or ("overlay" in dests and S["overlay_clips"])
+            if want_clip and clip_somewhere and self.twitch.enabled and profile.get("id"):
+                out["clip_task"] = asyncio.create_task(self.fetch_clip(profile["id"]))
+            secs = S["raid_seconds"] if kind == "raid" else S["card_seconds"]
+            out["sound"] = ev["sound"] if ev.get("sound") is not None else S["clip_sound"]
+            payload.update({"viewers": ev.get("viewers"), "sound": out["sound"]})
+        elif kind == "follow":
+            secs = S["follow_seconds"]
+            text = {"title": text_for("follow.title", **ctx)}
+        elif kind == "gift":
+            recipients = await self.recipient_profiles(ev.get("recipients", []))
+            count = max(ev.get("count") or 0, len(recipients))
+            ctx["count"] = f"{count:,}"
+            # big gift bombs get a little longer so the names can be read
+            secs = S["gift_seconds"] + min(max(len(recipients) - 8, 0) * 0.25, 8)
+            payload.update({"recipients": recipients, "count": count})
+            text = {"title": text_for("gift.title_one" if count == 1 else "gift.title", **ctx),
+                    "to": text_for("gift.to", **ctx)}
+        elif kind == "streak":
+            secs = S["streak_seconds"]
+            ctx["count"] = ev.get("count")
+            text = {"title": text_for("streak.title", **ctx), "sub": text_for("streak.sub", **ctx),
+                    "message": (ev.get("message") or "")[:140]}
+            payload["count"] = ev.get("count")
+        elif kind == "modiversary":
+            secs = S["modiversary_seconds"]
+            ctx.update({"years": ev.get("years"), "duration": duration_text(ev.get("years"), ev.get("months"))})
+            text = {"title": text_for("modiversary.title", **ctx), "sub": text_for("modiversary.sub", **ctx)}
+        elif kind == "tiktok_gift":
+            secs = S["bits_seconds"]
+            count, coins = ev.get("count") or 1, ev.get("coins") or 0
+            ctx.update({"gift": ev["gift"]["name"], "count": count if count > 1 else None,
+                        "coins": f"{coins:,}" if coins else None})
+            text = {"title": text_for("tiktok_gift.title", **ctx), "sub": text_for("tiktok_gift.sub", **ctx)}
+            payload.update({"gift": ev["gift"], "count": count, "coins": coins, "amount": coins})
+        elif kind == "gigantify":
+            secs = S["gigantify_seconds"]
+            emote = await self.resolve_emote(ev.get("emote") or "")
+            ctx["emote"] = emote.get("name") or ""
+            text = {"caption": text_for("gigantify.caption", **ctx)}
+            payload["emote"] = emote
+        else:                                   # sub, resub, bits
+            secs = S["bits_seconds"] if kind == "bits" else S["sub_seconds"]
+            if ctx["amount"] is not None:
+                ctx["amount"] = f"{ctx['amount']:,}"
+            text = {"title": text_for(f"{kind}.title", **ctx), "sub": text_for(f"{kind}.sub", **ctx),
+                    "message": (ev.get("message") or "")[:140]}
+            tier = 1
+            if kind in ("sub", "resub"):
+                tier = TIER_LEVEL.get(ev.get("tier"), 1)
+                secs += TIER_EXTRA_SECONDS.get(tier, 0)
+                if tier >= 2:
+                    text["banner"] = text_for(f"sub.tier{tier}_banner", **ctx)
+            out["tier"] = tier
+            payload.update({"months": ev.get("months"), "amount": ev.get("amount"),
+                            "tier": ev.get("tier"), "tier_level": tier})
+        payload["text"] = text
+        out["secs"] = secs
+        return out
+
+    async def play(self, screen, ev, prep):
+        """Play one alert on one screen. The TV keeps its full timing, its clips
+        and the room lights; the overlay shows a short card and moves on."""
+        data = await asyncio.shield(prep)
+        payload = dict(data["payload"])
+        on_tv = screen.name == "tv"
+        try:
+            if payload["type"] == "message":
+                secs = S["message_seconds"] if on_tv else S["overlay_seconds"]
+                payload["seconds"] = secs
+                screen.current = payload
+                await self.broadcast(payload, screen.name)
+                await asyncio.sleep(secs + (1 if on_tv else 0.4))
+                return
+            secs = data["secs"] if on_tv else S["overlay_seconds"]
+            clip_task = data["clip_task"] if (on_tv or S["overlay_clips"]) else None
+            payload["card_seconds"] = secs
+            if payload["type"] in ("shoutout", "raid"):
+                payload["clip_pending"] = bool(clip_task)
+            screen.current = payload
+            await self.broadcast(payload, screen.name)
+            if on_tv and data["color"]:
+                asyncio.create_task(self.govee(data["color"], raid=data["raid"], tier=data["tier"]))
             preload = None
             if clip_task:
-                # As soon as the clip is on disk, let the TVs start buffering
+                # As soon as the clip is on disk, let the screen start buffering
                 # it, so it is ready the moment the card ends.
                 async def announce():
                     c = await asyncio.shield(clip_task)
                     if c:
-                        await self.broadcast({"type": "clip_preload", "src": c["src"]})
+                        await self.broadcast({"type": "clip_preload", "src": c["src"]}, screen.name)
                 preload = asyncio.create_task(announce())
             try:
-                await asyncio.sleep(card_time)
+                # (shoutouts and raids hand straight over to their clip or the logo)
+                tail = 0 if payload["type"] in ("shoutout", "raid") else (0.6 if on_tv else 0.4)
+                await asyncio.sleep(secs + tail)
                 clip = None
                 if clip_task:
                     try:     # a little grace if the download is nearly done
@@ -802,98 +1032,21 @@ class TV:
                     except asyncio.TimeoutError:
                         log.info("clip not ready in time, skipping it")
                 if clip:
-                    self.current = {"type": "clip", "clip": clip, "user": profile, "color": color, "sound": sound}
-                    await self.broadcast(self.current)
+                    screen.current = {"type": "clip", "clip": clip, "user": payload["user"],
+                                      "color": data["color"], "sound": data.get("sound")}
+                    await self.broadcast(screen.current, screen.name)
                     await asyncio.sleep(clip["duration"] + 1.5)
             finally:
                 if preload:
                     preload.cancel()
-        elif kind in ("follow", "gift", "sub", "resub", "bits", "streak", "modiversary", "gigantify"):
-            profile = await self.build_profile(ev)
-            color = event_color(kind, await self.avatar_color(profile["avatar"]))
-            payload = {"type": kind, "user": profile, "color": color}
-            ctx = {"name": profile["display_name"], "tier": ev.get("tier"),
-                   "months": ev.get("months"), "amount": ev.get("amount")}
-            tier = 1
-            if kind == "follow":
-                secs = S["follow_seconds"]
-                text = {"title": text_for("follow.title", **ctx)}
-            elif kind == "gift":
-                recipients = await self.recipient_profiles(ev.get("recipients", []))
-                count = max(ev.get("count") or 0, len(recipients))
-                ctx["count"] = f"{count:,}"
-                # big gift bombs get a little longer so the names can be read
-                secs = S["gift_seconds"] + min(max(len(recipients) - 8, 0) * 0.25, 8)
-                payload.update({"recipients": recipients, "count": count})
-                text = {"title": text_for("gift.title_one" if count == 1 else "gift.title", **ctx),
-                        "to": text_for("gift.to", **ctx)}
-            elif kind == "streak":
-                secs = S["streak_seconds"]
-                ctx["count"] = ev.get("count")
-                text = {"title": text_for("streak.title", **ctx), "sub": text_for("streak.sub", **ctx),
-                        "message": (ev.get("message") or "")[:140]}
-                payload["count"] = ev.get("count")
-            elif kind == "modiversary":
-                secs = S["modiversary_seconds"]
-                ctx.update({"years": ev.get("years"), "duration": duration_text(ev.get("years"), ev.get("months"))})
-                text = {"title": text_for("modiversary.title", **ctx), "sub": text_for("modiversary.sub", **ctx)}
-            elif kind == "gigantify":
-                secs = S["gigantify_seconds"]
-                emote = await self.resolve_emote(ev.get("emote") or "")
-                ctx["emote"] = emote.get("name") or ""
-                text = {"caption": text_for("gigantify.caption", **ctx)}
-                payload["emote"] = emote
-            else:                                   # sub, resub, bits
-                secs = S["bits_seconds"] if kind == "bits" else S["sub_seconds"]
-                if ctx["amount"] is not None:
-                    ctx["amount"] = f"{ctx['amount']:,}"
-                text = {"title": text_for(f"{kind}.title", **ctx), "sub": text_for(f"{kind}.sub", **ctx),
-                        "message": (ev.get("message") or "")[:140]}
-                if kind in ("sub", "resub"):
-                    tier = TIER_LEVEL.get(ev.get("tier"), 1)
-                    secs += TIER_EXTRA_SECONDS.get(tier, 0)
-                    if tier >= 2:
-                        text["banner"] = text_for(f"sub.tier{tier}_banner", **ctx)
-                payload.update({"months": ev.get("months"), "amount": ev.get("amount"),
-                                "tier": ev.get("tier"), "tier_level": tier})
-            payload["text"] = text
-            payload["card_seconds"] = secs
-            self.current = payload
-            await self.broadcast(payload)
-            if color:
-                asyncio.create_task(self.govee(color, tier=tier))
-            await asyncio.sleep(secs + 0.6)
-        elif kind == "message":
-            secs = S["message_seconds"]
-            payload = {"type": "message", "text": ev["text"][:140], "from": ev.get("from", ""), "seconds": secs,
-                       "color": event_color("message", None)}
-            self.current = payload
-            await self.broadcast(payload)
-            await asyncio.sleep(secs + 1)
-        self.current = None
-        await self.broadcast({"type": "logo"})
-        await self.govee(None)
-
-    async def worker(self):
-        while True:
-            ev = await self.queue.get()
-            try:
-                self.running = asyncio.create_task(self.run_event(ev))
-                await self.running
-            except asyncio.CancelledError:
-                if asyncio.current_task().cancelling():
-                    raise
-                self.current = None
-            except Exception as e:
-                log.exception("event failed: %s", e)
-                self.current = None
-                await self.broadcast({"type": "logo"})
-            finally:
-                self.running = None
-                self.queue.task_done()
-
+        finally:
+            screen.current = None
+            await self.broadcast({"type": "logo"}, screen.name)
+            if on_tv:
+                await self.govee(None)
 
 tv = TV()
+tiktok = TikTokWatcher(S, lambda ev: tv.dispatch(ev, limit=True))
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -914,14 +1067,31 @@ def flag(request, name, default=None):
     return val.lower() in ("1", "true", "yes", "on")
 
 
-def queued():
-    return web.json_response({"ok": True, "queued": tv.queue.qsize()})
+def queued(dests=None):
+    body = {"ok": True, "queued": tv.screens["tv"].queue.qsize(),
+            "queued_overlay": tv.screens["overlay"].queue.qsize()}
+    if dests is not None:
+        body["screens"] = dests
+    return web.json_response(body)
+
+
+def screen_param(request):
+    """?screen=tv|overlay|both on any alert URL: overrides where it plays."""
+    v = (request.query.get("screen") or "").strip().lower()
+    if v and v not in ROUTE_CHOICES:
+        raise web.HTTPBadRequest(text="screen must be tv, overlay or both")
+    return v or None
 
 
 # ── MixItUp endpoints (behaviour unchanged) ──────────────────────────────
 
 async def index(request):
     return web.FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+async def overlay_page(request):
+    """The transparent stream overlay, for an OBS Browser Source."""
+    return web.FileResponse(STATIC / "overlay.html", headers={"Cache-Control": "no-cache"})
 
 
 async def favicon(request):
@@ -932,17 +1102,19 @@ async def ws_handler(request):
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     preview = request.query.get("preview") == "1"
-    tv.clients[ws] = {"preview": preview}
-    log.info("%s connected (%d tvs)", "preview" if preview else "tv", tv.tv_count)
-    await ws.send_str(json.dumps({"type": "hello", "version": VERSION, **logo_info()}))
-    if tv.hype:                               # a TV that (re)connects mid hype train
+    screen = request.query.get("screen") if request.query.get("screen") in SCREENS else "tv"
+    tv.clients[ws] = {"screen": screen, "preview": preview}
+    who = f"{screen}{' preview' if preview else ''}"
+    log.info("%s connected (%d tv, %d overlay)", who, tv.count("tv"), tv.count("overlay"))
+    await ws.send_str(json.dumps({"type": "hello", "version": VERSION, "screen": screen, **screen_info()}))
+    if tv.hype and screen in destinations("hype"):     # a screen that (re)connects mid hype train
         await ws.send_str(json.dumps(tv.hype_message()))
     try:
         async for _ in ws:
             pass
     finally:
         tv.clients.pop(ws, None)
-        log.info("%s disconnected (%d tvs)", "preview" if preview else "tv", tv.tv_count)
+        log.info("%s disconnected (%d tv, %d overlay)", who, tv.count("tv"), tv.count("overlay"))
     return ws
 
 
@@ -950,7 +1122,7 @@ def _card_event(request, kind):
     ev = {"type": kind, "user": clean_user(request.match_info["user"]),
           "avatar": request.query.get("avatar"), "display": request.query.get("display"),
           "game": request.query.get("game"), "clip": flag(request, "clip"),
-          "sound": flag(request, "sound")}
+          "sound": flag(request, "sound"), "screen": screen_param(request)}
     if kind == "raid":
         viewers = request.query.get("viewers", "").strip()
         ev["viewers"] = int(viewers) if viewers.isdigit() else None
@@ -958,22 +1130,17 @@ def _card_event(request, kind):
 
 
 async def shoutout(request):
-    await tv.queue.put(_card_event(request, "shoutout"))
-    return queued()
+    return queued(tv.dispatch(_card_event(request, "shoutout")))
 
 
 async def raid(request):
-    await tv.queue.put(_card_event(request, "raid"))
-    return queued()
+    return queued(tv.dispatch(_card_event(request, "raid")))
 
 
 async def follow(request):
-    if tv.queue.qsize() >= MAX_QUEUE:
-        return web.json_response({"ok": False, "skipped": "queue full"})
     ev = _card_event(request, "follow")
     ev["clip"] = False
-    await tv.queue.put(ev)
-    return queued()
+    return _queue_or_skip(ev)
 
 
 def _count(request):
@@ -990,7 +1157,7 @@ async def gift(request):
     n = 0
     for r in recipients or [None]:
         n = await tv.add_gift(gifter, r, _count(request), request.query.get("avatar"),
-                              request.query.get("display"))
+                              request.query.get("display"), screen_param(request))
     return web.json_response({"ok": True, "collected": n})
 
 
@@ -999,7 +1166,7 @@ async def giftbomb(request):
     in the next few seconds are shown with it."""
     gifter = clean_user(request.match_info["user"])
     n = await tv.add_gift(gifter, None, _count(request) or 1, request.query.get("avatar"),
-                          request.query.get("display"))
+                          request.query.get("display"), screen_param(request))
     return web.json_response({"ok": True, "collected": n})
 
 
@@ -1019,10 +1186,12 @@ def _tier(request):
 
 
 def _queue_or_skip(ev):
-    if tv.queue.qsize() >= MAX_QUEUE:
+    """Queue an alert, skipping any screen whose queue is already full
+    (a follow-bot flood can't pile up forever)."""
+    dests = tv.dispatch(ev, limit=True)
+    if not dests:
         return web.json_response({"ok": False, "skipped": "queue full"})
-    tv.queue.put_nowait(ev)
-    return queued()
+    return queued(dests)
 
 
 async def sub(request):
@@ -1097,7 +1266,7 @@ async def hypetrain(request):
         pct = None
     await tv.hype_update("start" if action == "start" else "end" if action == "end" else "progress",
                          level=_int(request, "level", 1, 100), progress=_int(request, "progress"),
-                         goal=_int(request, "goal", 1), percent=pct)
+                         goal=_int(request, "goal", 1), percent=pct, screen=screen_param(request))
     return web.json_response({"ok": True, "hype": tv.hype})
 
 
@@ -1105,27 +1274,29 @@ async def message(request):
     text = (request.query.get("text") or "").strip()
     if not text:
         raise web.HTTPBadRequest(text="text required")
-    await tv.queue.put({"type": "message", "text": text, "from": request.query.get("from", "")})
-    return queued()
+    return queued(tv.dispatch({"type": "message", "text": text, "from": request.query.get("from", ""),
+                               "screen": screen_param(request)}))
 
 
 async def logo(request):
-    for b in tv.gifts.values():
-        if b["task"]:
-            b["task"].cancel()
-    tv.gifts.clear()
-    while not tv.queue.empty():
-        tv.queue.get_nowait()
-        tv.queue.task_done()
-    if tv.running and not tv.running.done():
-        tv.running.cancel()
-    tv.current = None
-    if tv.hype:                                 # /logo also clears the hype bar
-        tv.hype = None
-        await tv.broadcast(tv.hype_message())
-    await tv.broadcast({"type": "logo"})
-    await tv.govee(None)
-    return web.json_response({"ok": True})
+    """Clear the queue and go back to the logo: on both screens, or only on
+    one with ?screen=tv / ?screen=overlay."""
+    which = screen_param(request)
+    targets = list(SCREENS) if which in (None, "both") else [which]
+    if len(targets) == len(SCREENS):            # pending gifts and the hype bar belong to both
+        for b in tv.gifts.values():
+            if b["task"]:
+                b["task"].cancel()
+        tv.gifts.clear()
+        if tv.hype:
+            tv.hype = None
+            await tv.broadcast(tv.hype_message())
+    for name in targets:
+        tv.screens[name].clear()
+        await tv.broadcast({"type": "logo"}, name)
+    if "tv" in targets:
+        await tv.govee(None)
+    return web.json_response({"ok": True, "cleared": targets})
 
 
 async def reload(request):
@@ -1137,8 +1308,11 @@ async def status(request):
     return web.json_response({
         "version": VERSION,
         "tvs_connected": tv.tv_count,
+        "overlays_connected": tv.count("overlay"),
         "queued": tv.queue.qsize(),
+        "queued_overlay": tv.screens["overlay"].queue.qsize(),
         "showing": tv.current["type"] if tv.current else "logo",
+        "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
         "twitch_api": tv.twitch.enabled,
         "logo": logo_url() or "missing - upload one at /admin or put logo.mp4 in the media folder",
     })
@@ -1208,21 +1382,26 @@ async def api_state(request):
         "settings": S.public(),
         "status": {"tvs_connected": tv.tv_count, "queued": tv.queue.qsize(),
                    "showing": tv.current["type"] if tv.current else "logo",
+                   "overlays_connected": tv.count("overlay"), "queued_overlay": tv.screens["overlay"].queue.qsize(),
+                   "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
                    "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee,
-                   **logo_info()},
+                   "tiktok": tiktok.status(), **logo_info()},
         "media": list_media(),
         "password_protected": bool(ADMIN_PASSWORD),
         "text_defaults": TEXT_DEFAULTS,
         "color_events": COLOR_EVENTS,
         "color_defaults": COLOR_DEFAULTS,
         "themes": THEMES,
+        "route_events": ROUTE_EVENTS,
+        "route_defaults": ROUTE_DEFAULTS,
+        "overlay_positions": OVERLAY_POSITIONS,
         "active_theme": active_theme_id(),
         "requests": list(tv.requests),
     })
 
 
 async def api_backup(request):
-    """All settings in one JSON file. The Twitch secret only with ?secrets=1."""
+    """All settings in one JSON file. The secrets (Twitch, TikTok) only with ?secrets=1."""
     data = dict(S.data)
     if request.query.get("secrets") != "1":
         for k in SECRET_KEYS:
@@ -1247,12 +1426,13 @@ async def api_restore(request):
     if settings.get("logo") and not media_path(settings["logo"]):
         notes.append(f"Logo '{settings['logo']}' isn't on this server; upload it, then pick it again.")
         settings.pop("logo")
-    before = logo_info()
+    before = screen_info()
     errors = S.update(settings)
     if errors:
         return web.json_response({"ok": False, "errors": errors}, status=400)
-    if logo_info() != before:
-        await tv.broadcast({"type": "logo_src", **logo_info()})
+    if screen_info() != before:
+        await tv.broadcast({"type": "logo_src", **screen_info()})
+    tiktok.reconfigure()
     return web.json_response({"ok": True, "notes": notes, "restored": len(settings)})
 
 
@@ -1261,13 +1441,14 @@ async def api_settings(request):
         body = await request.json()
     except Exception:
         raise web.HTTPBadRequest(text="JSON body required")
-    before = logo_info()
+    before = screen_info()
     errors = S.update(body if isinstance(body, dict) else {})
     if errors:
         return web.json_response({"ok": False, "errors": errors}, status=400)
-    after = logo_info()
+    after = screen_info()
     if after != before:
         await tv.broadcast({"type": "logo_src", **after})
+    tiktok.reconfigure()
     return web.json_response({"ok": True, "settings": S.public()})
 
 
@@ -1315,11 +1496,11 @@ async def api_delete_media(request):
     p = media_path(request.match_info["name"])
     if not p:
         raise web.HTTPNotFound(text="no such file")
-    before = logo_info()
+    before = screen_info()
     p.unlink()
     if S["logo"] == p.name:
         S.update({"logo": ""})
-    after = logo_info()
+    after = screen_info()
     if after != before:
         await tv.broadcast({"type": "logo_src", **after})
     return web.json_response({"ok": True, "media": list_media()})
@@ -1349,20 +1530,47 @@ async def api_test_twitch(request):
         return web.json_response({"ok": False, "result": f"{e.__class__.__name__}: {e}"})
 
 
+TIKTOK_TEST_GIFTS = {"small": ("Rose", 1, 5), "medium": ("Doughnut", 30, 4), "big": ("Lion", 29999, 1)}
+
+
+async def api_test_tiktok(request):
+    """Play a made-up TikTok alert (no TikTok connection needed):
+    ?kind=follow|sub|gift&size=small|medium|big, plus the usual &screen=."""
+    kind = request.query.get("kind", "gift")
+    who = {"user": "tiktok_tester", "display": "TikTok Tester", "avatar": ""}
+    override = screen_param(request)
+    if kind == "follow":
+        ev = {"type": "follow", "platform": "tiktok", **who, "clip": False}
+    elif kind == "sub":
+        ev = {"type": "sub", "platform": "tiktok", **who, "clip": False, "tier": None}
+    elif kind == "gift":
+        name, coins, count = TIKTOK_TEST_GIFTS.get(request.query.get("size", "small"), TIKTOK_TEST_GIFTS["small"])
+        ev = {"type": "tiktok_gift", "platform": "tiktok", **who, "clip": False,
+              "gift": {"name": name, "image": ""}, "count": count, "coins": coins * count}
+    else:
+        raise web.HTTPBadRequest(text="kind must be follow, sub or gift")
+    ev["screen"] = override
+    return queued(tv.dispatch(ev))
+
+
 # ── app ──────────────────────────────────────────────────────────────────
 
 async def on_startup(app):
     tv.session = aiohttp.ClientSession()
     tv.twitch = Twitch(tv.session)
-    app["worker"] = asyncio.create_task(tv.worker())
+    app["workers"] = [asyncio.create_task(screen.worker()) for screen in tv.screens.values()]
     app["themes"] = asyncio.create_task(tv.theme_watch())
+    tiktok.reconfigure()
     log.info("Vibe TV v%s on :%d (twitch api: %s, logo: %s, admin password: %s)",
              VERSION, PORT, tv.twitch.enabled, logo_url() or "none", "on" if ADMIN_PASSWORD else "off")
 
 
 async def on_cleanup(app):
-    app["worker"].cancel()
+    for w in app["workers"]:
+        w.cancel()
     app["themes"].cancel()
+    await tiktok.stop()
+    tiktok.config = None
     await tv.session.close()
 
 
@@ -1374,6 +1582,7 @@ def make_app():
     app.on_cleanup.append(on_cleanup)
     app.router.add_get("/", index)
     app.router.add_get("/tv", index)
+    app.router.add_get("/overlay", overlay_page)
     app.router.add_get("/ws", ws_handler)
     app.router.add_route("*", "/shoutout/{user}", shoutout)
     app.router.add_route("*", "/raid/{user}", raid)
@@ -1403,6 +1612,7 @@ def make_app():
     app.router.add_delete("/api/media/{name}", api_delete_media)
     app.router.add_post("/api/test/lights", api_test_lights)
     app.router.add_post("/api/test/twitch", api_test_twitch)
+    app.router.add_post("/api/test/tiktok", api_test_tiktok)
     app.router.add_get("/api/backup", api_backup)
     app.router.add_post("/api/restore", api_restore)
     app.router.add_static("/media", MEDIA, show_index=False)

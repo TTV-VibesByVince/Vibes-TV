@@ -101,7 +101,7 @@ async def test_theme_change_reaches_tvs(client, tv):
 async def test_backup_and_restore(client, srv):
     for key in ("card_seconds", "raid_seconds", "message_seconds", "follow_seconds",   # real timings:
                 "gift_seconds", "sub_seconds", "bits_seconds", "welcome_seconds",      # restore checks ranges
-                "streak_seconds", "modiversary_seconds", "gigantify_seconds"):
+                "streak_seconds", "modiversary_seconds", "gigantify_seconds", "overlay_seconds"):
         srv.S.data[key] = srv.SCHEMA[key][1]
     await client.post("/api/settings", json={"texts": {"raid.title": "INVASION!"}, "theme": "halloween",
                                              "twitch_client_secret": "shh"})

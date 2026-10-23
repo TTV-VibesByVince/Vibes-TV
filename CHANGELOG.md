@@ -4,6 +4,33 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 1.5 (2026-10-22)
+
+- **Stream overlay** (`/overlay`): the same alerts on your stream, as an
+  OBS Browser Source. Fully transparent, nothing on screen between alerts,
+  and each alert a compact, see-through card in the corner you pick, with
+  the same words, colours, themes and pictures as the TV. Welcome pop-ups
+  and the hype train bar work there too. Settings for position, size,
+  panel opacity and how long each alert stays up (6 seconds by default).
+- **Two queues**: the TV and the overlay each have their own, so an overlay
+  alert never waits for a clip on the TV. Room lights follow the TV only.
+- **Choose where each alert plays**: TV, overlay or both, per alert type
+  (everything on both by default, except gigantified emotes: TV only). Any
+  alert URL can override it with `&screen=tv|overlay|both`; `/logo` clears
+  both screens, or one with `?screen=`.
+- **No clips on the overlay by default**, so a clip's sound doesn't play
+  twice. It can be switched on.
+- **TikTok LIVE** (optional, off by default): follows, subscriptions and
+  gifts from your TikTok live as Vibe TV alerts, through the unofficial
+  open source TikTokLive library. Gift combos show once, with the total;
+  small gifts can be skipped. A new TikTok gift card on the TV and overlay.
+- Settings page: a TV / Stream overlay switch on the live preview (the
+  overlay over a stand-in game scene), a **Send tests to** picker for the
+  test buttons, a **Stream overlay** section with the OBS address and tips,
+  and a **TikTok LIVE** section with status and test buttons.
+- Existing settings files and backups load as before; the new settings
+  start at their defaults. MixItUp URLs are unchanged.
+
 ## 1.4 (2026-10-17)
 
 - **Bigger subs for bigger tiers**: Tier 2 subs and resubs get two stars,

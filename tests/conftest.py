@@ -20,7 +20,7 @@ import server  # noqa: E402
 FAST = {  # keep cards short so the suite runs in seconds
     "card_seconds": 0.3, "raid_seconds": 0.3, "message_seconds": 0.3, "follow_seconds": 0.3,
     "gift_seconds": 0.3, "sub_seconds": 0.3, "bits_seconds": 0.3, "welcome_seconds": 0.3,
-    "streak_seconds": 0.3, "modiversary_seconds": 0.3, "gigantify_seconds": 0.3,
+    "streak_seconds": 0.3, "modiversary_seconds": 0.3, "gigantify_seconds": 0.3, "overlay_seconds": 0.3,
 }
 
 
@@ -30,6 +30,7 @@ def srv(monkeypatch):
     server.S.data = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, (_, v) in server.SCHEMA.items()}
     server.S.data.update(FAST)
     monkeypatch.setattr(server, "tv", server.TV())
+    monkeypatch.setattr(server, "tiktok", server.TikTokWatcher(server.S, lambda ev: server.tv.dispatch(ev, limit=True)))
     monkeypatch.setattr(server, "GIFT_WINDOW", 0.4)
     monkeypatch.setattr(server, "ADMIN_PASSWORD", "")
     for d in (server.MEDIA, server.CACHE, server.CONFIG):
@@ -67,6 +68,18 @@ async def tv(client):
     ws = await client.ws_connect("/ws?preview=1")
     hello = await ws.receive_json()
     assert hello["type"] == "hello"
+    sock = TVSocket(ws)
+    sock.hello = hello
+    yield sock
+    await ws.close()
+
+
+@pytest.fixture
+async def overlay(client):
+    """A pretend stream overlay (OBS Browser Source)."""
+    ws = await client.ws_connect("/ws?screen=overlay&preview=1")
+    hello = await ws.receive_json()
+    assert hello["type"] == "hello" and hello["screen"] == "overlay"
     sock = TVSocket(ws)
     sock.hello = hello
     yield sock

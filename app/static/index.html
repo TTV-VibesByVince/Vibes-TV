@@ -8,6 +8,7 @@
 <link rel="icon" href="/static/icon/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/icon/apple-touch-icon.png">
 <link href="/static/fonts/fonts.css" rel="stylesheet">
+<link href="/static/shared.css" rel="stylesheet">
 <style>
   :root { --accent: #9146ff; --fit: cover; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -127,7 +128,16 @@
     font-size: 3.4vh; line-height: 1.25; text-align: center; overflow-wrap: anywhere; opacity: 0; }
   #follow.go .hmsg { animation: fadeUp .5s 1.5s ease both; }
   .hsub:empty, .hmsg:empty { display: none; }
-  #follow[data-kind="resub"] .thanks, #follow[data-kind="bits"] .thanks { font-size: 12vh; }
+  #follow[data-kind="resub"] .thanks, #follow[data-kind="bits"] .thanks, #follow[data-kind="tiktok_gift"] .thanks { font-size: 12vh; }
+  /* TikTok gifts: the gift's own picture as the badge (a gem if it has none) */
+  #follow[data-kind="tiktok_gift"] .fav .giftimg { display: block; object-fit: contain; }
+  #follow[data-kind="tiktok_gift"][data-noimg] .fav .giftimg { display: none; }
+  #follow[data-kind="tiktok_gift"][data-noimg] .fav .gem { display: block; }
+  /* alerts from TikTok get a small tag under the name */
+  .ptag { display: none; padding: .6vh 2vh; border-radius: 99px; font: 700 2.6vh "Outfit", sans-serif; letter-spacing: .08em;
+    background: #000; border: .3vh solid #fff; box-shadow: -.4vh 0 0 #25f4ee, .4vh 0 0 #fe2c55; opacity: 0; }
+  .ptag.on { display: block; }
+  #follow.go .ptag { animation: fadeUp .5s 1.25s ease both; }
   #follow:not([data-kind="follow"]) { gap: 2.6vh; }
   #follow:not([data-kind="follow"]) .fav { width: 30vh; height: 30vh; }
 
@@ -335,87 +345,6 @@
   body.lite #mod .slash { box-shadow: none; }
   body.lite #giga .gtext { text-shadow: 0 1vh 0 rgba(0,0,0,.6); }
 
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes crownDrop { 0% { opacity: 0; transform: translateY(-40vh) rotate(-25deg); } 70% { opacity: 1; transform: translateY(1vh) rotate(4deg); } 100% { opacity: 1; transform: rotate(-6deg); } }
-  @keyframes beamL { from { transform: rotate(-45deg); } to { transform: rotate(14deg); } }
-  @keyframes beamR { from { transform: rotate(45deg); } to { transform: rotate(-14deg); } }
-  @keyframes flicker { 0% { filter: brightness(1); } 100% { filter: brightness(1.25) saturate(1.2); } }
-  @keyframes dotLit { 0% { transform: scale(.4); } 60% { transform: scale(1.35); } 100% { transform: scale(1); background: #ff9500; border-color: #ffe14d; box-shadow: 0 0 2.4vh #ff6a00; } }
-  @keyframes slash { 0% { opacity: 1; transform: rotate(-24deg) scaleX(0); } 45% { opacity: 1; transform: rotate(-24deg) scaleX(1); } 100% { opacity: 0; transform: rotate(-24deg) scaleX(1) scaleY(.2); } }
-  @keyframes swordInL { 0% { opacity: 0; transform: translateY(-70vh) rotate(-130deg); } 100% { opacity: 1; transform: rotate(-45deg); } }
-  @keyframes swordInR { 0% { opacity: 0; transform: translateY(-70vh) rotate(130deg); } 100% { opacity: 1; transform: rotate(45deg); } }
-  @keyframes swordOutL { from { opacity: 1; transform: rotate(-45deg); } to { opacity: 0; transform: translateY(-70vh) rotate(-45deg); } }
-  @keyframes swordOutR { from { opacity: 1; transform: rotate(45deg); } to { opacity: 0; transform: translateY(-70vh) rotate(45deg); } }
-  @keyframes gigaIn { 0% { opacity: 0; transform: scale(.05) rotate(-30deg); } 60% { opacity: 1; transform: scale(1.18) rotate(6deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
-  @keyframes wobble { 0%, 100% { transform: scale(1) rotate(0); } 25% { transform: scale(1.06, .94) rotate(-3deg); } 50% { transform: scale(.97, 1.04) rotate(2deg); } 75% { transform: scale(1.04, .97) rotate(-1deg); } }
-  @keyframes gigaOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.1) rotate(25deg); } }
-  @keyframes capUp { from { opacity: 0; transform: translate(-50%, 4vh); } to { opacity: 1; transform: translate(-50%, 0); } }
-  @keyframes toastIn { 0% { opacity: 0; transform: translateX(30vw) scale(.8); } 100% { opacity: 1; transform: none; } }
-  @keyframes toastOut { to { opacity: 0; transform: translateX(30vw); } }
-  @keyframes wave { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(18deg); } 40% { transform: rotate(-10deg); } 60% { transform: rotate(14deg); } 80% { transform: rotate(-4deg); } }
-  @keyframes stripes { to { background-position: 5.66vh 0; } }
-  @keyframes bannerIn {
-    0% { opacity: 0; transform: scale(3) translateY(-6vh); }
-    14% { opacity: 1; transform: scale(.92); }
-    22% { transform: scale(1); }
-    82% { opacity: 1; transform: scale(1); }
-    100% { opacity: 0; transform: scale(1.1) translateY(-3vh); }
-  }
-  @keyframes flash { 0% { opacity: 0; } 12% { opacity: .95; } 100% { opacity: 0; } }
-  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes breathe { from { opacity: .7; } to { opacity: 1; } }
-  @keyframes tapeTop { to { transform: rotate(-2deg) translateX(0); } }
-  @keyframes tapeBot { to { transform: rotate(-2deg) translateX(0); } }
-  @keyframes tapeOutL { from { transform: rotate(-2deg) translateX(0); } to { transform: rotate(-2deg) translateX(-110%); } }
-  @keyframes tapeOutR { from { transform: rotate(-2deg) translateX(0); } to { transform: rotate(-2deg) translateX(110%); } }
-  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  @keyframes slam {
-    0% { opacity: 0; transform: scale(4.5) translateY(-12vh) rotate(-8deg); filter: blur(14px); }
-    55% { opacity: 1; transform: scale(.88) translateY(0) rotate(2deg); filter: blur(0); }
-    100% { opacity: 1; transform: scale(1) rotate(0); }
-  }
-  @keyframes slamLite {
-    0% { opacity: 0; transform: scale(4.5) translateY(-12vh) rotate(-8deg); }
-    55% { opacity: 1; transform: scale(.88) translateY(0) rotate(2deg); }
-    100% { opacity: 1; transform: scale(1) rotate(0); }
-  }
-  @keyframes glitch {
-    0%, 100% { transform: none; clip-path: none; }
-    3% { transform: translateX(-1.4vh) skewX(-12deg); clip-path: inset(10% 0 55% 0); }
-    5% { transform: translateX(1vh); clip-path: inset(60% 0 8% 0); }
-    7% { transform: none; clip-path: none; }
-  }
-  @keyframes shake {
-    0%, 100% { transform: translate(0, 0); }
-    8% { transform: translate(-1.4vh, .8vh); } 16% { transform: translate(1.2vh, -1vh); }
-    24% { transform: translate(-1vh, -.5vh); } 32% { transform: translate(1.4vh, .9vh); }
-    40% { transform: translate(-.8vh, .3vh); } 48% { transform: translate(1vh, -.6vh); }
-    56% { transform: translate(-1.2vh, .7vh); } 64% { transform: translate(.6vh, -.3vh); }
-    76% { transform: translate(-.3vh, .2vh); } 88% { transform: translate(.2vh, -.1vh); }
-  }
-  @keyframes portalIn { 0% { opacity: 0; transform: scale(0) rotate(-120deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
-  @keyframes iris { to { clip-path: circle(50% at 50% 50%); } }
-  @keyframes shock { 0% { opacity: 1; transform: scale(.4); } 100% { opacity: 0; transform: scale(2.6); } }
-  @keyframes slideIn { 0% { opacity: 0; transform: translateX(8vw) skewX(-18deg); } 100% { opacity: 1; transform: none; } }
-  @keyframes nameGlitch { 0% { text-shadow: -1vh 0 #ff2a6d, 1vh 0 #05d9e8; } 100% { text-shadow: 0 .6vh 0 rgba(0,0,0,.6), 0 0 4vh var(--accent); } }
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(3vh); } to { opacity: 1; transform: none; } }
-  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
-  @keyframes collapse {
-    0% { transform: scale(1); opacity: 1; filter: blur(0); }
-    100% { transform: translate(var(--cx, -14vw), var(--cy, 12vh)) scale(.05) rotate(25deg); opacity: 0; filter: blur(8px); }
-  }
-  @keyframes collapseLite {
-    0% { transform: scale(1); opacity: 1; }
-    100% { transform: translate(var(--cx, -14vw), var(--cy, 12vh)) scale(.05) rotate(25deg); opacity: 0; }
-  }
-  @keyframes flareout { 0% { opacity: 1; } 60% { opacity: 1; transform: scale(1.4); } 100% { opacity: 0; transform: scale(.2); } }
-  @keyframes popIn { 0% { opacity: 0; transform: scale(0); } 100% { opacity: 1; transform: scale(1); } }
-  @keyframes heartbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.07); } 30% { transform: scale(1); } 45% { transform: scale(1.05); } }
-  @keyframes heartPop { 0% { opacity: 0; transform: scale(0) rotate(-30deg); } 100% { opacity: 1; transform: scale(1) rotate(-8deg); } }
-  @keyframes wordUp { 0% { opacity: 0; transform: translateY(8vh) scale(.6); } 100% { opacity: 1; transform: none; } }
-  @keyframes dropIn { 0% { opacity: 0; transform: translateY(-20vh); } 100% { opacity: 1; transform: none; } }
-  @keyframes chipIn { 0% { opacity: 0; transform: translateY(-18vh) scale(.2); } 100% { opacity: 1; transform: none; } }
-  @keyframes wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 80% { transform: rotate(3deg); } }
 </style>
 </head>
 <body>
@@ -475,9 +404,11 @@
       <circle cx="4" cy="14" r="6" fill="#ff2a6d" stroke="#fff" stroke-width="2"/><circle cx="60" cy="6" r="7" fill="#9146ff" stroke="#fff" stroke-width="2"/><circle cx="116" cy="14" r="6" fill="#2b45ff" stroke="#fff" stroke-width="2"/>
       <circle cx="36" cy="65" r="4" fill="#ff2a6d"/><circle cx="60" cy="65" r="4.5" fill="#9146ff"/><circle cx="84" cy="65" r="4" fill="#2b45ff"/></svg>
     <svg class="badge gem" id="gembadge" viewBox="0 0 32 32" aria-hidden="true" style="color:#a970ff"><path fill="currentColor" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" d="M9 4h14l7 8-14 17L2 12z"/><path fill="#fff" fill-opacity=".45" d="M9 4l3 8h8l3-8zM2 12h28l-14 17z" /><path fill="#000" fill-opacity=".18" d="M16 29l4-17h10z"/></svg>
+    <img class="badge giftimg" id="giftimg" alt="">
   </div>
   <div class="thanks" id="thanks"></div>
   <div class="fname" id="followname"></div>
+  <div class="ptag" id="heroplat"></div>
   <div class="hsub" id="herosub"></div>
   <div class="hmsg" id="heromsg"></div>
 </div>
@@ -548,51 +479,13 @@
 <div id="hypebanner"></div>
 <div id="dot"></div>
 
+<script src="/static/shared.js"></script>
 <script>
-const $ = id => document.getElementById(id);
 const logo = $("logo"), logoImg = $("logoimg"), clip = $("clip"), shade = $("shade");
-const Q = new URLSearchParams(location.search);
-const PREVIEW = Q.get("preview") === "1";
-if (PREVIEW) document.body.classList.add("preview");
-let timers = [];
 let logoKind = "video";
-let LITE = false, serverMode = null;
 let preloading = "";
 
-function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
-function clearTimers() { timers.forEach(clearTimeout); timers = []; }
-function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
 
-/* ── performance mode ─────────────────────────────────────────────
-   auto = lite on TV sticks, smart TVs and Android boxes (Fully Kiosk),
-   full on a PC. ?mode=lite / ?mode=full on the URL overrides it. */
-function decideLite(mode) {
-  const forced = Q.get("mode");
-  if (forced === "lite" || forced === "full") mode = forced;
-  if (mode === "lite") return true;
-  if (mode === "full") return false;
-  if (PREVIEW) return false;
-  const ua = navigator.userAgent || "";
-  const tvish = /Android|AFT|BRAVIA|SMART-TV|SmartTV|Tizen|Web0S|webOS|CrKey|HbbTV|NetCast|Roku/i.test(ua);
-  const weak = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 2;
-  return tvish || weak;
-}
-function applyMode(mode) {
-  if (serverMode !== null && mode !== serverMode) { location.reload(); return; }
-  serverMode = mode;
-  LITE = decideLite(mode);
-  document.body.classList.toggle("lite", LITE);
-}
-
-// The active theme (sent by the server; follows the date schedule)
-let THEME = { id: "default", accent: "#9146ff", float: "heart", float_colors: ["#ff2a6d", "#ff6fa8", "#ffffff"],
-  confetti: ["#ff3b3b", "#ff9f1c", "#ffe14d", "#3ddc84", "#3ba7ff", "#9146ff"], warp: ["#ffffff", "#ff2a6d", "#05d9e8"] };
-
-function setAccent(hex) {
-  document.documentElement.style.setProperty("--accent", hex ? "#" + hex : THEME.accent);
-}
-const T = ev => ev.text || {};   // the event's words, already filled in by the server
-function accent() { return getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(); }
 
 function setLogo(info) {
   applyMode(info.tv_mode || "auto");
@@ -616,13 +509,6 @@ function setLogo(info) {
   }
 }
 
-// Picture for a person: the avatar, or a big initial when there is none
-function avatarSrc(u) {
-  if (u.avatar) return u.avatar;
-  const ch = (u.display_name || "?").replace(/[^A-Za-z0-9]/g, "").charAt(0).toUpperCase() || "?";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${accent()}"/><stop offset="1" stop-color="#1a1028"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/><text x="50" y="68" font-family="Bungee, Arial Black, sans-serif" font-size="52" text-anchor="middle" fill="#fff">${ch}</text></svg>`;
-  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-}
 
 // Behind cards: blur the logo on a PC, a cheap black veil in lite mode
 function dim(on, deep) {
@@ -639,7 +525,6 @@ function hideAll() {
   document.body.classList.remove("raiding");
 }
 
-function restartAnim(el) { el.classList.remove("go", "out"); void el.offsetWidth; el.classList.add("go"); }
 
 function unloadClip() {
   clip.onplaying = null; clip.onended = null;
@@ -675,11 +560,6 @@ function playShoutout(ev) {
 }
 
 /* ── raid ─────────────────────────────────────────────────────────── */
-function fitText(el, maxWidthPx, startVh) {
-  let size = startVh;
-  el.style.fontSize = size + "vh";
-  while (el.scrollWidth > maxWidthPx && size > 4) { size -= 0.5; el.style.fontSize = size + "vh"; }
-}
 
 let portalCenter = null;
 function measurePortal() {
@@ -730,34 +610,6 @@ function playRaid(ev) {
 /* ── follow / sub / resub / bits: one card, different badge + particles ── */
 const DEFAULT_TITLES = { follow: "THANKS FOR THE FOLLOW!", sub: "THANKS FOR SUBSCRIBING!", resub: "THANKS FOR RESUBSCRIBING!", bits: "THANKS FOR THE BITS!" };
 
-// Bits gems take Twitch's cheer colours by amount
-function gemColor(n) { return n >= 10000 ? "#ff3b3b" : n >= 5000 ? "#0099fe" : n >= 1000 ? "#1db2a5" : n >= 100 ? "#a970ff" : "#b9b9c8"; }
-
-// Big title words that pop up one by one: words with a number in them
-// (12 MONTHS, 500 BITS) take the accent colour, otherwise the last word does.
-function renderWords(el, text, start = .35) {
-  const words = text.split(/\s+/).filter(Boolean);
-  const numbered = words.map(w => /\d/.test(w));
-  const any = numbered.some(Boolean);
-  el.innerHTML = words.map((w, i) =>
-    `<span class="${(any ? numbered[i] : i === words.length - 1) ? "hl" : ""}" style="animation-delay:${(start + i * .13).toFixed(2)}s">${esc(w)}</span>`).join("");
-}
-// Count the leading number of a word up from 1 (12-STREAM: 1, 2, ... 12)
-function tickNumber(span, delayMs, durMs) {
-  const m = span && span.textContent.match(/^(\d[\d,]*)(.*)$/);
-  if (!m) return;
-  const target = parseInt(m[1].replace(/,/g, ""), 10), rest = m[2];
-  if (!(target > 1)) return;
-  const t0 = performance.now() + delayMs;
-  const step = () => {
-    const p = Math.min(Math.max((performance.now() - t0) / durMs, 0), 1);
-    span.textContent = Math.max(1, Math.round(target * (1 - Math.pow(1 - p, 3)))).toLocaleString() + rest;
-    if (p < 1) timers.push(setTimeout(step, 40));
-  };
-  span.textContent = "1" + rest;
-  timers.push(setTimeout(step, delayMs));
-}
-
 function playHero(ev) {
   const u = ev.user, f = $("follow"), total = ev.card_seconds * 1000, kind = ev.type;
   const tier = (kind === "sub" || kind === "resub") ? (ev.tier_level || 1) : 1;
@@ -771,11 +623,16 @@ function playHero(ev) {
     `<span style="animation-delay:${(.15 + i * .09).toFixed(2)}s">${ch === " " ? "&nbsp;" : esc(ch)}</span>`).join("") : "";
   $("herosub").textContent = T(ev).sub || "";
   $("heromsg").textContent = T(ev).message || "";
-  if (kind === "bits") $("gembadge").style.color = gemColor(ev.amount || 1);
+  if (kind === "bits" || kind === "tiktok_gift") $("gembadge").style.color = gemColor(ev.amount || 1);
+  const gift = ev.gift || {};
+  if (gift.image) $("giftimg").src = gift.image; else $("giftimg").removeAttribute("src");
+  if (kind === "tiktok_gift" && !gift.image) f.dataset.noimg = ""; else delete f.dataset.noimg;
+  $("heroplat").textContent = u.platform === "tiktok" ? "TIKTOK" : "";
+  $("heroplat").classList.toggle("on", u.platform === "tiktok");
   dim(true);
   restartAnim(f);
   fitText($("followname"), innerWidth * .9, kind === "follow" ? 7 : 6);
-  if (kind === "bits") gemsFx(ev.amount || 100, total);
+  if (kind === "bits" || kind === "tiktok_gift") gemsFx(ev.amount || 100, total);
   else if (kind === "follow") floatsFx(total);
   else if (tier >= 2) celebrateFx(tier, total);
   else { startConfetti(LITE ? 50 : 130); later(() => stopFx(), total - 1200); }
@@ -894,67 +751,6 @@ function stopFx() {
   fxRun = null;
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, fx.width, fx.height);
-}
-
-// Soft glowing dots are pre-drawn once and stamped with drawImage: far
-// cheaper than drawing gradients or blurred arcs every frame.
-const spriteCache = {};
-function glowSprite(color) {
-  if (spriteCache[color]) return spriteCache[color];
-  const c = document.createElement("canvas"), s = 64; c.width = c.height = s;
-  const x = c.getContext("2d"), gr = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  gr.addColorStop(0, "#ffffff"); gr.addColorStop(.18, color); gr.addColorStop(.45, color + "55"); gr.addColorStop(1, color + "00");
-  x.fillStyle = gr; x.fillRect(0, 0, s, s);
-  return (spriteCache[color] = c);
-}
-// Theme floats (follow screen): heart, bat, snowflake or clover, drawn once
-// into a 64x64 sprite.
-function floatSprite(shape, color) {
-  const key = shape + color;
-  if (spriteCache[key]) return spriteCache[key];
-  const c = document.createElement("canvas"); c.width = c.height = 64;
-  const x = c.getContext("2d");
-  x.fillStyle = x.strokeStyle = color;
-  if (shape === "bat") {
-    x.translate(0, 12); x.scale(2, 2);
-    x.fill(new Path2D("M16 6c-1-2-2.6-2.6-2.6-2.6L14 6c-2.4-.4-4.6.4-6 2C6.6 6 3.6 5 0 6c2.4 1.6 3.4 3.6 3.6 6 1.4-1 3.4-1.2 4.8 0 .6-1.6 2.4-2.4 4-2 1 1.2 2.4 2.4 3.6 4 1.2-1.6 2.6-2.8 3.6-4 1.6-.4 3.4.4 4 2 1.4-1.2 3.4-1 4.8 0 .2-2.4 1.2-4.4 3.6-6-3.6-1-6.6 0-8 2-1.4-1.6-3.6-2.4-6-2l.6-2.6S17 4 16 6z"));
-  } else if (shape === "snow") {
-    x.translate(32, 32); x.lineWidth = 4; x.lineCap = "round";
-    for (let i = 0; i < 6; i++) {
-      x.rotate(Math.PI / 3);
-      x.beginPath(); x.moveTo(0, 0); x.lineTo(0, -27);
-      x.moveTo(0, -16); x.lineTo(-8, -23); x.moveTo(0, -16); x.lineTo(8, -23); x.stroke();
-    }
-  } else if (shape === "clover") {
-    x.translate(32, 30);
-    for (let i = 0; i < 3; i++) {
-      x.save(); x.rotate(i * 2.094 - 0.2);
-      x.beginPath(); x.arc(-6, -12, 10, 0, 6.283); x.arc(6, -12, 10, 0, 6.283); x.fill(); x.restore();
-    }
-    x.lineWidth = 4; x.lineCap = "round"; x.beginPath(); x.moveTo(0, 2); x.quadraticCurveTo(4, 18, 12, 28); x.stroke();
-  } else {
-    x.translate(0, 3); x.scale(2, 2);
-    x.fill(new Path2D("M16 27.5S2 19.2 2 9.6A6.9 6.9 0 0 1 9 2.5c2.8 0 5.2 1.6 7 4 1.8-2.4 4.2-4 7-4a6.9 6.9 0 0 1 7 7.1c0 9.6-14 17.9-14 17.9z"));
-  }
-  return (spriteCache[key] = c);
-}
-// Bits: a faceted gem in the cheer colour
-function gemSprite(color) {
-  const key = "gem" + color;
-  if (spriteCache[key]) return spriteCache[key];
-  const c = document.createElement("canvas"); c.width = c.height = 64;
-  const x = c.getContext("2d"); x.scale(2, 2);
-  x.fillStyle = color; x.fill(new Path2D("M9 4h14l7 8-14 17L2 12z"));
-  x.fillStyle = "rgba(255,255,255,.45)"; x.fill(new Path2D("M9 4l3 8h8l3-8zM2 12h28l-14 17z"));
-  x.fillStyle = "rgba(0,0,0,.18)"; x.fill(new Path2D("M16 29l4-17h10z"));
-  x.strokeStyle = "rgba(255,255,255,.9)"; x.lineWidth = 1.2; x.lineJoin = "round"; x.stroke(new Path2D("M9 4h14l7 8-14 17L2 12z"));
-  return (spriteCache[key] = c);
-}
-function hex6(c) {   // sprites need #rrggbb to append alpha
-  c = c.trim();
-  if (/^#[0-9a-f]{6}$/i.test(c)) return c;
-  if (/^#[0-9a-f]{3}$/i.test(c)) return "#" + c.slice(1).split("").map(ch => ch + ch).join("");
-  return "#9146ff";
 }
 
 function startConfetti(n) {
@@ -1133,20 +929,6 @@ function gemsFx(amount, total) {
   fxRun = requestAnimationFrame(tick);
 }
 
-// A gold coin (Tier 3 rain)
-function coinSprite() {
-  if (spriteCache.coin) return spriteCache.coin;
-  const c = document.createElement("canvas"); c.width = c.height = 64;
-  const x = c.getContext("2d"), gr = x.createRadialGradient(24, 22, 4, 32, 32, 30);
-  gr.addColorStop(0, "#fff6c4"); gr.addColorStop(.45, "#ffc93c"); gr.addColorStop(1, "#b86e00");
-  x.fillStyle = gr; x.beginPath(); x.arc(32, 32, 29, 0, 6.283); x.fill();
-  x.strokeStyle = "rgba(255,255,255,.85)"; x.lineWidth = 2.5; x.stroke();
-  x.strokeStyle = "rgba(150,85,0,.7)"; x.lineWidth = 3; x.beginPath(); x.arc(32, 32, 20, 0, 6.283); x.stroke();
-  x.fillStyle = "rgba(255,255,255,.9)";
-  x.fill(new Path2D("M32 18l3.6 7.6 8.2 1-6 5.7 1.6 8.1-7.4-4-7.4 4 1.6-8.1-6-5.7 8.2-1z"));
-  return (spriteCache.coin = c);
-}
-
 // Tier 2: confetti cannons from both bottom corners. Tier 3: the cannons
 // plus gold coins and gems raining down.
 function celebrateFx(tier, total) {
@@ -1322,7 +1104,7 @@ function playEvent(ev) {
   clip.classList.remove("show");
   setAccent(ev.color);
   if (ev.type === "raid") playRaid(ev);
-  else if (["follow", "sub", "resub", "bits"].includes(ev.type)) playHero(ev);
+  else if (["follow", "sub", "resub", "bits", "tiktok_gift"].includes(ev.type)) playHero(ev);
   else if (ev.type === "streak") playStreak(ev);
   else if (ev.type === "modiversary") playMod(ev);
   else if (ev.type === "gigantify") playGiga(ev);
@@ -1377,28 +1159,21 @@ function showHype(ev) {
   }
 }
 
-function connect() {
-  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws" + (PREVIEW ? "?preview=1" : ""));
-  ws.onopen = () => $("dot").classList.add("ok");
-  ws.onclose = () => { $("dot").classList.remove("ok"); setTimeout(connect, 2000); };
-  ws.onerror = () => ws.close();
-  ws.onmessage = e => {
-    const ev = JSON.parse(e.data);
-    if (ev.type === "hello" || ev.type === "logo_src") setLogo(ev);
-    else if (["shoutout", "raid", "follow", "gift", "sub", "resub", "bits", "streak", "modiversary", "gigantify"].includes(ev.type)) playEvent(ev);
-    else if (ev.type === "welcome") showWelcome(ev);
-    else if (ev.type === "hype") showHype(ev);
-    else if (ev.type === "clip_preload") preloadClip(ev.src);
-    else if (ev.type === "clip") playClip(ev);
-    else if (ev.type === "message") showMessage(ev);
-    else if (ev.type === "logo") showLogo();
-    else if (ev.type === "reload") location.reload();
-  };
+function onServer(ev) {
+  if (ev.type === "hello" || ev.type === "logo_src") setLogo(ev);
+  else if (CARD_TYPES.includes(ev.type)) playEvent(ev);
+  else if (ev.type === "welcome") showWelcome(ev);
+  else if (ev.type === "hype") showHype(ev);
+  else if (ev.type === "clip_preload") preloadClip(ev.src);
+  else if (ev.type === "clip") playClip(ev);
+  else if (ev.type === "message") showMessage(ev);
+  else if (ev.type === "logo") showLogo();
+  else if (ev.type === "reload") location.reload();
 }
 
 addEventListener("resize", () => { if (fxRun) sizeFx(); if ($("raid").classList.contains("go")) measurePortal(); });
 logo.addEventListener("stalled", () => { if (logo.src) logo.load(); });
-connect();
+openSocket("tv", onServer, $("dot"));
 </script>
 </body>
 </html>
