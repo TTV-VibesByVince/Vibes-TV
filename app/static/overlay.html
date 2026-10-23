@@ -39,7 +39,10 @@
   .oav { position: relative; width: 13vh; height: 13vh; flex: none; }
   .oav img.pic { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #111; border: .5vh solid #000; box-shadow: 0 0 0 .45vh var(--accent), 0 0 2.4vh var(--accent); }
   .oav .badge { position: absolute; right: -.8vh; bottom: -.4vh; width: 5.4vh; height: 5.4vh; animation: heartPop .5s .45s cubic-bezier(.2,2,.4,1) both; filter: drop-shadow(0 .4vh .8vh rgba(0,0,0,.6)); }
-  .oav .crown { position: absolute; left: 50%; top: -5.4vh; width: 8.4vh; margin-left: -4.2vh; animation: crownDrop .7s .5s cubic-bezier(.3,1.5,.5,1) both; }
+  /* the card clips its edges (sheen, raid stripes), so the crown sits low on the picture, with room above it */
+  .ocard[data-tier="3"] { padding-top: 3.4vh; }
+  .oav .crown { position: absolute; left: 50%; top: -3.2vh; width: 7.4vh; margin-left: -3.7vh; animation: crownDrop .7s .5s cubic-bezier(.3,1.5,.5,1) both;
+    filter: drop-shadow(0 .4vh .6vh rgba(0,0,0,.6)); }
   .oav .flame { position: absolute; inset: -1.2vh; border-radius: 50%; background: conic-gradient(#ff3b00, #ffb000, #ff6a00, #ffe14d, #ff2a00, #ff3b00); animation: spin 2s linear infinite; filter: blur(.25vh); }
 
   .otext { display: flex; flex-direction: column; min-width: 0; }
@@ -105,7 +108,7 @@
     border-radius: 99px; background: rgba(10, 8, 18, var(--op)); border: .3vh solid var(--hc, #9146ff); opacity: 0; transition: opacity .4s ease, transform .5s cubic-bezier(.2,1.3,.4,1); }
   body[data-pos^="bottom"] #hype { top: 2.5vh; transform: translateY(-10vh); }
   body[data-pos^="top"] #hype { bottom: 2.5vh; transform: translateY(10vh); }
-  #hype.on { opacity: 1; transform: none; }
+  body[data-pos] #hype.on { opacity: 1; transform: none; }
   #hype .htitle { font-family: "Bungee", sans-serif; font-size: 2vh; letter-spacing: .08em; white-space: nowrap; }
   #hype .hlevel { font-family: "Bungee", sans-serif; font-size: 1.7vh; padding: .4vh 1.2vh; border-radius: 99px; background: var(--hc, #9146ff); white-space: nowrap; }
   #hype .htrack { position: relative; flex: 1; height: 1.8vh; border-radius: 99px; background: rgba(255,255,255,.14); overflow: hidden; }
