@@ -49,7 +49,7 @@ from PIL import Image
 
 from tiktok import TikTokWatcher
 
-VERSION = "1.4"
+VERSION = "1.5"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -1401,7 +1401,7 @@ async def api_state(request):
 
 
 async def api_backup(request):
-    """All settings in one JSON file. The Twitch secret only with ?secrets=1."""
+    """All settings in one JSON file. The secrets (Twitch, TikTok) only with ?secrets=1."""
     data = dict(S.data)
     if request.query.get("secrets") != "1":
         for k in SECRET_KEYS:

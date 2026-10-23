@@ -317,7 +317,7 @@
       they're in the <span class="mono">media</span> folder.</p>
     <div class="row" style="margin-top:12px">
       <button onclick="backup()">Download backup</button>
-      <label class="row hint" style="gap:6px;cursor:pointer"><input type="checkbox" id="bkSecret"> Include the Twitch client secret</label>
+      <label class="row hint" style="gap:6px;cursor:pointer"><input type="checkbox" id="bkSecret"> Include the secrets (Twitch client secret, TikTok signing key)</label>
       <span style="flex:1"></span>
       <button onclick="$('restoreFile').click()">Restore from a backup…</button>
       <input type="file" id="restoreFile" accept=".json,application/json" hidden>
@@ -501,7 +501,7 @@ function backup() {
   a.href = "/api/backup" + ($("bkSecret").checked ? "?secrets=1" : "");
   a.download = "";
   document.body.appendChild(a); a.click(); a.remove();
-  setRes($("bkRes"), true, "Backup downloaded" + ($("bkSecret").checked ? " (includes your Twitch secret: keep it private)." : "."));
+  setRes($("bkRes"), true, "Backup downloaded" + ($("bkSecret").checked ? " (includes your secrets: keep it private)." : "."));
 }
 async function restore(file) {
   if (!file) return;
