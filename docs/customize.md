@@ -42,5 +42,7 @@ you clicked while its dates last.
 ## Backup
 
 Settings > **Backup** downloads every setting in one JSON file (the Twitch
-secret only if you tick the box) and restores it again, e.g. after
-reinstalling. Logo files aren't in it: they live in the `media` folder.
+secret and the TikTok signing key only if you tick the box) and restores it
+again, e.g. after reinstalling. Logo files aren't in it: they live in the
+`media` folder. A backup from an older version restores fine: settings it
+doesn't have (like the 1.5 overlay settings) keep their current values.

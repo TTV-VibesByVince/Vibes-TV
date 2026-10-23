@@ -15,8 +15,6 @@ to vote for one or suggest your own.
 
 ## Later
 
-- **Transparent overlay mode** so the same screens can be an OBS Browser
-  Source.
 - **Connect to Twitch directly** (EventSub), so follows, subs, bits, raids
   and hype trains arrive without a bot, with exact gift recipient lists.
 - **Scenes**: several logos on rotation, and `starting soon`, `be right
@@ -32,3 +30,11 @@ to vote for one or suggest your own.
 - A notification when a TV disconnects.
 - Each TV's frame rate on the settings page, to show when lite mode helps.
 - A VIP raid card for friends, with their own intro video.
+
+## Done
+
+- **Transparent overlay mode** (1.5): the same alerts as an OBS Browser
+  Source at `/overlay`, with its own queue and a TV / overlay / both choice
+  per alert type. See [Stream overlay](docs/overlay.md).
+- **TikTok LIVE alerts** (1.5): follows, subscriptions and gifts, optional.
+  See [TikTok LIVE](docs/tiktok.md).

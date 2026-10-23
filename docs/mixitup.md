@@ -24,8 +24,8 @@ server's address.
 | Hype Train progress / Level Up | `/hypetrain/progress?level=<level>&percent=<percent>` |
 | Hype Train End | `/hypetrain/end?level=<level>` |
 | A chat command | `/message?text=$allargs&from=$username` |
-| | `/logo`: clear the queue and the hype bar, back to the logo |
-| | `/reload`: reload every TV page |
+| | `/logo`: clear the queues and the hype bar: the TV goes back to the logo, the overlay goes empty. `/logo?screen=tv` or `/logo?screen=overlay` clears just one |
+| | `/reload`: reload every TV and overlay page |
 | | `/status`: JSON status |
 
 Words in `<angle brackets>` are MixItUp's special identifiers for that
@@ -54,6 +54,10 @@ event and version). Everything after `?` is optional except the bits
   ones less), so a giant emote is a little soft.
 - `/welcome` shows straight away in the corner, even over another screen;
   everything else waits its turn in the queue.
+- Any alert URL: `&screen=tv`, `&screen=overlay` or `&screen=both` decides
+  where that one alert plays, over the setting in **Settings > Stream
+  overlay > Where each alert plays**. Without it, nothing changes: the
+  setting decides (both screens, by default). See [Stream overlay](overlay.md).
 
 ## Check what MixItUp sends
 

@@ -16,7 +16,7 @@ Raids, shoutouts, subs, bits, watch streaks, modiversaries and giant emotes take
 <p align="center"><a href="docs/vibe-tv-demo.mp4"><img src="docs/vibe-tv-demo.webp" width="900" alt="Demo: an animated logo loops, a raid takes over the screen with hazard tape, a slamming RAID! title, a portal around the raider's picture and a raider count, then the logo returns until a gifted-sub screen shows the gifter and six recipients."></a></p>
 <p align="center"><sub>A placeholder logo and made-up channel names; everything else is exactly what the TV shows. <a href="docs/vibe-tv-demo.mp4">Full-quality video</a> (22 s, silent).</sub></p>
 
-Vibe TV is a small web server that runs in Docker on a NAS or any always-on machine. Your TV opens one web page and loops your logo. When [MixItUp](https://mixitupapp.com) (or anything that can send a web request) reports a raid, shoutout, follow, sub, bits, gifted subs, a watch streak, a modiversary or a gigantified emote, that screen takes over: their profile picture, their name, an animation, then one of their Twitch clips. Your room lights can switch to the colour of their picture. Everything is set up from a settings page in your browser.
+Vibe TV is a small web server that runs in Docker on a NAS or any always-on machine. Your TV opens one web page and loops your logo. When [MixItUp](https://mixitupapp.com) (or anything that can send a web request) reports a raid, shoutout, follow, sub, bits, gifted subs, a watch streak, a modiversary or a gigantified emote, that screen takes over: their profile picture, their name, an animation, then one of their Twitch clips. Your room lights can switch to the colour of their picture. The same alerts can also play on your stream, as a transparent [OBS overlay](docs/overlay.md) with its own queue, and [TikTok LIVE](docs/tiktok.md) follows, subs and gifts can join in. Everything is set up from a settings page in your browser.
 
 > [!NOTE]
 > You need a machine that runs Docker all the time (a NAS, mini PC or Raspberry Pi 4/5), a TV with a web browser, and MixItUp or a similar bot to send the events.
@@ -26,7 +26,7 @@ Vibe TV is a small web server that runs in Docker on a NAS or any always-on mach
     <td width="50%" valign="top">
       <h3>Setting it up?</h3>
       Three steps in Portainer, then point the TV at one address. No coding, no building.<br><br>
-      <a href="#quick-start"><b>Quick start</b></a> · <a href="docs/install.md">Install guide</a> · <a href="docs/tv.md">The TV</a> · <a href="docs/mixitup.md">MixItUp URLs</a>
+      <a href="#quick-start"><b>Quick start</b></a> · <a href="docs/install.md">Install guide</a> · <a href="docs/tv.md">The TV</a> · <a href="docs/mixitup.md">MixItUp URLs</a> · <a href="docs/overlay.md">OBS overlay</a>
     </td>
     <td width="50%" valign="top">
       <h3>Making it yours?</h3>
@@ -100,21 +100,23 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Alongside everything.** First-time chatters get a small "Welcome!" pop-up in the corner that never interrupts. A hype train shows a progress bar along the bottom, with banners when it starts, levels up and ends.
 
+**On stream too.** A transparent [stream overlay](docs/overlay.md) for OBS shows the same alerts as compact, see-through cards in the corner you pick, with its own queue, so it never waits for a TV clip. Choose per alert type whether it plays on the TV, the overlay or both. Optional [TikTok LIVE](docs/tiktok.md) alerts: follows, subscriptions and gifts (combos shown once, with the total).
+
 **Clips and lights.** After a shoutout or raid it can play one of that streamer's most-viewed Twitch clips, buffered while their card is on screen. Your room lights can follow each event's colour (for example with [Govee Lights Controller](https://github.com/TTV-VibesByVince/Govee-Lights-Controller)) and go back to normal afterwards.
 
 **Make it yours.** Every word on every screen is editable, with `{name}`, `{months}`, `{amount}` and so on filled in. Each event's colour comes from the avatar, the theme or a colour you pick. Themes (Halloween, Winter holidays, Valentine's, St Patrick's) switch in one click or by date, every year. Back up and restore all settings in one file.
 
-**Under the hood.** One small Python server (aiohttp) and two web pages, no database. The image is built by GitHub for Intel/AMD and ARM, and rebuilt weekly with the newest yt-dlp. Fonts are bundled, so the TV page works without internet. Lite mode keeps animations smooth on TV sticks and smart TVs. Optional password for the settings page.
+**Under the hood.** One small Python server (aiohttp) and three web pages (TV, overlay, settings), no database. The image is built by GitHub for Intel/AMD and ARM, and rebuilt weekly with the newest yt-dlp. Fonts are bundled, so the TV page works without internet. Lite mode keeps animations smooth on TV sticks and smart TVs. Optional password for the settings page.
 
-## Status: 1.4
+## Status: 1.5
 
 > [!IMPORTANT]
 > Vibe TV is young. It works and it's tested, but it is a hobby project made for one channel first, so expect rough edges. The [changelog](CHANGELOG.md) lists what changed in each version.
 
 - **Running for real** on a NAS with Portainer, shown on an Android TV with Fully Kiosk Browser.
-- **Tested automatically on every change** ([tests](tests/)): settings, every MixItUp URL, gift batching, the hype train, themes and the date schedule, backup and restore, uploads, the settings password, and the calls to your lights.
-- **Checked by hand and by screenshots**: every animation in full and lite mode, the settings page, Twitch lookups and clips.
-- **Known gaps**: MixItUp's variable names for the sub, resub, bits, watch streak, modiversary, gigantified emote and hype train events vary, so pick them in MixItUp's event editor; **Settings > Last requests received** shows what actually arrived ([MixItUp URLs](docs/mixitup.md)). No alert sounds yet, no transparent OBS overlay mode yet, and it needs a bot like MixItUp to report events (it doesn't connect to Twitch by itself). See the [roadmap](ROADMAP.md).
+- **Tested automatically on every change** ([tests](tests/)): settings, every MixItUp URL, gift batching, the hype train, themes and the date schedule, backup and restore (including older backups), uploads, the settings password, the calls to your lights, the TV and overlay queues running independently, routing, and TikTok events.
+- **Checked by hand and by screenshots**: every animation in full and lite mode on the TV and on the overlay (over a coloured background, to check it's really transparent), the settings page, Twitch lookups and clips.
+- **Known gaps**: MixItUp's variable names for the sub, resub, bits, watch streak, modiversary, gigantified emote and hype train events vary, so pick them in MixItUp's event editor; **Settings > Last requests received** shows what actually arrived ([MixItUp URLs](docs/mixitup.md)). No alert sounds yet, and it needs a bot like MixItUp to report Twitch events (it doesn't connect to Twitch by itself). TikTok LIVE uses an unofficial library, so it can break for a while when TikTok changes things. See the [roadmap](ROADMAP.md).
 
 ## FAQ
 
@@ -125,7 +127,9 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Does it work with Streamer.bot, SAMMI or something else?** Yes. Vibe TV only needs a web request (GET) to a URL, so any bot or tool that can open a URL works. The URLs are the same as for MixItUp.
 
-**Can I put it in OBS?** It's designed for a real TV, so the page has a solid background. You can add `http://<server-ip>:8777/tv` as a Browser Source to show what the TV shows. A transparent overlay mode is on the [roadmap](ROADMAP.md).
+**Can I put it in OBS?** Yes. Add `http://<server-ip>:8777/overlay` as a Browser Source (1920 x 1080, no custom CSS). It's transparent, shows nothing between alerts, and plays each alert as a small card in the corner you pick, with its own queue so it never waits for the TV. Choose which alerts go to the TV, the overlay or both under **Settings > Stream overlay**. Clips stay on the TV by default, so their sound doesn't play twice. See [Stream overlay](docs/overlay.md).
+
+**Does it work with TikTok?** Optionally, for TikTok LIVE follows, subscriptions and gifts, through the unofficial open source [TikTokLive](https://github.com/isaackogan/TikTokLive) library. Switch it on under **Settings > TikTok LIVE** with your username. See [TikTok LIVE](docs/tiktok.md).
 
 **Do I need Twitch API keys?** No. Without them, names show as typed and pictures come from `&avatar=` on the URL (or a big initial). With them you get real display names, profile pictures, the last game played, pictures for gift recipients, and clips.
 
@@ -159,6 +163,8 @@ Still stuck? [Open an issue](https://github.com/TTV-VibesByVince/Vibes-TV/issues
 | [Install and update](docs/install.md) | Portainer, Synology, Docker Compose, Twitch keys, password, updating |
 | [The TV](docs/tv.md) | Fully Kiosk Browser, other browsers, lite mode |
 | [MixItUp URLs](docs/mixitup.md) | Every URL and option |
+| [Stream overlay](docs/overlay.md) | The alerts on your stream: OBS setup, position, size, routing |
+| [TikTok LIVE](docs/tiktok.md) | TikTok follows, subscriptions and gifts (optional) |
 | [Lights](docs/lights.md) | Room lights that follow each event |
 | [Make it yours](docs/customize.md) | Text, colours, themes, schedule, backup |
 
@@ -168,4 +174,4 @@ What's next is in the [roadmap](ROADMAP.md), and what changed is in the [changel
 
 ## License and credits
 
-[MIT](LICENSE). The bundled fonts, [Bungee](https://fonts.google.com/specimen/Bungee) and [Outfit](https://fonts.google.com/specimen/Outfit), are under the SIL Open Font License 1.1 (see `app/static/fonts`). Clips are downloaded with [yt-dlp](https://github.com/yt-dlp/yt-dlp). Made by [VibesByVince](https://github.com/TTV-VibesByVince).
+[MIT](LICENSE). The bundled fonts, [Bungee](https://fonts.google.com/specimen/Bungee) and [Outfit](https://fonts.google.com/specimen/Outfit), are under the SIL Open Font License 1.1 (see `app/static/fonts`). Clips are downloaded with [yt-dlp](https://github.com/yt-dlp/yt-dlp). TikTok LIVE events come from [TikTokLive](https://github.com/isaackogan/TikTokLive) (AGPL-3.0 with an added permission for overlays and bots; installed from PyPI, not bundled). Made by [VibesByVince](https://github.com/TTV-VibesByVince).
