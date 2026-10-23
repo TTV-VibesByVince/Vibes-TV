@@ -166,7 +166,7 @@ function coinSprite() {
 }
 
 // The full-screen alert types (welcome pop-ups and the hype bar are separate)
-const CARD_TYPES = ["shoutout", "raid", "follow", "gift", "sub", "resub", "bits", "streak", "modiversary", "gigantify"];
+const CARD_TYPES = ["shoutout", "raid", "follow", "gift", "sub", "resub", "bits", "streak", "modiversary", "gigantify", "tiktok_gift"];
 
 /* ── the websocket to the server, reconnecting by itself ─────────────
    screen: "tv" or "overlay". onEvent(message) handles each broadcast;

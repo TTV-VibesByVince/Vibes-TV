@@ -50,6 +50,8 @@
   .oname { font-weight: 900; font-size: 4.6vh; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 44vw; text-shadow: 0 .4vh 0 rgba(0,0,0,.5); }
   .osub { font-size: 2.3vh; opacity: .88; margin-top: .3vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 44vw; }
   .osub:empty, .omsg:empty, .okick:empty { display: none; }
+  .oname .ptag { display: inline-block; vertical-align: middle; margin-left: .6vh; padding: .3vh 1.1vh; border-radius: 99px; font: 700 1.7vh "Outfit", sans-serif;
+    letter-spacing: .08em; background: #000; border: .25vh solid #fff; box-shadow: -.3vh 0 0 #25f4ee, .3vh 0 0 #fe2c55; text-shadow: none; }
   .omsg { margin-top: 1vh; padding: .9vh 1.6vh; border-radius: 1.4vh; background: rgba(255,255,255,.08); border: .25vh solid color-mix(in srgb, var(--accent) 60%, transparent);
     font-size: 2.3vh; line-height: 1.25; max-width: 44vw; overflow-wrap: anywhere; }
   .orow { display: flex; align-items: center; gap: .9vh; margin-top: 1vh; flex-wrap: wrap; max-width: 46vw; }
@@ -158,7 +160,7 @@ const BADGES = {
 BADGES.resub = BADGES.sub;
 const CROWN = `<svg class="crown" viewBox="0 0 120 76"><defs><linearGradient id="og" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2a8"/><stop offset=".5" stop-color="#ffc93c"/><stop offset="1" stop-color="#c97a06"/></linearGradient></defs><path fill="url(#og)" stroke="#fff" stroke-width="3" stroke-linejoin="round" d="M8 62 L4 16 L34 38 L60 6 L86 38 L116 16 L112 62 Z"/><rect x="8" y="58" width="104" height="14" rx="4" fill="url(#og)" stroke="#fff" stroke-width="3"/></svg>`;
 const KICKERS = { follow: "NEW FOLLOWER", sub: "NEW SUB", resub: "RESUB", bits: "CHEER", gift: "GIFTED SUBS",
-  streak: "WATCH STREAK", modiversary: "MODIVERSARY", gigantify: "GIANT EMOTE", message: "MESSAGE" };
+  streak: "WATCH STREAK", modiversary: "MODIVERSARY", gigantify: "GIANT EMOTE", message: "MESSAGE", tiktok_gift: "TIKTOK GIFT" };
 
 /* ── settings from the server ─────────────────────────────────────── */
 function applyConfig(info) {
@@ -207,7 +209,11 @@ function buildCard(ev) {
     pic.src = avatarSrc(u);
     av.appendChild(pic);
   }
-  if (BADGES[k]) av.insertAdjacentHTML("beforeend", BADGES[k].replace("COLOR", gemColor(ev.amount || 1)));
+  if (k === "tiktok_gift" && (ev.gift || {}).image) {
+    const gi = document.createElement("img");
+    gi.className = "badge"; gi.alt = ""; gi.src = ev.gift.image; gi.style.objectFit = "contain";
+    av.appendChild(gi);
+  } else if (BADGES[k === "tiktok_gift" ? "bits" : k]) av.insertAdjacentHTML("beforeend", BADGES[k === "tiktok_gift" ? "bits" : k].replace("COLOR", gemColor(ev.amount || 1)));
   if (tier === 3) av.insertAdjacentHTML("beforeend", CROWN);
   el.appendChild(av);
 
@@ -257,6 +263,7 @@ function buildCard(ev) {
   } else {
     kick.textContent = tier >= 2 ? (t.banner || "TIER " + tier) : (KICKERS[k] || "");
     tx.appendChild(words(t.title || "", .3));
+    if (u.platform === "tiktok") name.insertAdjacentHTML("beforeend", ' <span class="ptag">TIKTOK</span>');
     tx.appendChild(name);
     sub.textContent = t.sub || "";
     tx.appendChild(sub);
@@ -340,7 +347,7 @@ function burst(ev) {
   const n = (LITE ? .4 : 1) * (k === "raid" ? 60 : tier === 3 ? 70 : tier === 2 ? 50 : 34);
   const colors = [...(THEME.confetti || []), hex6(accent())].map(hex6);
   const pick = () => {
-    if (k === "bits") return gemSprite(gemColor(ev.amount || 1));
+    if (k === "bits" || k === "tiktok_gift") return gemSprite(gemColor(ev.amount || 1));
     if (tier === 3) return Math.random() < .6 ? coinSprite() : glowSprite("#ffc93c");
     if (k === "follow") return floatSprite(THEME.float || "heart", (THEME.float_colors || ["#ff2a6d"])[Math.floor(Math.random() * 3)] || "#ff2a6d");
     if (k === "streak") return glowSprite(["#ff3b00", "#ff9500", "#ffe14d"][Math.floor(Math.random() * 3)]);

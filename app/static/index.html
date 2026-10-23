@@ -128,7 +128,16 @@
     font-size: 3.4vh; line-height: 1.25; text-align: center; overflow-wrap: anywhere; opacity: 0; }
   #follow.go .hmsg { animation: fadeUp .5s 1.5s ease both; }
   .hsub:empty, .hmsg:empty { display: none; }
-  #follow[data-kind="resub"] .thanks, #follow[data-kind="bits"] .thanks { font-size: 12vh; }
+  #follow[data-kind="resub"] .thanks, #follow[data-kind="bits"] .thanks, #follow[data-kind="tiktok_gift"] .thanks { font-size: 12vh; }
+  /* TikTok gifts: the gift's own picture as the badge (a gem if it has none) */
+  #follow[data-kind="tiktok_gift"] .fav .giftimg { display: block; object-fit: contain; }
+  #follow[data-kind="tiktok_gift"][data-noimg] .fav .giftimg { display: none; }
+  #follow[data-kind="tiktok_gift"][data-noimg] .fav .gem { display: block; }
+  /* alerts from TikTok get a small tag under the name */
+  .ptag { display: none; padding: .6vh 2vh; border-radius: 99px; font: 700 2.6vh "Outfit", sans-serif; letter-spacing: .08em;
+    background: #000; border: .3vh solid #fff; box-shadow: -.4vh 0 0 #25f4ee, .4vh 0 0 #fe2c55; opacity: 0; }
+  .ptag.on { display: block; }
+  #follow.go .ptag { animation: fadeUp .5s 1.25s ease both; }
   #follow:not([data-kind="follow"]) { gap: 2.6vh; }
   #follow:not([data-kind="follow"]) .fav { width: 30vh; height: 30vh; }
 
@@ -395,9 +404,11 @@
       <circle cx="4" cy="14" r="6" fill="#ff2a6d" stroke="#fff" stroke-width="2"/><circle cx="60" cy="6" r="7" fill="#9146ff" stroke="#fff" stroke-width="2"/><circle cx="116" cy="14" r="6" fill="#2b45ff" stroke="#fff" stroke-width="2"/>
       <circle cx="36" cy="65" r="4" fill="#ff2a6d"/><circle cx="60" cy="65" r="4.5" fill="#9146ff"/><circle cx="84" cy="65" r="4" fill="#2b45ff"/></svg>
     <svg class="badge gem" id="gembadge" viewBox="0 0 32 32" aria-hidden="true" style="color:#a970ff"><path fill="currentColor" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" d="M9 4h14l7 8-14 17L2 12z"/><path fill="#fff" fill-opacity=".45" d="M9 4l3 8h8l3-8zM2 12h28l-14 17z" /><path fill="#000" fill-opacity=".18" d="M16 29l4-17h10z"/></svg>
+    <img class="badge giftimg" id="giftimg" alt="">
   </div>
   <div class="thanks" id="thanks"></div>
   <div class="fname" id="followname"></div>
+  <div class="ptag" id="heroplat"></div>
   <div class="hsub" id="herosub"></div>
   <div class="hmsg" id="heromsg"></div>
 </div>
@@ -612,11 +623,16 @@ function playHero(ev) {
     `<span style="animation-delay:${(.15 + i * .09).toFixed(2)}s">${ch === " " ? "&nbsp;" : esc(ch)}</span>`).join("") : "";
   $("herosub").textContent = T(ev).sub || "";
   $("heromsg").textContent = T(ev).message || "";
-  if (kind === "bits") $("gembadge").style.color = gemColor(ev.amount || 1);
+  if (kind === "bits" || kind === "tiktok_gift") $("gembadge").style.color = gemColor(ev.amount || 1);
+  const gift = ev.gift || {};
+  if (gift.image) $("giftimg").src = gift.image; else $("giftimg").removeAttribute("src");
+  if (kind === "tiktok_gift" && !gift.image) f.dataset.noimg = ""; else delete f.dataset.noimg;
+  $("heroplat").textContent = u.platform === "tiktok" ? "TIKTOK" : "";
+  $("heroplat").classList.toggle("on", u.platform === "tiktok");
   dim(true);
   restartAnim(f);
   fitText($("followname"), innerWidth * .9, kind === "follow" ? 7 : 6);
-  if (kind === "bits") gemsFx(ev.amount || 100, total);
+  if (kind === "bits" || kind === "tiktok_gift") gemsFx(ev.amount || 100, total);
   else if (kind === "follow") floatsFx(total);
   else if (tier >= 2) celebrateFx(tier, total);
   else { startConfetti(LITE ? 50 : 130); later(() => stopFx(), total - 1200); }
@@ -1088,7 +1104,7 @@ function playEvent(ev) {
   clip.classList.remove("show");
   setAccent(ev.color);
   if (ev.type === "raid") playRaid(ev);
-  else if (["follow", "sub", "resub", "bits"].includes(ev.type)) playHero(ev);
+  else if (["follow", "sub", "resub", "bits", "tiktok_gift"].includes(ev.type)) playHero(ev);
   else if (ev.type === "streak") playStreak(ev);
   else if (ev.type === "modiversary") playMod(ev);
   else if (ev.type === "gigantify") playGiga(ev);

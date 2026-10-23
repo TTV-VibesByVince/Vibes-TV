@@ -258,6 +258,23 @@
   </section>
 
   <section class="wide">
+    <h2>TikTok LIVE <span class="chip" id="ttChip"><i></i><span>Off</span></span></h2>
+    <p class="hint">Optional. Shows follows, subscriptions and gifts from your own TikTok LIVE, with the same cards, queues and routing.
+      It uses <a href="https://github.com/isaackogan/TikTokLive" target="_blank" rel="noopener">TikTokLive</a>, an unofficial open source library
+      that reads the same live feed the TikTok app shows. TikTok doesn't support it, so it can stop working for a while when TikTok changes things.</p>
+    <label class="switch"><span>Listen to my TikTok LIVE<br><span class="hint">Checks every minute whether you're live, and connects when you are.</span></span><input type="checkbox" data-k="tiktok_enabled"></label>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(240px, 1fr))">
+      <label class="f"><span>Your TikTok username</span><input type="text" class="mono" data-k="tiktok_username" placeholder="your_username" autocomplete="off" spellcheck="false"></label>
+      <label class="f"><span>Smallest gift shown <span class="hint">(coins, combo total)</span></span><input type="number" data-k="tiktok_min_coins" min="0" step="1"></label>
+      <label class="f"><span>Signing key <span class="hint">(optional, from eulerstream.com)</span></span><input type="password" class="mono" data-k="tiktok_sign_key" id="ttKey" autocomplete="new-password" spellcheck="false"></label>
+    </div>
+    <div class="result" id="ttRes"></div>
+    <div class="row" style="margin-top:8px"><span class="hint" style="flex:none">Test (no TikTok needed):</span>
+      <button onclick="testTikTok('follow')">Follow</button><button onclick="testTikTok('sub')">Subscription</button>
+      <button onclick="testTikTok('gift', 'small')">Small gift</button><button onclick="testTikTok('gift', 'big')">Big gift</button></div>
+  </section>
+
+  <section class="wide">
     <h2>Lights</h2>
     <p class="hint">Vibe TV calls these when a card starts and ends. <span class="mono">{hex}</span> becomes the colour picked from the raider's avatar.
       For <a href="https://github.com/TTV-VibesByVince/Govee-Lights-Controller" target="_blank" rel="noopener">Govee Lights Controller</a> (V1.3+), turn on <b>Settings &gt; Accept requests from my network</b> on the PC, then use its address, e.g.
@@ -351,7 +368,7 @@ async function load() {
   document.querySelectorAll("[data-k]").forEach(el => {
     const k = el.dataset.k;
     if (el.type === "checkbox") el.checked = !!s[k];
-    else if (k === "twitch_client_secret") { el.value = ""; el.placeholder = s.twitch_client_secret_set ? "Saved. Leave blank to keep it" : "Not set"; }
+    else if (k === "twitch_client_secret" || k === "tiktok_sign_key") { el.value = ""; el.placeholder = s[k + "_set"] ? "Saved. Leave blank to keep it (- clears it)" : "Not set"; }
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
@@ -360,7 +377,8 @@ async function load() {
 
 /* ── stream overlay: where each alert plays ─────────────────────────── */
 const ROUTE_LABELS = { shoutout: "Shoutout", raid: "Raid", follow: "Follow", sub: "Subs and resubs", bits: "Bits", gift: "Gifted subs",
-  streak: "Watch streak", modiversary: "Modiversary", gigantify: "Gigantified emote", message: "Message", welcome: "First-time chatter", hype: "Hype train" };
+  streak: "Watch streak", modiversary: "Modiversary", gigantify: "Gigantified emote", message: "Message", welcome: "First-time chatter", hype: "Hype train",
+  tiktok_gift: "TikTok gift" };
 const ROUTE_NAMES = { tv: "TV only", overlay: "Overlay only", both: "Both" };
 function renderRoutes() {
   const routes = state.settings.routes || {}, defs = state.route_defaults;
@@ -443,6 +461,7 @@ const EVENTS = [
   ["welcome", "First-time chatter", "{name}", [["welcome.title", "Title"], ["welcome.sub", "Under the name"]]],
   ["hype", "Hype train", "{level}", [["hype.title", "Bar label"], ["hype.start", "Start banner"], ["hype.levelup", "Level-up banner"], ["hype.end", "End banner"]]],
   ["message", "Message", "", []],
+  ["tiktok_gift", "TikTok gift", "{name} {gift} {count} {coins}", [["tiktok_gift.title", "Title (count only shows for combos)"], ["tiktok_gift.sub", "Under the name"]]],
 ];
 function renderEvents() {
   const texts = state.settings.texts || {}, colors = state.settings.colors || {};
@@ -510,6 +529,12 @@ function renderStatus() {
   const tw = $("cTw"); tw.className = "chip " + (st.twitch_api ? "ok" : "");
   tw.lastChild.textContent = st.twitch_api ? "Twitch API on" : "Twitch API off";
   if (st.last_lights) $("lightRes").textContent = st.last_lights;
+  const tt = st.tiktok || { state: "off" }, chip = $("ttChip");
+  const TT = { off: "Off", connecting: "Connecting", live: "Connected to your live", waiting: "Waiting for you to go live", error: "Problem" };
+  chip.className = "chip " + (tt.state === "live" ? "ok" : tt.state === "error" ? "bad" : "");
+  chip.lastChild.textContent = TT[tt.state] || tt.state;
+  setRes($("ttRes"), tt.state === "error" ? false : tt.state === "live" ? true : null,
+    (tt.detail || "") + (tt.state === "live" ? ` · this session: ${tt.counts.follow} follows, ${tt.counts.sub} subs, ${tt.counts.gift} gifts` : ""));
 }
 
 function renderMedia() {
@@ -658,6 +683,9 @@ function hype(step) {
   else if (step === "levelup") hypeTest = { level: hypeTest.level + 1, pct: 10 };
   call(step === "end" ? `/hypetrain/end?level=${hypeTest.level}`
     : `/hypetrain/${step === "start" ? "start" : "progress"}?level=${hypeTest.level}&percent=${hypeTest.pct}`);
+}
+function testTikTok(kind, size) {
+  send(`/api/test/tiktok?kind=${kind}${size ? "&size=" + size : ""}` + ($("tScreen").value ? "&screen=" + $("tScreen").value : ""));
 }
 async function testLights(which) {
   if (dirty) return toast("Save settings first");
