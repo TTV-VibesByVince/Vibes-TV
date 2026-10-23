@@ -20,7 +20,7 @@ import server  # noqa: E402
 FAST = {  # keep cards short so the suite runs in seconds
     "card_seconds": 0.3, "raid_seconds": 0.3, "message_seconds": 0.3, "follow_seconds": 0.3,
     "gift_seconds": 0.3, "sub_seconds": 0.3, "bits_seconds": 0.3, "welcome_seconds": 0.3,
-    "streak_seconds": 0.3, "modiversary_seconds": 0.3, "gigantify_seconds": 0.3,
+    "streak_seconds": 0.3, "modiversary_seconds": 0.3, "gigantify_seconds": 0.3, "overlay_seconds": 0.3,
 }
 
 
