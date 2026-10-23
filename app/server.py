@@ -1061,6 +1061,11 @@ async def index(request):
     return web.FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
+async def overlay_page(request):
+    """The transparent stream overlay, for an OBS Browser Source."""
+    return web.FileResponse(STATIC / "overlay.html", headers={"Cache-Control": "no-cache"})
+
+
 async def favicon(request):
     return web.FileResponse(STATIC / "icon" / "favicon.ico", headers={"Cache-Control": "max-age=86400"})
 
@@ -1521,6 +1526,7 @@ def make_app():
     app.on_cleanup.append(on_cleanup)
     app.router.add_get("/", index)
     app.router.add_get("/tv", index)
+    app.router.add_get("/overlay", overlay_page)
     app.router.add_get("/ws", ws_handler)
     app.router.add_route("*", "/shoutout/{user}", shoutout)
     app.router.add_route("*", "/raid/{user}", raid)

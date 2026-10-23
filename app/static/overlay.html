@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe TV Overlay</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/static/icon/icon.svg" type="image/svg+xml">
+<link href="/static/fonts/fonts.css" rel="stylesheet">
+<link href="/static/shared.css" rel="stylesheet">
+<style>
+  /* The stream overlay: an OBS Browser Source (1920x1080). Fully transparent
+     until an alert plays; alerts are compact cards in one corner. */
+  :root { --accent: #9146ff; --op: .85; --s: 1; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; font-family: "Outfit", system-ui, sans-serif; color: #fff; }
+  #fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  /* where the alerts sit, and how big they are (settings page > Stream overlay) */
+  #stage { position: absolute; display: flex; flex-direction: column; gap: 1.6vh; transform: scale(var(--s)); pointer-events: none; }
+  body[data-pos="top-left"] #stage     { top: 4vh; left: 3vw; transform-origin: 0 0; align-items: flex-start; }
+  body[data-pos="top-right"] #stage    { top: 4vh; right: 3vw; transform-origin: 100% 0; align-items: flex-end; }
+  body[data-pos="bottom-left"] #stage  { bottom: 5vh; left: 3vw; transform-origin: 0 100%; align-items: flex-start; flex-direction: column-reverse; }
+  body[data-pos="bottom-right"] #stage { bottom: 5vh; right: 3vw; transform-origin: 100% 100%; align-items: flex-end; flex-direction: column-reverse; }
+  body[data-pos="bottom-center"] #stage { bottom: 5vh; left: 50%; transform: translateX(-50%) scale(var(--s)); transform-origin: 50% 100%; align-items: center; flex-direction: column-reverse; }
+
+  /* ── the alert card ─────────────────────────────────────────────── */
+  .ocard { position: relative; display: flex; align-items: center; gap: 2.2vh; min-width: 34vh; max-width: 62vw; padding: 1.8vh 3.2vh 1.8vh 1.8vh;
+    border-radius: 3vh; background: rgba(10, 8, 18, var(--op)); border: .35vh solid var(--accent);
+    box-shadow: 0 0 3.5vh color-mix(in srgb, var(--accent) 55%, transparent), 0 1.4vh 3vh rgba(0,0,0,.45); overflow: hidden; }
+  .ocard.in  { animation: var(--in) .55s cubic-bezier(.2,1.35,.4,1) both; }
+  .ocard.out { animation: var(--out) .4s ease-in both; }
+  body[data-pos$="left"]   { --in: inL; --out: outL; }
+  body[data-pos$="right"]  { --in: inR; --out: outR; }
+  body[data-pos="bottom-center"] { --in: inUp; --out: outDown; }
+  .ocard::before { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.14) 45%, transparent 60%);
+    transform: translateX(-100%); animation: sheen 1.4s .5s ease-out both; pointer-events: none; }
+
+  .oav { position: relative; width: 13vh; height: 13vh; flex: none; }
+  .oav img.pic { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #111; border: .5vh solid #000; box-shadow: 0 0 0 .45vh var(--accent), 0 0 2.4vh var(--accent); }
+  .oav .badge { position: absolute; right: -.8vh; bottom: -.4vh; width: 5.4vh; height: 5.4vh; animation: heartPop .5s .45s cubic-bezier(.2,2,.4,1) both; filter: drop-shadow(0 .4vh .8vh rgba(0,0,0,.6)); }
+  .oav .crown { position: absolute; left: 50%; top: -5.4vh; width: 8.4vh; margin-left: -4.2vh; animation: crownDrop .7s .5s cubic-bezier(.3,1.5,.5,1) both; }
+  .oav .flame { position: absolute; inset: -1.2vh; border-radius: 50%; background: conic-gradient(#ff3b00, #ffb000, #ff6a00, #ffe14d, #ff2a00, #ff3b00); animation: spin 2s linear infinite; filter: blur(.25vh); }
+
+  .otext { display: flex; flex-direction: column; min-width: 0; }
+  .okick { font-family: "Bungee", sans-serif; font-size: 2.3vh; letter-spacing: .12em; color: var(--accent); text-shadow: 0 0 1.6vh var(--accent); white-space: nowrap; }
+  .otitle { display: flex; flex-wrap: wrap; gap: 0 1vh; font-family: "Bungee", sans-serif; font-size: 4.2vh; line-height: 1.05; }
+  .otitle span { display: inline-block; opacity: 0; animation: wordUp .5s cubic-bezier(.2,1.5,.4,1) both; }
+  .otitle span.hl { color: var(--accent); text-shadow: 0 0 1.8vh var(--accent); }
+  .oname { font-weight: 900; font-size: 4.6vh; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 44vw; text-shadow: 0 .4vh 0 rgba(0,0,0,.5); }
+  .osub { font-size: 2.3vh; opacity: .88; margin-top: .3vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 44vw; }
+  .osub:empty, .omsg:empty, .okick:empty { display: none; }
+  .omsg { margin-top: 1vh; padding: .9vh 1.6vh; border-radius: 1.4vh; background: rgba(255,255,255,.08); border: .25vh solid color-mix(in srgb, var(--accent) 60%, transparent);
+    font-size: 2.3vh; line-height: 1.25; max-width: 44vw; overflow-wrap: anywhere; }
+  .orow { display: flex; align-items: center; gap: .9vh; margin-top: 1vh; flex-wrap: wrap; max-width: 46vw; }
+  .orow img { width: 5vh; height: 5vh; border-radius: 50%; object-fit: cover; border: .3vh solid var(--accent); background: #111; animation: popIn .4s cubic-bezier(.2,1.8,.4,1) both; }
+  .orow b { font-family: "Bungee", sans-serif; font-size: 2.2vh; color: var(--accent); }
+  .orow i { width: 2.6vh; height: 2.6vh; border-radius: 50%; background: rgba(255,255,255,.15); border: .3vh solid rgba(255,255,255,.25); }
+  .orow i.lit { animation: dotLit .4s cubic-bezier(.2,2,.4,1) both; }
+
+  /* raid: a hazard stripe along the top, and RAID! slamming in */
+  .ocard[data-kind="raid"] { padding-top: 2.8vh; }
+  .ocard[data-kind="raid"]::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1vh;
+    background: repeating-linear-gradient(-45deg, var(--accent) 0 1.2vh, #0b0b10 1.2vh 2.4vh); animation: marquee 3s linear infinite; width: 200%; }
+  .ocard[data-kind="raid"] .okick { font-size: 4vh; letter-spacing: .06em; display: flex; gap: .4vh; }
+  .ocard[data-kind="raid"] .okick span { display: inline-block; animation: slam .45s cubic-bezier(.2,1.6,.5,1) both; }
+  .ocard[data-kind="raid"] .ocount { font-family: "Bungee", sans-serif; font-size: 5.4vh; line-height: 1; color: var(--accent); text-shadow: 0 0 2vh var(--accent); }
+  /* big subs */
+  .ocard[data-tier="2"] { border-color: #dfe4ff; box-shadow: 0 0 0 .35vh color-mix(in srgb, var(--accent) 70%, transparent), 0 0 4vh #aab4ff, 0 1.4vh 3vh rgba(0,0,0,.45); }
+  .ocard[data-tier="3"] { border-color: #ffc93c; box-shadow: 0 0 0 .35vh #ffb800, 0 0 5vh #ffb800, 0 1.4vh 3vh rgba(0,0,0,.45); }
+  .ocard[data-tier="3"] .okick { color: #ffc93c; text-shadow: 0 0 1.6vh #ffb800; }
+  .ocard[data-tier] { animation-name: var(--in), shake; animation-duration: .55s, .6s; animation-delay: 0s, .55s; }
+  /* modiversary: a slash of light across the card */
+  .ocard .slash { position: absolute; left: -20%; right: -20%; top: 50%; height: .6vh; background: linear-gradient(90deg, transparent, #fff, transparent);
+    box-shadow: 0 0 1.6vh #fff; transform: rotate(-12deg) scaleX(0); animation: slash .5s .15s cubic-bezier(.2,.9,.3,1) both; }
+  /* giant emote, when it's sent to the overlay too */
+  .ocard[data-kind="gigantify"] .oav { width: 20vh; height: 20vh; }
+  .ocard[data-kind="gigantify"] .oav img.pic { border-radius: 0; border: 0; box-shadow: none; background: transparent; object-fit: contain; animation: wobble 1.4s .6s ease-in-out infinite; }
+  .ocard .etext { font-family: "Bungee", sans-serif; font-size: 5vh; color: #fff; text-shadow: 0 0 2vh var(--accent); max-width: 40vw; overflow-wrap: anywhere; }
+
+  /* a clip, when overlay clips are on: a small player in the same corner */
+  .oclip { position: relative; width: 36vw; border-radius: 2vh; overflow: hidden; border: .35vh solid var(--accent); background: #000;
+    box-shadow: 0 0 3vh color-mix(in srgb, var(--accent) 55%, transparent); }
+  .oclip video { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; }
+  .oclip span { position: absolute; left: 0; right: 0; bottom: 0; padding: 1vh 1.6vh; font-size: 2vh; background: linear-gradient(transparent, rgba(0,0,0,.8)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* first-time chatters: small toasts in the opposite top corner */
+  #welcomes { position: absolute; top: 4vh; display: flex; flex-direction: column; gap: 1.2vh; transform: scale(var(--s)); }
+  body[data-pos$="left"] #welcomes, body[data-pos="bottom-center"] #welcomes { right: 3vw; align-items: flex-end; transform-origin: 100% 0; }
+  body[data-pos$="right"] #welcomes { left: 3vw; align-items: flex-start; transform-origin: 0 0; }
+  body[data-pos^="top"][data-pos$="left"] #welcomes { right: 3vw; }
+  .wtoast { display: flex; align-items: center; gap: 1.4vh; padding: 1vh 2.6vh 1vh 1vh; border-radius: 99px; max-width: 40vw;
+    background: rgba(10, 8, 18, var(--op)); border: .3vh solid var(--wc, var(--accent)); animation: toastIn .5s cubic-bezier(.2,1.5,.4,1) both; }
+  body[data-pos$="right"] .wtoast { animation-name: inL; }
+  .wtoast.bye { animation: toastOut .4s ease-in both; }
+  .wtoast img { width: 6vh; height: 6vh; border-radius: 50%; object-fit: cover; flex: none; border: .3vh solid var(--wc, var(--accent)); background: #111; }
+  .wtoast .wt { font-family: "Bungee", sans-serif; font-size: 1.8vh; color: var(--wc, var(--accent)); letter-spacing: .06em; }
+  .wtoast .wn { font-size: 2.8vh; font-weight: 900; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wtoast > div { min-width: 0; }
+
+  /* hype train: a slim bar on the edge away from the alerts */
+  #hype { position: absolute; left: 50%; width: 46vw; margin-left: -23vw; height: 5vh; display: flex; align-items: center; gap: 1.4vh; padding: 0 1.8vh;
+    border-radius: 99px; background: rgba(10, 8, 18, var(--op)); border: .3vh solid var(--hc, #9146ff); opacity: 0; transition: opacity .4s ease, transform .5s cubic-bezier(.2,1.3,.4,1); }
+  body[data-pos^="bottom"] #hype { top: 2.5vh; transform: translateY(-10vh); }
+  body[data-pos^="top"] #hype { bottom: 2.5vh; transform: translateY(10vh); }
+  #hype.on { opacity: 1; transform: none; }
+  #hype .htitle { font-family: "Bungee", sans-serif; font-size: 2vh; letter-spacing: .08em; white-space: nowrap; }
+  #hype .hlevel { font-family: "Bungee", sans-serif; font-size: 1.7vh; padding: .4vh 1.2vh; border-radius: 99px; background: var(--hc, #9146ff); white-space: nowrap; }
+  #hype .htrack { position: relative; flex: 1; height: 1.8vh; border-radius: 99px; background: rgba(255,255,255,.14); overflow: hidden; }
+  #hype .hfill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 99px; transition: width 1s cubic-bezier(.2,1,.3,1);
+    background: repeating-linear-gradient(-45deg, var(--hc, #9146ff) 0 1.2vh, color-mix(in srgb, var(--hc, #9146ff) 70%, #fff) 1.2vh 2.4vh); }
+  #hype.unknown .hfill { width: 100% !important; opacity: .55; }
+  #hype .hpct { font-family: "Bungee", sans-serif; font-size: 1.8vh; min-width: 5vh; text-align: right; }
+  #hypebanner { position: absolute; left: 0; right: 0; text-align: center; font-family: "Bungee", sans-serif; font-size: 5.5vh; color: #fff;
+    text-shadow: 0 0 2.4vh var(--hc, #9146ff), 0 .5vh 0 rgba(0,0,0,.6); opacity: 0; pointer-events: none; }
+  body[data-pos^="bottom"] #hypebanner { top: 9vh; }
+  body[data-pos^="top"] #hypebanner { bottom: 9vh; }
+  #hypebanner.show { animation: bannerIn 3s cubic-bezier(.2,1.2,.4,1) both; }
+
+  /* lite: no glows or blurs (rarely needed for OBS, but kept consistent) */
+  body.lite .ocard, body.lite .oclip { box-shadow: none; }
+  body.lite .oav img.pic { box-shadow: 0 0 0 .45vh var(--accent); }
+  body.lite .okick, body.lite .otitle span.hl, body.lite .ocount { text-shadow: none; }
+  body.lite .oav .flame, body.lite .oav .badge { filter: none; }
+  body.lite .ocard::before { display: none; }
+
+  @keyframes inL { from { opacity: 0; transform: translateX(-40vw) scale(.9); } to { opacity: 1; transform: none; } }
+  @keyframes inR { from { opacity: 0; transform: translateX(40vw) scale(.9); } to { opacity: 1; transform: none; } }
+  @keyframes inUp { from { opacity: 0; transform: translateY(20vh) scale(.9); } to { opacity: 1; transform: none; } }
+  @keyframes outL { to { opacity: 0; transform: translateX(-30vw); } }
+  @keyframes outR { to { opacity: 0; transform: translateX(30vw); } }
+  @keyframes outDown { to { opacity: 0; transform: translateY(16vh); } }
+  @keyframes sheen { to { transform: translateX(100%); } }
+</style>
+</head>
+<body data-pos="bottom-left">
+<canvas id="fx"></canvas>
+<div id="stage"></div>
+<div id="welcomes"></div>
+<div id="hype"><span class="htitle" id="hypetitle">HYPE TRAIN</span><span class="hlevel" id="hypelevel">LEVEL 1</span>
+  <div class="htrack"><div class="hfill" id="hypefill"></div></div><span class="hpct" id="hypepct"></span></div>
+<div id="hypebanner"></div>
+
+<script src="/static/shared.js"></script>
+<script>
+const stage = $("stage");
+let card = null, clipBox = null, outTimer = null;
+
+// Small badges drawn next to the avatar, one per kind of alert
+const STAR = "M16 2.5l4.1 8.6 9.4 1.2-6.9 6.5 1.8 9.3L16 23.6l-8.4 4.5 1.8-9.3-6.9-6.5 9.4-1.2z";
+const BADGES = {
+  follow: `<svg class="badge" viewBox="0 0 32 29"><path fill="#ff2a6d" stroke="#fff" stroke-width="1.6" d="M16 27.5S2 19.2 2 9.6A6.9 6.9 0 0 1 9 2.5c2.8 0 5.2 1.6 7 4 1.8-2.4 4.2-4 7-4a6.9 6.9 0 0 1 7 7.1c0 9.6-14 17.9-14 17.9z"/></svg>`,
+  sub: `<svg class="badge" viewBox="0 0 32 32"><path fill="#ffd34d" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" d="${STAR}"/></svg>`,
+  bits: `<svg class="badge" viewBox="0 0 32 32" style="color:COLOR"><path fill="currentColor" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" d="M9 4h14l7 8-14 17L2 12z"/><path fill="#fff" fill-opacity=".45" d="M9 4l3 8h8l3-8zM2 12h28l-14 17z"/></svg>`,
+  gift: `<svg class="badge" viewBox="0 0 64 64"><rect x="8" y="26" width="48" height="34" rx="4" fill="#9146ff" stroke="#fff" stroke-width="3"/><rect x="4" y="16" width="56" height="13" rx="3" fill="#b483ff" stroke="#fff" stroke-width="3"/><rect x="27" y="16" width="10" height="44" fill="#ffe14d"/></svg>`,
+  modiversary: `<svg class="badge" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#00ad03"/><path d="M22.5 6.5 L25.5 6.5 L25.5 9.5 L14 21 L11 18 Z" fill="#fff"/><path d="M9.5 16.5 L15.5 22.5 L13.5 24.5 L11.5 22.5 L8 26 L6 24 L9.5 20.5 L7.5 18.5 Z" fill="#fff"/></svg>`,
+};
+BADGES.resub = BADGES.sub;
+const CROWN = `<svg class="crown" viewBox="0 0 120 76"><defs><linearGradient id="og" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2a8"/><stop offset=".5" stop-color="#ffc93c"/><stop offset="1" stop-color="#c97a06"/></linearGradient></defs><path fill="url(#og)" stroke="#fff" stroke-width="3" stroke-linejoin="round" d="M8 62 L4 16 L34 38 L60 6 L86 38 L116 16 L112 62 Z"/><rect x="8" y="58" width="104" height="14" rx="4" fill="url(#og)" stroke="#fff" stroke-width="3"/></svg>`;
+const KICKERS = { follow: "NEW FOLLOWER", sub: "NEW SUB", resub: "RESUB", bits: "CHEER", gift: "GIFTED SUBS",
+  streak: "WATCH STREAK", modiversary: "MODIVERSARY", gigantify: "GIANT EMOTE", message: "MESSAGE" };
+
+/* ── settings from the server ─────────────────────────────────────── */
+function applyConfig(info) {
+  applyMode(info.tv_mode || "auto");
+  if (info.theme) THEME = info.theme;
+  const o = info.overlay || {};
+  document.body.dataset.pos = o.position || "bottom-left";
+  document.documentElement.style.setProperty("--s", o.scale || 1);
+  document.documentElement.style.setProperty("--op", o.opacity ?? .85);
+}
+
+/* ── building a card ──────────────────────────────────────────────── */
+function words(text, start) {
+  const el = document.createElement("div");
+  el.className = "otitle";
+  renderWords(el, text, start);
+  return el;
+}
+
+function buildCard(ev) {
+  const k = ev.type, u = ev.user || {}, t = T(ev);
+  const el = document.createElement("div");
+  el.className = "ocard";
+  el.dataset.kind = k;
+  const tier = (k === "sub" || k === "resub") ? (ev.tier_level || 1) : 1;
+  if (tier >= 2) el.dataset.tier = tier;
+
+  // left: the picture (the emote itself for giant emotes)
+  const av = document.createElement("div");
+  av.className = "oav";
+  if (k === "streak") av.innerHTML = '<div class="flame"></div>';
+  const pic = document.createElement("img");
+  pic.className = "pic";
+  pic.alt = "";
+  if (k === "gigantify") {
+    const e = ev.emote || {};
+    if (e.url) {
+      pic.src = e.url;
+      pic.onerror = () => { if (e.id && pic.src.includes("/default/")) pic.src = pic.src.replace("/default/", "/static/"); };
+      av.appendChild(pic);
+    } else {
+      av.innerHTML = `<div class="etext">${esc(e.name || "?")}</div>`;
+      av.style.width = "auto"; av.style.height = "auto";
+    }
+  } else {
+    pic.src = avatarSrc(u);
+    av.appendChild(pic);
+  }
+  if (BADGES[k]) av.insertAdjacentHTML("beforeend", BADGES[k].replace("COLOR", gemColor(ev.amount || 1)));
+  if (tier === 3) av.insertAdjacentHTML("beforeend", CROWN);
+  el.appendChild(av);
+
+  // right: kicker, title words, name, sub line, extras
+  const tx = document.createElement("div");
+  tx.className = "otext";
+  const kick = document.createElement("div");
+  kick.className = "okick";
+  tx.appendChild(kick);
+  const name = document.createElement("div");
+  name.className = "oname";
+  name.textContent = u.display_name || "";
+  const sub = document.createElement("div");
+  sub.className = "osub";
+
+  if (k === "raid") {
+    kick.innerHTML = [...(t.title || "RAID!")].slice(0, 12).map((ch, i) =>
+      `<span style="animation-delay:${(.2 + i * .08).toFixed(2)}s">${ch === " " ? "&nbsp;" : esc(ch)}</span>`).join("");
+    tx.appendChild(name);
+    sub.textContent = t.sub || "";
+    tx.appendChild(sub);
+    if (ev.viewers) {
+      const c = document.createElement("div");
+      c.className = "ocount";
+      c.innerHTML = `<span>${ev.viewers.toLocaleString()}</span> <small style="font-size:2.4vh">${esc(t.label || "RAIDERS")}</small>`;
+      tx.appendChild(c);
+      tickNumber(c.querySelector("span"), 700, 900);
+    }
+  } else if (k === "shoutout") {
+    kick.textContent = t.kicker || "GO FOLLOW";
+    tx.appendChild(name);
+    sub.textContent = t.sub || ("twitch.tv/" + (u.login || ""));
+    tx.appendChild(sub);
+  } else if (k === "message") {
+    kick.textContent = ev.from ? "— " + ev.from : KICKERS.message;
+    const m = document.createElement("div");
+    m.className = "otitle";
+    m.style.fontFamily = "Outfit, sans-serif"; m.style.fontWeight = 900; m.style.fontSize = "3.6vh";
+    m.innerHTML = `<span style="opacity:1;animation:none">${esc(ev.text || "")}</span>`;
+    tx.appendChild(m);
+    pic.src = avatarSrc({ display_name: ev.from || "!" });
+  } else if (k === "gigantify") {
+    kick.textContent = KICKERS.gigantify;
+    tx.appendChild(name);
+    sub.textContent = t.caption || "";
+    tx.appendChild(sub);
+  } else {
+    kick.textContent = tier >= 2 ? (t.banner || "TIER " + tier) : (KICKERS[k] || "");
+    tx.appendChild(words(t.title || "", .3));
+    tx.appendChild(name);
+    sub.textContent = t.sub || "";
+    tx.appendChild(sub);
+    if (t.message) {
+      const m = document.createElement("div");
+      m.className = "omsg";
+      m.textContent = t.message;
+      tx.appendChild(m);
+    }
+    if (k === "gift" && (ev.recipients || []).length) {
+      const row = document.createElement("div");
+      row.className = "orow";
+      const shown = ev.recipients.slice(0, 8);
+      row.innerHTML = shown.map((p, i) => `<img src="${esc(avatarSrc(p))}" alt="" title="${esc(p.display_name)}" style="animation-delay:${(.6 + i * .08).toFixed(2)}s">`).join("")
+        + (ev.recipients.length > shown.length ? `<b>+${ev.recipients.length - shown.length}</b>` : "");
+      tx.appendChild(row);
+    }
+    if (k === "streak") {
+      const n = Math.min(ev.count || 1, 10), row = document.createElement("div");
+      row.className = "orow";
+      row.innerHTML = Array.from({ length: n }, (_, i) => `<i class="lit" style="animation-delay:${(.4 + i * .1).toFixed(2)}s"></i>`).join("")
+        + ((ev.count || 1) > n ? `<b>+${ev.count - n}</b>` : "");
+      tx.appendChild(row);
+      tickNumber(tx.querySelector(".otitle .hl"), 500, 800);
+    }
+    if (k === "modiversary") el.insertAdjacentHTML("beforeend", '<div class="slash"></div>');
+  }
+  el.appendChild(tx);
+  return el;
+}
+
+/* ── showing and hiding ───────────────────────────────────────────── */
+function hideCard(now) {
+  clearTimeout(outTimer);
+  [card, clipBox].forEach(el => {
+    if (!el) return;
+    if (now) { el.remove(); return; }
+    el.classList.remove("in"); el.classList.add("out");
+    setTimeout(() => el.remove(), 450);
+  });
+  card = clipBox = null;
+}
+
+function playCard(ev) {
+  hideCard(true);
+  setAccent(ev.color);
+  card = buildCard(ev);
+  stage.appendChild(card);
+  void card.offsetWidth;
+  card.classList.add("in");
+  const total = (ev.card_seconds || ev.seconds || 6) * 1000;
+  burst(ev);
+  // the server sends "logo" when it's over; this is only a safety net
+  clearTimeout(outTimer);
+  if (!ev.clip_pending) outTimer = setTimeout(() => hideCard(), total - 350);
+}
+
+function playClip(ev) {
+  if (card) { card.classList.add("out"); const c = card; setTimeout(() => c.remove(), 450); card = null; }
+  setAccent(ev.color);
+  clipBox = document.createElement("div");
+  clipBox.className = "oclip in";
+  clipBox.innerHTML = `<video playsinline preload="auto"></video><span></span>`;
+  clipBox.querySelector("span").textContent = (ev.user.display_name || "") + (ev.clip.title ? " · " + ev.clip.title : "");
+  const v = clipBox.querySelector("video");
+  v.muted = PREVIEW || !ev.sound;
+  v.src = ev.clip.src;
+  v.onended = () => hideCard();
+  stage.appendChild(clipBox);
+  v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+}
+
+/* ── a little burst of particles from the card ─────────────────────── */
+const fx = $("fx"), g = fx.getContext("2d");
+let parts = [], fxRun = null;
+function burst(ev) {
+  if (!card) return;
+  fx.width = innerWidth; fx.height = innerHeight;
+  const r = card.getBoundingClientRect(), unit = innerHeight / 1080;
+  const tier = ev.tier_level || 1, k = ev.type;
+  const n = (LITE ? .4 : 1) * (k === "raid" ? 60 : tier === 3 ? 70 : tier === 2 ? 50 : 34);
+  const colors = [...(THEME.confetti || []), hex6(accent())].map(hex6);
+  const pick = () => {
+    if (k === "bits") return gemSprite(gemColor(ev.amount || 1));
+    if (tier === 3) return Math.random() < .6 ? coinSprite() : glowSprite("#ffc93c");
+    if (k === "follow") return floatSprite(THEME.float || "heart", (THEME.float_colors || ["#ff2a6d"])[Math.floor(Math.random() * 3)] || "#ff2a6d");
+    if (k === "streak") return glowSprite(["#ff3b00", "#ff9500", "#ffe14d"][Math.floor(Math.random() * 3)]);
+    if (k === "modiversary") return glowSprite(Math.random() < .5 ? "#ffffff" : "#00ad03");
+    return glowSprite(colors[Math.floor(Math.random() * colors.length)]);
+  };
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = (4 + Math.random() * 9) * unit;
+    parts.push({ x: r.left + r.width * Math.random(), y: r.top + r.height * Math.random(), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 4 * unit,
+      s: (14 + Math.random() * 22) * unit, life: 1, decay: .012 + Math.random() * .015, img: pick() });
+  }
+  if (!fxRun) fxRun = requestAnimationFrame(tick);
+}
+let last = performance.now();
+function tick(now) {
+  const k = Math.min((now - last) / 16.7, 3); last = now;
+  g.clearRect(0, 0, fx.width, fx.height);
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.vx *= Math.pow(.96, k); p.vy = p.vy * Math.pow(.96, k) + .25 * k;
+    p.x += p.vx * k; p.y += p.vy * k; p.life -= p.decay * k;
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    g.globalAlpha = Math.min(1, p.life * 1.4);
+    g.drawImage(p.img, p.x - p.s / 2, p.y - p.s / 2, p.s, p.s);
+  }
+  g.globalAlpha = 1;
+  fxRun = parts.length ? requestAnimationFrame(tick) : null;
+  if (!fxRun) g.clearRect(0, 0, fx.width, fx.height);
+}
+
+/* ── welcome toasts and the hype bar ──────────────────────────────── */
+function showWelcome(ev) {
+  const box = $("welcomes");
+  while (box.children.length >= 3) box.firstElementChild.remove();
+  const el = document.createElement("div");
+  el.className = "wtoast";
+  el.style.setProperty("--wc", "#" + (ev.color || THEME.accent.slice(1)));
+  el.innerHTML = `<img alt=""><div><div class="wt">👋 <span></span></div><div class="wn"></div></div>`;
+  el.querySelector("img").src = avatarSrc(ev.user);
+  el.querySelector(".wt span").textContent = T(ev).title || "Welcome!";
+  el.querySelector(".wn").textContent = ev.user.display_name;
+  box.appendChild(el);
+  setTimeout(() => { el.classList.add("bye"); setTimeout(() => el.remove(), 450); }, (ev.seconds || 7) * 1000);
+}
+
+let bannerTimer = null;
+function showHype(ev) {
+  const bar = $("hype"), st = ev.state;
+  document.documentElement.style.setProperty("--hc", "#" + (ev.color || THEME.accent.slice(1)));
+  if (st) {
+    $("hypetitle").textContent = st.title || "HYPE TRAIN";
+    $("hypelevel").textContent = "LEVEL " + st.level;
+    const known = st.percent !== null && st.percent !== undefined;
+    bar.classList.toggle("unknown", !known);
+    $("hypefill").style.width = known ? st.percent.toFixed(1) + "%" : "100%";
+    $("hypepct").textContent = known ? Math.round(st.percent) + "%" : "";
+    bar.classList.add("on");
+  } else {
+    bar.classList.remove("on");
+  }
+  if (ev.banner && ev.banner.text) {
+    const b = $("hypebanner");
+    b.textContent = ev.banner.text;
+    b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => b.classList.remove("show"), 3100);
+  }
+}
+
+/* ── messages from the server ─────────────────────────────────────── */
+openSocket("overlay", ev => {
+  if (ev.type === "hello" || ev.type === "logo_src") applyConfig(ev);
+  else if (CARD_TYPES.includes(ev.type) || ev.type === "message") playCard(ev);
+  else if (ev.type === "clip") playClip(ev);
+  else if (ev.type === "logo") hideCard();
+  else if (ev.type === "welcome") showWelcome(ev);
+  else if (ev.type === "hype") showHype(ev);
+  else if (ev.type === "reload") location.reload();
+});
+addEventListener("resize", () => { fx.width = innerWidth; fx.height = innerHeight; });
+</script>
+</body>
+</html>

@@ -190,3 +190,12 @@ async def test_old_settings_file_and_backup_still_load(client, srv, tmp_path):
     assert srv.S["theme"] == "halloween" and srv.S["routes"] == {"follow": "overlay"}
     assert srv.S["overlay_position"] == "top-right"
 
+
+
+
+
+async def test_overlay_page_is_served(client):
+    r = await client.get("/overlay")
+    assert r.status == 200
+    html = await r.text()
+    assert "background: transparent" in html and "/static/shared.js" in html
