@@ -1,0 +1,83 @@
+/* Shared by the TV page (index.html) and the stream overlay (overlay.html):
+   every animation keyframe, so both pages move the same way. */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes crownDrop { 0% { opacity: 0; transform: translateY(-40vh) rotate(-25deg); } 70% { opacity: 1; transform: translateY(1vh) rotate(4deg); } 100% { opacity: 1; transform: rotate(-6deg); } }
+@keyframes beamL { from { transform: rotate(-45deg); } to { transform: rotate(14deg); } }
+@keyframes beamR { from { transform: rotate(45deg); } to { transform: rotate(-14deg); } }
+@keyframes flicker { 0% { filter: brightness(1); } 100% { filter: brightness(1.25) saturate(1.2); } }
+@keyframes dotLit { 0% { transform: scale(.4); } 60% { transform: scale(1.35); } 100% { transform: scale(1); background: #ff9500; border-color: #ffe14d; box-shadow: 0 0 2.4vh #ff6a00; } }
+@keyframes slash { 0% { opacity: 1; transform: rotate(-24deg) scaleX(0); } 45% { opacity: 1; transform: rotate(-24deg) scaleX(1); } 100% { opacity: 0; transform: rotate(-24deg) scaleX(1) scaleY(.2); } }
+@keyframes swordInL { 0% { opacity: 0; transform: translateY(-70vh) rotate(-130deg); } 100% { opacity: 1; transform: rotate(-45deg); } }
+@keyframes swordInR { 0% { opacity: 0; transform: translateY(-70vh) rotate(130deg); } 100% { opacity: 1; transform: rotate(45deg); } }
+@keyframes swordOutL { from { opacity: 1; transform: rotate(-45deg); } to { opacity: 0; transform: translateY(-70vh) rotate(-45deg); } }
+@keyframes swordOutR { from { opacity: 1; transform: rotate(45deg); } to { opacity: 0; transform: translateY(-70vh) rotate(45deg); } }
+@keyframes gigaIn { 0% { opacity: 0; transform: scale(.05) rotate(-30deg); } 60% { opacity: 1; transform: scale(1.18) rotate(6deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+@keyframes wobble { 0%, 100% { transform: scale(1) rotate(0); } 25% { transform: scale(1.06, .94) rotate(-3deg); } 50% { transform: scale(.97, 1.04) rotate(2deg); } 75% { transform: scale(1.04, .97) rotate(-1deg); } }
+@keyframes gigaOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.1) rotate(25deg); } }
+@keyframes capUp { from { opacity: 0; transform: translate(-50%, 4vh); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes toastIn { 0% { opacity: 0; transform: translateX(30vw) scale(.8); } 100% { opacity: 1; transform: none; } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(30vw); } }
+@keyframes wave { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(18deg); } 40% { transform: rotate(-10deg); } 60% { transform: rotate(14deg); } 80% { transform: rotate(-4deg); } }
+@keyframes stripes { to { background-position: 5.66vh 0; } }
+@keyframes bannerIn {
+  0% { opacity: 0; transform: scale(3) translateY(-6vh); }
+  14% { opacity: 1; transform: scale(.92); }
+  22% { transform: scale(1); }
+  82% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1) translateY(-3vh); }
+}
+@keyframes flash { 0% { opacity: 0; } 12% { opacity: .95; } 100% { opacity: 0; } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes breathe { from { opacity: .7; } to { opacity: 1; } }
+@keyframes tapeTop { to { transform: rotate(-2deg) translateX(0); } }
+@keyframes tapeBot { to { transform: rotate(-2deg) translateX(0); } }
+@keyframes tapeOutL { from { transform: rotate(-2deg) translateX(0); } to { transform: rotate(-2deg) translateX(-110%); } }
+@keyframes tapeOutR { from { transform: rotate(-2deg) translateX(0); } to { transform: rotate(-2deg) translateX(110%); } }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes slam {
+  0% { opacity: 0; transform: scale(4.5) translateY(-12vh) rotate(-8deg); filter: blur(14px); }
+  55% { opacity: 1; transform: scale(.88) translateY(0) rotate(2deg); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes slamLite {
+  0% { opacity: 0; transform: scale(4.5) translateY(-12vh) rotate(-8deg); }
+  55% { opacity: 1; transform: scale(.88) translateY(0) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes glitch {
+  0%, 100% { transform: none; clip-path: none; }
+  3% { transform: translateX(-1.4vh) skewX(-12deg); clip-path: inset(10% 0 55% 0); }
+  5% { transform: translateX(1vh); clip-path: inset(60% 0 8% 0); }
+  7% { transform: none; clip-path: none; }
+}
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  8% { transform: translate(-1.4vh, .8vh); } 16% { transform: translate(1.2vh, -1vh); }
+  24% { transform: translate(-1vh, -.5vh); } 32% { transform: translate(1.4vh, .9vh); }
+  40% { transform: translate(-.8vh, .3vh); } 48% { transform: translate(1vh, -.6vh); }
+  56% { transform: translate(-1.2vh, .7vh); } 64% { transform: translate(.6vh, -.3vh); }
+  76% { transform: translate(-.3vh, .2vh); } 88% { transform: translate(.2vh, -.1vh); }
+}
+@keyframes portalIn { 0% { opacity: 0; transform: scale(0) rotate(-120deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+@keyframes iris { to { clip-path: circle(50% at 50% 50%); } }
+@keyframes shock { 0% { opacity: 1; transform: scale(.4); } 100% { opacity: 0; transform: scale(2.6); } }
+@keyframes slideIn { 0% { opacity: 0; transform: translateX(8vw) skewX(-18deg); } 100% { opacity: 1; transform: none; } }
+@keyframes nameGlitch { 0% { text-shadow: -1vh 0 #ff2a6d, 1vh 0 #05d9e8; } 100% { text-shadow: 0 .6vh 0 rgba(0,0,0,.6), 0 0 4vh var(--accent); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(3vh); } to { opacity: 1; transform: none; } }
+@keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+@keyframes collapse {
+  0% { transform: scale(1); opacity: 1; filter: blur(0); }
+  100% { transform: translate(var(--cx, -14vw), var(--cy, 12vh)) scale(.05) rotate(25deg); opacity: 0; filter: blur(8px); }
+}
+@keyframes collapseLite {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: translate(var(--cx, -14vw), var(--cy, 12vh)) scale(.05) rotate(25deg); opacity: 0; }
+}
+@keyframes flareout { 0% { opacity: 1; } 60% { opacity: 1; transform: scale(1.4); } 100% { opacity: 0; transform: scale(.2); } }
+@keyframes popIn { 0% { opacity: 0; transform: scale(0); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes heartbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.07); } 30% { transform: scale(1); } 45% { transform: scale(1.05); } }
+@keyframes heartPop { 0% { opacity: 0; transform: scale(0) rotate(-30deg); } 100% { opacity: 1; transform: scale(1) rotate(-8deg); } }
+@keyframes wordUp { 0% { opacity: 0; transform: translateY(8vh) scale(.6); } 100% { opacity: 1; transform: none; } }
+@keyframes dropIn { 0% { opacity: 0; transform: translateY(-20vh); } 100% { opacity: 1; transform: none; } }
+@keyframes chipIn { 0% { opacity: 0; transform: translateY(-18vh) scale(.2); } 100% { opacity: 1; transform: none; } }
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 80% { transform: rotate(3deg); } }
