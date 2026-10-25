@@ -100,7 +100,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Alongside everything.** First-time chatters get a small "Welcome!" pop-up in the corner that never interrupts. A hype train shows a progress bar along the bottom, with banners when it starts, levels up and ends.
 
-**On stream too.** A transparent [stream overlay](docs/overlay.md) for OBS shows the same alerts as compact, see-through cards in the corner you pick, with its own queue, so it never waits for a TV clip. Choose per alert type whether it plays on the TV, the overlay or both. Optional [TikTok LIVE](docs/tiktok.md) alerts: follows, subscriptions and gifts (combos shown once, with the total). Optional [text to speech](docs/tts.md) reads TikTok chat (or a MixItUp `!tts` command) aloud in a Microsoft Edge voice, one message at a time, with filters against trolls.
+**On stream too.** A transparent [stream overlay](docs/overlay.md) for OBS shows the same alerts, with its own queue, so it never waits for a TV clip. For each alert type, choose where it plays (TV, overlay or both) and how big it is on stream: a compact card in your corner, a bigger card in the centre, or the TV's full-screen animation over your game with the stream darkened behind it (raids, by default). Optional [TikTok LIVE](docs/tiktok.md) alerts: follows, subscriptions and gifts (combos shown once, with the total). Optional [text to speech](docs/tts.md) reads TikTok chat (or a MixItUp `!tts` command) aloud in a Microsoft Edge voice, one message at a time, with filters against trolls.
 
 **Clips and lights.** After a shoutout or raid it can play one of that streamer's most-viewed Twitch clips, buffered while their card is on screen. Your room lights can follow each event's colour (for example with [Govee Lights Controller](https://github.com/TTV-VibesByVince/Govee-Lights-Controller)) and go back to normal afterwards.
 
@@ -127,7 +127,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Does it work with Streamer.bot, SAMMI or something else?** Yes. Vibe TV only needs a web request (GET) to a URL, so any bot or tool that can open a URL works. The URLs are the same as for MixItUp.
 
-**Can I put it in OBS?** Yes. Add `http://<server-ip>:8777/overlay` as a Browser Source (1920 x 1080, no custom CSS). It's transparent, shows nothing between alerts, and plays each alert as a small card in the corner you pick, with its own queue so it never waits for the TV. Choose which alerts go to the TV, the overlay or both under **Settings > Stream overlay**. Clips stay on the TV by default, so their sound doesn't play twice. See [Stream overlay](docs/overlay.md).
+**Can I put it in OBS?** Yes. Add `http://<server-ip>:8777/overlay` as a Browser Source (1920 x 1080, no custom CSS). It's transparent, shows nothing between alerts, and plays each alert as a small card in the corner you pick, a bigger one in the centre, or full screen like the TV (raids, by default), with its own queue so it never waits for the TV. Choose which alerts go to the TV, the overlay or both under **Settings > Stream overlay**. Clips stay on the TV by default, so their sound doesn't play twice. See [Stream overlay](docs/overlay.md).
 
 **Does it work with TikTok?** Optionally, for TikTok LIVE follows, subscriptions and gifts, through the unofficial open source [TikTokLive](https://github.com/isaackogan/TikTokLive) library. Switch it on under **Settings > TikTok LIVE** with your username. See [TikTok LIVE](docs/tiktok.md).
 
