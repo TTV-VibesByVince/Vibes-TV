@@ -25,7 +25,7 @@ Added in 1.4:
                              get bigger animations
   /streak/<user>?count=N     watch streak    &message=
   /modiversary/<user>?years=N (or &months=N) mod anniversary, with swords
-  /gigantify/<user>?emote=<emote ID, name or image link>   a giant emote
+  /gigantify/<user>?emote=<emote ID, name or image link>[&name=]   a giant emote
 TV page: /  or  /tv  (?mode=lite or ?mode=full to override)   Settings: /admin
 """
 
@@ -63,6 +63,10 @@ USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{1,25}$")
 EMOTE_ID_RE = re.compile(r"^(emotesv2_[0-9a-f]{8,}|\d{1,12})$")
 # "default" = animated when the emote is animated, otherwise the still image
 EMOTE_CDN = "https://static-cdn.jtvnw.net/emoticons/v2/{id}/default/dark/3.0"
+# a Twitch emote image link (any size or theme): its ID, to use the biggest size
+EMOTE_LINK_RE = re.compile(r"^https://static-cdn\.jtvnw\.net/emoticons/v[12]/([A-Za-z0-9_]+)/")
+# a URL value MixItUp didn't fill in: "<emote ID or name>" or "$emoteurl" left as text
+PLACEHOLDER_RE = re.compile(r"^\s*(<[^<>]*>|\$[a-z]+)\s*$")
 HEX_RE = re.compile(r"^[0-9a-fA-F]{6}$")
 VIDEO_EXT = {".mp4", ".webm", ".mov", ".m4v"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -793,12 +797,17 @@ class TV:
                            "screen": b.get("screen")})
 
     # ── gigantified emotes: an ID or link works as is, a name is looked up ──
-    async def resolve_emote(self, value):
-        value = value.strip()
+    async def resolve_emote(self, value, name=""):
+        """value: an emote ID, an image link or a name. name: the emote's name,
+        when MixItUp sends it alongside the link (shown in the caption)."""
+        value, name = value.strip(), name.strip()[:60]
+        twitch_link = EMOTE_LINK_RE.match(value)
+        if twitch_link:                         # a Twitch emote link: the biggest, animated size
+            return {"id": twitch_link.group(1), "url": EMOTE_CDN.format(id=twitch_link.group(1)), "name": name}
         if value.startswith(("https://", "http://")):
-            return {"url": value, "name": ""}
+            return {"url": value, "name": name}
         if EMOTE_ID_RE.match(value):
-            return {"id": value, "url": EMOTE_CDN.format(id=value), "name": ""}
+            return {"id": value, "url": EMOTE_CDN.format(id=value), "name": name}
         name = value[:60]
         if name and self.twitch.enabled:
             try:
@@ -966,7 +975,7 @@ class TV:
             payload.update({"gift": ev["gift"], "count": count, "coins": coins, "amount": coins})
         elif kind == "gigantify":
             secs = S["gigantify_seconds"]
-            emote = await self.resolve_emote(ev.get("emote") or "")
+            emote = await self.resolve_emote(ev.get("emote") or "", ev.get("emote_name") or "")
             ctx["emote"] = emote.get("name") or ""
             text = {"caption": text_for("gigantify.caption", **ctx)}
             payload["emote"] = emote
@@ -1226,12 +1235,16 @@ async def modiversary(request):
 
 
 async def gigantify(request):
-    """Gigantified emote: /gigantify/<user>?emote=<emote ID, name or image link>"""
-    emote = next((request.query.get(k) for k in ("emote", "emote_id", "id", "name", "url") if request.query.get(k)), "")
+    """Gigantified emote: /gigantify/<user>?emote=<emote ID, name or image link>[&name=<emote name>]
+    From MixItUp: /gigantify/$username?emote=$emoteurl&name=$emotename"""
+    emote = next((request.query.get(k) for k in ("emote", "emote_id", "id", "url") if request.query.get(k)), "")
+    name = request.query.get("name") or request.query.get("emote_name") or ""
     if not emote.strip():
-        raise web.HTTPBadRequest(text="emote required, e.g. /gigantify/name?emote=emotesv2_... or ?emote=LUL")
+        emote, name = name, ""                  # ?name=LUL on its own: look the name up
+    if not emote.strip():
+        raise web.HTTPBadRequest(text="emote missing: in MixItUp use ?emote=$emoteurl (or an emote ID or name)")
     ev = _card_event(request, "gigantify")
-    ev.update({"clip": False, "emote": emote})
+    ev.update({"clip": False, "emote": emote, "emote_name": name})
     return _queue_or_skip(ev)
 
 
@@ -1333,12 +1346,20 @@ async def request_log(request, handler):
     entry = {"time": time.strftime("%H:%M:%S"), "method": request.method,
              "url": unquote(request.path_qs), "status": 500}
     tv.requests.appendleft(entry)
+    # A value MixItUp left as text ("<emote ID or name>", "$emoteurl") is
+    # treated as missing, so it never ends up on screen.
+    unfilled = [k for k, v in request.query.items() if PLACEHOLDER_RE.match(v)]
+    if unfilled:
+        request = request.clone(rel_url=request.rel_url.with_query(
+            [(k, v) for k, v in request.query.items() if not PLACEHOLDER_RE.match(v)]))
+        entry["note"] = "not filled in by MixItUp, ignored: " + ", ".join(unfilled)
     try:
         resp = await handler(request)
         entry["status"] = resp.status
         return resp
     except web.HTTPException as e:
-        entry["status"], entry["note"] = e.status, (e.text or "")[:100]
+        entry["status"] = e.status
+        entry["note"] = "; ".join(filter(None, [entry.get("note"), (e.text or "")[:100]]))
         raise
 
 
