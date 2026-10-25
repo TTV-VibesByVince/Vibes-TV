@@ -233,6 +233,18 @@
   .gcap img { width: 7vh; height: 7vh; border-radius: 50%; object-fit: cover; background: #111; }
   .gcap span { font-family: "Bungee", sans-serif; font-size: 3.6vh; letter-spacing: .04em; }
 
+  /* ── Text to speech: what's being read, top-left (when it's routed to the TV) ── */
+  #ttsbox { position: absolute; top: 4vh; left: 3vw; z-index: 20; display: none; align-items: flex-start; gap: 1.6vh; max-width: 44vw;
+    padding: 1.6vh 2.8vh 1.6vh 2vh; border-radius: 2.6vh; background: rgba(10, 8, 18, .85); border: .4vh solid var(--tc, #9146ff);
+    box-shadow: 0 0 3vh color-mix(in srgb, var(--tc, #9146ff) 45%, transparent); pointer-events: none; }
+  #ttsbox.on { display: flex; animation: popIn .35s cubic-bezier(.2,1.5,.4,1) both; }
+  #ttsbox .tspk { flex: none; width: 4.6vh; height: 4.6vh; color: var(--tc, #9146ff); animation: breathe .6s ease-in-out infinite alternate; }
+  #ttsbox .tspk svg { width: 100%; height: 100%; display: block; }
+  #ttsbox b { display: block; font-family: "Bungee", sans-serif; font-weight: 400; font-size: 2.4vh; letter-spacing: .05em; color: var(--tc, #9146ff); }
+  #ttsbox .tbody span { font-size: 3.2vh; line-height: 1.25; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  body.lite #ttsbox { box-shadow: none; }
+
   /* ── First-time chatter: corner pop-ups, stacked top-right ─────── */
   #welcomes { position: absolute; top: 4vh; right: 3vw; display: flex; flex-direction: column; align-items: flex-end; gap: 1.6vh; pointer-events: none; z-index: 20; }
   .wtoast { display: flex; align-items: center; gap: 1.8vh; padding: 1.4vh 3.2vh 1.4vh 1.4vh; border-radius: 99px; max-width: 46vw;
@@ -474,6 +486,7 @@
 <div id="cliptag"><img id="tagavatar" alt=""><div><b id="tagname"></b><span id="tagtitle"></span></div></div>
 
 <div id="welcomes"></div>
+<div id="ttsbox"></div>
 <div id="hype"><span class="htrain">🚂</span><span class="htitle" id="hypetitle">HYPE TRAIN</span><span class="hlevel" id="hypelevel">LEVEL 1</span>
   <div class="htrack"><div class="hfill" id="hypefill"></div></div><span class="hpct" id="hypepct"></span></div>
 <div id="hypebanner"></div>
@@ -1114,6 +1127,19 @@ function playEvent(ev) {
   later(() => showLogo(), (ev.card_seconds + (ev.clip_pending ? 70 : 4)) * 1000);
 }
 
+/* ── text to speech: play it, and show who's being read ───────────── */
+function showTts(ev) {
+  playTts(ev);
+  const box = $("ttsbox");
+  box.style.setProperty("--tc", THEME.accent);
+  box.classList.remove("on");
+  if (ev.show === false) return;
+  ttsBubble(box, ev);
+  void box.offsetWidth;
+  box.classList.add("on");
+}
+function hideTts() { stopTts(); $("ttsbox").classList.remove("on"); }
+
 /* ── first-time chatter: corner pop-up, independent of the queue ───── */
 function showWelcome(ev) {
   const box = $("welcomes");
@@ -1168,6 +1194,8 @@ function onServer(ev) {
   else if (ev.type === "clip") playClip(ev);
   else if (ev.type === "message") showMessage(ev);
   else if (ev.type === "logo") showLogo();
+  else if (ev.type === "tts") showTts(ev);
+  else if (ev.type === "tts_end") hideTts();
   else if (ev.type === "reload") location.reload();
 }
 

@@ -90,10 +90,20 @@
   .oclip span { position: absolute; left: 0; right: 0; bottom: 0; padding: 1vh 1.6vh; font-size: 2vh; background: linear-gradient(transparent, rgba(0,0,0,.8)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* first-time chatters: small toasts in the opposite top corner */
-  #welcomes { position: absolute; top: 4vh; display: flex; flex-direction: column; gap: 1.2vh; transform: scale(var(--s)); }
-  body[data-pos$="left"] #welcomes, body[data-pos="bottom-center"] #welcomes { right: 3vw; align-items: flex-end; transform-origin: 100% 0; }
-  body[data-pos$="right"] #welcomes { left: 3vw; align-items: flex-start; transform-origin: 0 0; }
-  body[data-pos^="top"][data-pos$="left"] #welcomes { right: 3vw; }
+  /* the corner opposite the alerts: welcome pop-ups, then what's being read aloud */
+  #side { position: absolute; top: 4vh; display: flex; flex-direction: column; gap: 1.2vh; transform: scale(var(--s)); }
+  body[data-pos$="left"] #side, body[data-pos="bottom-center"] #side { right: 3vw; align-items: flex-end; transform-origin: 100% 0; }
+  body[data-pos$="right"] #side { left: 3vw; align-items: flex-start; transform-origin: 0 0; }
+  #welcomes { display: flex; flex-direction: column; gap: 1.2vh; align-items: inherit; }
+  #ttsbox { display: none; align-items: flex-start; gap: 1.2vh; max-width: 34vw; padding: 1.2vh 2vh 1.2vh 1.4vh; border-radius: 2vh;
+    background: rgba(10, 8, 18, var(--op)); border: .3vh solid var(--tc, #9146ff); box-shadow: 0 0 2.4vh color-mix(in srgb, var(--tc, #9146ff) 45%, transparent); }
+  #ttsbox.on { display: flex; animation: popIn .35s cubic-bezier(.2,1.5,.4,1) both; }
+  #ttsbox .tspk { flex: none; width: 3.4vh; height: 3.4vh; color: var(--tc, #9146ff); animation: breathe .6s ease-in-out infinite alternate; }
+  #ttsbox .tspk svg { width: 100%; height: 100%; display: block; }
+  #ttsbox b { display: block; font-family: "Bungee", sans-serif; font-weight: 400; font-size: 1.8vh; letter-spacing: .05em; color: var(--tc, #9146ff); }
+  #ttsbox .tbody span { display: block; font-size: 2.4vh; line-height: 1.25; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  body.lite #ttsbox { box-shadow: none; }
   .wtoast { display: flex; align-items: center; gap: 1.4vh; padding: 1vh 2.6vh 1vh 1vh; border-radius: 99px; max-width: 40vw;
     background: rgba(10, 8, 18, var(--op)); border: .3vh solid var(--wc, var(--accent)); animation: toastIn .5s cubic-bezier(.2,1.5,.4,1) both; }
   body[data-pos$="right"] .wtoast { animation-name: inL; }
@@ -141,7 +151,7 @@
 <body data-pos="bottom-left">
 <canvas id="fx"></canvas>
 <div id="stage"></div>
-<div id="welcomes"></div>
+<div id="side"><div id="welcomes"></div><div id="ttsbox"></div></div>
 <div id="hype"><span class="htitle" id="hypetitle">HYPE TRAIN</span><span class="hlevel" id="hypelevel">LEVEL 1</span>
   <div class="htrack"><div class="hfill" id="hypefill"></div></div><span class="hpct" id="hypepct"></span></div>
 <div id="hypebanner"></div>
@@ -420,6 +430,19 @@ function showHype(ev) {
   }
 }
 
+/* ── text to speech: play it, and show who's being read ───────────── */
+function showTts(ev) {
+  playTts(ev);
+  const box = $("ttsbox");
+  box.style.setProperty("--tc", THEME.accent);
+  box.classList.remove("on");
+  if (ev.show === false) return;
+  ttsBubble(box, ev);
+  void box.offsetWidth;
+  box.classList.add("on");
+}
+function hideTts() { stopTts(); $("ttsbox").classList.remove("on"); }
+
 /* ── messages from the server ─────────────────────────────────────── */
 openSocket("overlay", ev => {
   if (ev.type === "hello" || ev.type === "logo_src") applyConfig(ev);
@@ -428,6 +451,8 @@ openSocket("overlay", ev => {
   else if (ev.type === "logo") hideCard();
   else if (ev.type === "welcome") showWelcome(ev);
   else if (ev.type === "hype") showHype(ev);
+  else if (ev.type === "tts") showTts(ev);
+  else if (ev.type === "tts_end") hideTts();
   else if (ev.type === "reload") location.reload();
 });
 addEventListener("resize", () => { fx.width = innerWidth; fx.height = innerHeight; });

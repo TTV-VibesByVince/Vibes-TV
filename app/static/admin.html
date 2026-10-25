@@ -74,6 +74,9 @@
   .tips { margin: 10px 0 0 18px; color: var(--muted); font-size: 13px; }
   .tips li { margin-top: 4px; }
   .tips b { color: var(--text); }
+  textarea { width: 100%; min-height: 70px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg);
+    color: var(--text); font: inherit; font-size: 14px; resize: vertical; }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .tests { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
   .tests .full { grid-column: 1 / -1; }
 
@@ -275,6 +278,31 @@
   </section>
 
   <section class="wide">
+    <h2>Text to speech <span class="chip" id="ttsChip"><i></i><span>Off</span></span></h2>
+    <p class="hint">Reads TikTok LIVE chat aloud (and anything MixItUp sends to <span class="mono">/tts</span>), one message at a time, in a Microsoft Edge
+      voice. It plays on the stream overlay by default (in OBS, tick <b>Control audio via OBS</b> on the Browser Source). Uses
+      <a href="https://github.com/rany2/edge-tts" target="_blank" rel="noopener">edge-tts</a>: free and no key, but unofficial, so Microsoft could change it.</p>
+    <label class="switch"><span>Text to speech on</span><input type="checkbox" data-k="tts_enabled"></label>
+    <label class="switch"><span>Read TikTok LIVE chat<br><span class="hint">Needs TikTok LIVE switched on above.</span></span><input type="checkbox" data-k="tts_tiktok_chat"></label>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(240px, 1fr))">
+      <label class="f"><span>Language</span><select id="ttsLang"><option value="">Loading voices…</option></select></label>
+      <label class="f"><span>Voice</span><div class="row"><select data-k="tts_voice" id="ttsVoice" style="flex:1;min-width:0"></select><button onclick="previewVoice()" title="Hear this voice here">Preview</button></div></label>
+      <label class="f"><span>Speed <span class="hint">(-50 to 100, percent)</span></span><input type="number" data-k="tts_rate" min="-50" max="100" step="5"></label>
+      <label class="f"><span>Volume <span class="hint">(0 to 1)</span></span><input type="number" data-k="tts_volume" min="0" max="1" step="0.05"></label>
+      <label class="f"><span>What it says <span class="hint">({name}, {message})</span></span><input type="text" data-k="tts_format" maxlength="120"></label>
+      <label class="f"><span>Longest message <span class="hint">(characters; longer ones are cut)</span></span><input type="number" data-k="tts_max_chars" min="20" max="300" step="10"></label>
+      <label class="f"><span>Same person again after <span class="hint">(seconds)</span></span><input type="number" data-k="tts_cooldown" min="0" max="600" step="5"></label>
+    </div>
+    <label class="f"><span>Never read messages with these words <span class="hint">(comma or one per line; whole words)</span></span><textarea data-k="tts_blocked" spellcheck="false"></textarea></label>
+    <label class="switch"><span>Show what's being read on screen<br><span class="hint">A small bubble with their name and message.</span></span><input type="checkbox" data-k="tts_show_text"></label>
+    <p class="hint" style="margin-top:10px">Always skipped: commands (<span class="mono">!…</span>) and messages with links. When chat is busy, only the newest few wait their turn.</p>
+    <div class="result" id="ttsRes"></div>
+    <div class="row" style="margin-top:8px"><input type="text" id="ttsTest" value="Hello chat, welcome to the stream!" maxlength="200" style="flex:1;min-width:200px">
+      <button onclick="testTts()">Read aloud</button><button onclick="send('/tts/skip')">Skip</button></div>
+    <p class="hint" style="margin-top:6px">Save first. Plays where <b>Where each alert plays &gt; Text to speech</b> says (the overlay by default), and follows <b>Send tests to</b>.</p>
+  </section>
+
+  <section class="wide">
     <h2>Lights</h2>
     <p class="hint">Vibe TV calls these when a card starts and ends. <span class="mono">{hex}</span> becomes the colour picked from the raider's avatar.
       For <a href="https://github.com/TTV-VibesByVince/Govee-Lights-Controller" target="_blank" rel="noopener">Govee Lights Controller</a> (V1.3+), turn on <b>Settings &gt; Accept requests from my network</b> on the PC, then use its address, e.g.
@@ -373,12 +401,61 @@ async function load() {
   });
   dirty = false; setRes($("saveRes"), null, "");
   renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderReqs();
+  loadVoices(s.tts_voice);
+}
+
+/* ── text to speech: voices, preview, test ──────────────────────────── */
+let VOICES = null;
+async function loadVoices(current) {
+  const vs = $("ttsVoice"), lang = $("ttsLang");
+  if (!VOICES) {
+    const r = await api("/api/tts/voices").catch(() => ({ ok: false }));
+    if (r.ok) VOICES = r.voices;
+  }
+  if (!VOICES) {   // offline: keep the saved voice so saving doesn't lose it
+    vs.innerHTML = `<option value="${esc(current)}">${esc(current)}</option>`;
+    lang.innerHTML = '<option value="">Voices unavailable (no internet?)</option>';
+    return;
+  }
+  const names = {};
+  VOICES.forEach(v => { names[v.locale.split("-")[0]] = names[v.locale.split("-")[0]] || new Intl.DisplayNames(["en"], { type: "language" }).of(v.locale.split("-")[0]); });
+  const want = (current || "en-").split("-")[0];
+  lang.innerHTML = Object.entries(names).sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([code, name]) => `<option value="${code}"${code === want ? " selected" : ""}>${esc(name)}</option>`).join("");
+  fillVoices(current);
+}
+function fillVoices(current) {
+  const code = $("ttsLang").value, vs = $("ttsVoice");
+  const list = VOICES.filter(v => v.locale.split("-")[0] === code);
+  const regions = new Intl.DisplayNames(["en"], { type: "region" });
+  const region = loc => { const r = loc.split("-")[1] || ""; try { return /^[A-Z]{2}$/.test(r) ? regions.of(r) : r; } catch (e) { return r; } };
+  vs.innerHTML = list.map(v => `<option value="${esc(v.name)}"${v.name === current ? " selected" : ""}>${esc(v.label)} (${esc(region(v.locale))}) · ${esc(v.gender)}</option>`).join("");
+  if (current && !list.some(v => v.name === current) && list.length) vs.value = list[0].name;
+}
+$("ttsLang").addEventListener("change", () => { fillVoices(""); markDirty(); });
+let previewAudio = null;
+async function previewVoice() {
+  if (previewAudio) previewAudio.pause();
+  setRes($("ttsRes"), null, "Getting the voice…");
+  const q = new URLSearchParams({ voice: $("ttsVoice").value, rate: document.querySelector('[data-k="tts_rate"]').value || 0,
+    text: (($("tUser").value.trim() || "VibeCaptain") + " says: " + ($("ttsTest").value || "hello chat!")) });
+  const r = await fetch("/api/tts/preview?" + q);
+  if (!r.ok) { const b = await r.json().catch(() => ({})); return setRes($("ttsRes"), false, b.result || "Couldn't get the voice"); }
+  previewAudio = new Audio(URL.createObjectURL(await r.blob()));
+  previewAudio.volume = Math.max(0, Math.min(1, parseFloat(document.querySelector('[data-k="tts_volume"]').value) || 1));
+  previewAudio.play();
+  setRes($("ttsRes"), true, "Playing here, on this page");
+}
+function testTts() {
+  if (dirty) return toast("Save settings first");
+  const user = ($("tUser").value.trim() || "VibeCaptain").replace(/^@/, "");
+  call(`/tts?text=${encodeURIComponent($("ttsTest").value || "Hello chat!")}&from=${encodeURIComponent(user)}`);
 }
 
 /* ── stream overlay: where each alert plays ─────────────────────────── */
 const ROUTE_LABELS = { shoutout: "Shoutout", raid: "Raid", follow: "Follow", sub: "Subs and resubs", bits: "Bits", gift: "Gifted subs",
   streak: "Watch streak", modiversary: "Modiversary", gigantify: "Gigantified emote", message: "Message", welcome: "First-time chatter", hype: "Hype train",
-  tiktok_gift: "TikTok gift" };
+  tiktok_gift: "TikTok gift", tts: "Text to speech" };
 const ROUTE_NAMES = { tv: "TV only", overlay: "Overlay only", both: "Both" };
 function renderRoutes() {
   const routes = state.settings.routes || {}, defs = state.route_defaults;
@@ -529,6 +606,11 @@ function renderStatus() {
   const tw = $("cTw"); tw.className = "chip " + (st.twitch_api ? "ok" : "");
   tw.lastChild.textContent = st.twitch_api ? "Twitch API on" : "Twitch API off";
   if (st.last_lights) $("lightRes").textContent = st.last_lights;
+  const ts = st.tts || {}, tchip = $("ttsChip");
+  tchip.className = "chip " + (ts.error ? "bad" : ts.enabled ? "ok" : "");
+  tchip.lastChild.textContent = !ts.enabled ? "Off" : ts.speaking ? "Reading" : "On";
+  if (ts.enabled || ts.error) setRes($("ttsRes"), ts.error ? false : null, ts.error ? "Last problem: " + ts.error
+    : `Read ${ts.counts.read}, skipped ${ts.counts.skipped}` + (ts.waiting ? `, ${ts.waiting} waiting` : ""));
   const tt = st.tiktok || { state: "off" }, chip = $("ttChip");
   const TT = { off: "Off", connecting: "Connecting", live: "Connected to your live", waiting: "Waiting for you to go live", error: "Problem" };
   chip.className = "chip " + (tt.state === "live" ? "ok" : tt.state === "error" ? "bad" : "");
@@ -573,6 +655,8 @@ function renderUrls() {
     ["/hypetrain/progress?level=$hypetrainlevel&progress=$hypetrainlevelpoints&goal=$hypetrainlevelgoal", "Hype train update (Hype Train Progress and Level Up events). A higher level shows a level-up banner"],
     ["/hypetrain/end?level=$hypetraintotallevel", "Hype train over: end banner, bar hides (Hype Train End event)"],
     ["/message?text=$allargs&from=$username", "Big message bubble"],
+    ["/tts?text=$allargs&from=$username", "Read a message aloud (Text to speech must be on)"],
+    ["/tts/skip", "Stop what's being read aloud"],
     ["/logo", "Clear the queues: the TV goes back to the logo, the overlay goes empty. Add ?screen=tv or ?screen=overlay to clear just one"],
     ["/follow/$username?screen=overlay", "Any alert URL can take &screen=tv, overlay or both to override where it plays"],
     ["/reload", "Reload every TV page"],
