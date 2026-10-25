@@ -39,16 +39,18 @@ class TikTokWatcher:
 
     settings: the Settings object (reads tiktok_* keys).
     alert(ev): queues an alert dict; returns the screens it went to.
+    chat(who, text): optional, called with each chat message (text to speech).
     """
 
-    def __init__(self, settings, alert):
+    def __init__(self, settings, alert, chat=None):
         self.S = settings
         self.alert = alert
+        self.chat_to = chat
         self.task = None
         self.config = None
         self.state, self.detail, self.since = "off", "", time.time()
         self.followed = {}
-        self.counts = {"follow": 0, "sub": 0, "gift": 0}
+        self.counts = {"follow": 0, "sub": 0, "gift": 0, "chat": 0}
 
     # ── what the settings page shows ──
     def set_state(self, state, detail=""):
@@ -93,7 +95,7 @@ class TikTokWatcher:
             from TikTokLive import TikTokLiveClient
             from TikTokLive.client.errors import UserOfflineError
             from TikTokLive.client.web.web_settings import WebDefaults
-            from TikTokLive.events import FollowEvent, GiftEvent, SubNotifyEvent
+            from TikTokLive.events import CommentEvent, FollowEvent, GiftEvent, SubNotifyEvent
         except ImportError:
             self.set_state("error", "The TikTokLive library isn't installed in this image")
             return
@@ -106,6 +108,10 @@ class TikTokWatcher:
             @client.on(FollowEvent)
             async def _follow(e):
                 self.follow(person(e.user))
+
+            @client.on(CommentEvent)
+            async def _chat(e):
+                self.chat(person(e.user), getattr(e, "comment", "") or getattr(e, "content", "") or "")
 
             @client.on(SubNotifyEvent)
             async def _sub(e):
@@ -152,6 +158,12 @@ class TikTokWatcher:
         self.followed[key] = now
         self.counts["follow"] += 1
         return self.alert({"type": "follow", "platform": "tiktok", **who, "clip": False})
+
+    def chat(self, who, text):
+        self.counts["chat"] += 1
+        if self.chat_to and text.strip():
+            return self.chat_to(who, text)
+        return None
 
     def subscribe(self, who, months=0):
         self.counts["sub"] += 1

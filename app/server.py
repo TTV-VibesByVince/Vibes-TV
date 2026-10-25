@@ -48,6 +48,7 @@ from aiohttp import web
 from PIL import Image
 
 from tiktok import TikTokWatcher
+from tts import VOICE_RE, Speaker
 
 VERSION = "1.5"
 
@@ -130,6 +131,17 @@ SCHEMA = {
     "tiktok_username":      (str,   os.getenv("TIKTOK_USERNAME", "")),
     "tiktok_sign_key":      (str,   os.getenv("TIKTOK_SIGN_KEY", "")),   # optional eulerstream.com key
     "tiktok_min_coins":     (float, 1.0),         # smaller gifts (in coins, combo total) aren't shown
+    # Text to speech (optional): TikTok chat and /tts read aloud with Edge voices
+    "tts_enabled":          (bool,  False),
+    "tts_tiktok_chat":      (bool,  True),        # read TikTok LIVE chat (when TikTok is on too)
+    "tts_voice":            (str,   "en-US-EmmaMultilingualNeural"),
+    "tts_rate":             (float, 0.0),         # speed, percent faster (+) or slower (-)
+    "tts_volume":           (float, 1.0),         # 0 to 1, on the overlay / TV
+    "tts_format":           (str,   "{name} says {message}"),
+    "tts_max_chars":        (float, 150.0),       # longer messages are cut
+    "tts_cooldown":         (float, 15.0),        # seconds before the same person is read again
+    "tts_blocked":          (str,   ""),          # words (comma or line separated): messages with them aren't read
+    "tts_show_text":        (bool,  True),        # show what's being read on the overlay
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
 TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
@@ -139,7 +151,8 @@ LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30),
           "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60),
           "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30),
-          "tiktok_min_coins": (0, 1000000)}
+          "tiktok_min_coins": (0, 1000000),
+          "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
 REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
@@ -217,8 +230,8 @@ THEMES = {
 SCREENS = ("tv", "overlay")
 # Where each kind of alert plays. Subs and resubs share "sub".
 ROUTE_EVENTS = ["shoutout", "raid", "follow", "sub", "bits", "gift", "streak", "modiversary",
-                "gigantify", "message", "welcome", "hype", "tiktok_gift"]
-ROUTE_DEFAULTS = {e: "both" for e in ROUTE_EVENTS} | {"gigantify": "tv"}
+                "gigantify", "message", "welcome", "hype", "tiktok_gift", "tts"]
+ROUTE_DEFAULTS = {e: "both" for e in ROUTE_EVENTS} | {"gigantify": "tv", "tts": "overlay"}
 ROUTE_CHOICES = ("tv", "overlay", "both")
 OVERLAY_POSITIONS = ("top-left", "top-right", "bottom-left", "bottom-right", "bottom-center")
 
@@ -360,6 +373,17 @@ class Settings:
                 continue
             if key.startswith("govee_") and val and not val.startswith(("http://", "https://")):
                 errors.append(f"{key}: must start with http://")
+                continue
+            if key == "tts_voice" and not val:
+                continue                        # voices not loaded on the page yet: keep the saved one
+            if key == "tts_voice" and not VOICE_RE.match(val):
+                errors.append("tts_voice: pick a voice from the list")
+                continue
+            if key == "tts_format" and ("{message}" not in val or len(val) > 120):
+                errors.append("tts_format: must include {message} (120 characters at most)")
+                continue
+            if key == "tts_blocked" and len(val) > 4000:
+                errors.append("tts_blocked: too long")
                 continue
             if key == "tiktok_username":
                 val = val.lstrip("@").strip()
@@ -1055,7 +1079,17 @@ class TV:
                 await self.govee(None)
 
 tv = TV()
-tiktok = TikTokWatcher(S, lambda ev: tv.dispatch(ev, limit=True))
+
+
+async def tts_play(msg, override=None):
+    """Send a text-to-speech message to the screens TTS is routed to."""
+    for screen in destinations("tts", override):
+        await tv.broadcast(msg, screen)
+
+
+speaker = Speaker(S, lambda msg, override: tts_play(msg, override), CACHE / "tts")
+tiktok = TikTokWatcher(S, lambda ev: tv.dispatch(ev, limit=True),
+                       chat=lambda who, text: speaker.say(text, who["display"], source="tiktok"))
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -1307,9 +1341,50 @@ async def logo(request):
     for name in targets:
         tv.screens[name].clear()
         await tv.broadcast({"type": "logo"}, name)
+    if set(targets) & set(destinations("tts")):    # and stop reading chat there
+        speaker.clear()
     if "tv" in targets:
         await tv.govee(None)
     return web.json_response({"ok": True, "cleared": targets})
+
+
+async def tts(request):
+    """Read a message aloud: /tts?text=$allargs&from=$username (TTS must be on)."""
+    text = (request.query.get("text") or request.query.get("message") or "").strip()
+    who = (request.query.get("from") or request.query.get("user") or "").strip().lstrip("@")[:40]
+    ok, why = speaker.say(text, who, source="mixitup", screen=screen_param(request))
+    if not ok:
+        return web.json_response({"ok": False, "skipped": why})
+    return web.json_response({"ok": True, "waiting": len(speaker.waiting)})
+
+
+async def tts_skip(request):
+    speaker.skip()
+    return web.json_response({"ok": True})
+
+
+async def api_tts_voices(request):
+    try:
+        return web.json_response({"ok": True, "voices": await speaker.voices()})
+    except Exception as e:
+        return web.json_response({"ok": False, "result": f"Couldn't load the voices: {type(e).__name__}: {e}"[:200]})
+
+
+async def api_tts_preview(request):
+    """The chosen voice reading a line, for the settings page to play."""
+    voice = request.query.get("voice") or S["tts_voice"]
+    if not VOICE_RE.match(voice):
+        raise web.HTTPBadRequest(text="unknown voice")
+    try:
+        rate = max(-50.0, min(100.0, float(request.query.get("rate", S["tts_rate"]))))
+    except ValueError:
+        rate = 0.0
+    text = (request.query.get("text") or "VibeCaptain says: hello chat, welcome to the stream!").strip()[:200]
+    try:
+        audio = await speaker.synth(text, voice, rate)
+    except Exception as e:
+        return web.json_response({"ok": False, "result": f"{type(e).__name__}: {e}"[:200]}, status=502)
+    return web.Response(body=audio, content_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
 
 async def reload(request):
@@ -1334,7 +1409,8 @@ async def status(request):
 # ── Admin page + API ─────────────────────────────────────────────────────
 
 EVENT_PATHS = ("/shoutout/", "/raid/", "/follow/", "/gift/", "/giftbomb/", "/sub/", "/resub/", "/bits/",
-               "/streak/", "/modiversary/", "/gigantify/", "/welcome/", "/hypetrain", "/message", "/logo")
+               "/streak/", "/modiversary/", "/gigantify/", "/welcome/", "/hypetrain", "/message", "/logo",
+               "/tts")
 
 
 @web.middleware
@@ -1406,7 +1482,7 @@ async def api_state(request):
                    "overlays_connected": tv.count("overlay"), "queued_overlay": tv.screens["overlay"].queue.qsize(),
                    "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
                    "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee,
-                   "tiktok": tiktok.status(), **logo_info()},
+                   "tiktok": tiktok.status(), "tts": speaker.status(), **logo_info()},
         "media": list_media(),
         "password_protected": bool(ADMIN_PASSWORD),
         "text_defaults": TEXT_DEFAULTS,
@@ -1582,6 +1658,7 @@ async def on_startup(app):
     app["workers"] = [asyncio.create_task(screen.worker()) for screen in tv.screens.values()]
     app["themes"] = asyncio.create_task(tv.theme_watch())
     tiktok.reconfigure()
+    app["tts"] = asyncio.create_task(speaker.worker())
     log.info("Vibe TV v%s on :%d (twitch api: %s, logo: %s, admin password: %s)",
              VERSION, PORT, tv.twitch.enabled, logo_url() or "none", "on" if ADMIN_PASSWORD else "off")
 
@@ -1590,6 +1667,7 @@ async def on_cleanup(app):
     for w in app["workers"]:
         w.cancel()
     app["themes"].cancel()
+    app["tts"].cancel()
     await tiktok.stop()
     tiktok.config = None
     await tv.session.close()
@@ -1624,6 +1702,8 @@ def make_app():
     app.router.add_route("*", "/message", message)
     app.router.add_route("*", "/logo", logo)
     app.router.add_route("*", "/reload", reload)
+    app.router.add_route("*", "/tts", tts)
+    app.router.add_route("*", "/tts/skip", tts_skip)
     app.router.add_get("/status", status)
     app.router.add_get("/favicon.ico", favicon)
     app.router.add_get("/admin", admin_page)
@@ -1634,6 +1714,8 @@ def make_app():
     app.router.add_post("/api/test/lights", api_test_lights)
     app.router.add_post("/api/test/twitch", api_test_twitch)
     app.router.add_post("/api/test/tiktok", api_test_tiktok)
+    app.router.add_get("/api/tts/voices", api_tts_voices)
+    app.router.add_get("/api/tts/preview", api_tts_preview)
     app.router.add_get("/api/backup", api_backup)
     app.router.add_post("/api/restore", api_restore)
     app.router.add_static("/media", MEDIA, show_index=False)

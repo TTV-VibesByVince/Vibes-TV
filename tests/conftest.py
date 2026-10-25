@@ -24,13 +24,32 @@ FAST = {  # keep cards short so the suite runs in seconds
 }
 
 
+SPOKEN = []   # what the fake voice was asked to say, newest last
+
+
+async def fake_synth(text, voice, rate):
+    """Stands in for Microsoft's voice: 0.3 s of "audio" (48 kbit/s = 6000 bytes a second)."""
+    SPOKEN.append((text, voice, rate))
+    return bytes(1800)
+
+
+async def fake_voices():
+    return [{"name": "en-US-EmmaMultilingualNeural", "locale": "en-US", "gender": "Female", "label": "Emma"},
+            {"name": "en-GB-RyanNeural", "locale": "en-GB", "gender": "Male", "label": "Ryan"}]
+
+
 @pytest.fixture
 def srv(monkeypatch):
     """The server module with fresh settings and state for each test."""
     server.S.data = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, (_, v) in server.SCHEMA.items()}
     server.S.data.update(FAST)
+    SPOKEN.clear()
     monkeypatch.setattr(server, "tv", server.TV())
-    monkeypatch.setattr(server, "tiktok", server.TikTokWatcher(server.S, lambda ev: server.tv.dispatch(ev, limit=True)))
+    monkeypatch.setattr(server, "speaker", server.Speaker(
+        server.S, server.tts_play, server.CACHE / "tts", synth=fake_synth, voices=fake_voices))
+    monkeypatch.setattr(server, "tiktok", server.TikTokWatcher(
+        server.S, lambda ev: server.tv.dispatch(ev, limit=True),
+        chat=lambda who, text: server.speaker.say(text, who["display"], source="tiktok")))
     monkeypatch.setattr(server, "GIFT_WINDOW", 0.4)
     monkeypatch.setattr(server, "ADMIN_PASSWORD", "")
     for d in (server.MEDIA, server.CACHE, server.CONFIG):
