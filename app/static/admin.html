@@ -67,9 +67,13 @@
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-left: auto; }
   .seg button { border: 0; border-radius: 0; padding: 6px 12px; font-size: 13px; background: transparent; }
   .seg button.on { background: var(--accent); color: #fff; }
-  .routes { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px 14px; margin-top: 8px; }
-  .routes label { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
-  .routes select { width: 130px; padding: 6px 8px; font-size: 13px; }
+  .routes { columns: 2 460px; column-gap: 26px; margin-top: 8px; }
+  .routes .rrow { break-inside: avoid; display: grid; grid-template-columns: 1fr 168px 168px; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .routes .rhead { font-size: 12px; font-weight: 600; color: var(--muted); padding-top: 0; }
+  .routes select { width: 100%; padding: 6px 8px; font-size: 13px; }
+  .routes select:disabled { opacity: .35; }
+  .routes .nosize { font-size: 12px; color: var(--muted); text-align: center; }
+  @media (max-width: 520px) { .routes .rrow { grid-template-columns: 1fr 104px 108px; } }
   .routes select.changed { border-color: var(--accent); }
   .tips { margin: 10px 0 0 18px; color: var(--muted); font-size: 13px; }
   .tips li { margin-top: 4px; }
@@ -221,7 +225,7 @@
         <option value="full">Full everywhere: every glow and blur</option>
       </select></label>
     <p class="hint" style="margin-top:6px">One TV can override it: add <span class="mono">?mode=lite</span> or <span class="mono">?mode=full</span> to its address.</p>
-    <label class="switch"><span>Play a clip after shoutouts and raids<br><span class="hint">A URL's <span class="mono">&amp;clip=0</span> or <span class="mono">&amp;clip=1</span> overrides this. Needs Twitch API keys.</span></span><input type="checkbox" data-k="clips"></label>
+    <label class="switch"><span>TV: play a clip after shoutouts and raids<br><span class="hint">On the TV only; the stream overlay has its own switch under <b>Stream overlay</b>. A URL's <span class="mono">&amp;clip=0</span> skips clips everywhere, <span class="mono">&amp;clip=1</span> forces one on the TV. Needs Twitch API keys.</span></span><input type="checkbox" data-k="clips"></label>
     <label class="switch"><span>Clip sound on<br><span class="hint">TV browsers may still start muted until the page is clicked once.</span></span><input type="checkbox" data-k="clip_sound"></label>
   </section>
 
@@ -252,11 +256,15 @@
         <option value="bottom-left">Bottom left</option><option value="bottom-right">Bottom right</option><option value="bottom-center">Bottom centre</option></select></label>
       <label class="f"><span>Size <span class="hint">(0.5 to 2, 1 = normal)</span></span><input type="number" data-k="overlay_scale" min="0.5" max="2" step="0.05"></label>
       <label class="f"><span>Panel opacity <span class="hint">(0.2 to 1)</span></span><input type="number" data-k="overlay_opacity" min="0.2" max="1" step="0.05"></label>
+      <label class="f"><span>Darken the stream behind big alerts <span class="hint">(0 to 0.9)</span></span><input type="number" data-k="overlay_darken" min="0" max="0.9" step="0.05"></label>
       <label class="f"><span>Each alert (seconds)</span><input type="number" data-k="overlay_seconds" min="2" max="30" step="0.5"></label>
     </div>
-    <label class="switch"><span>Play clips on the overlay too<br><span class="hint">After shoutouts and raids, in a small player in the same corner. Off by default: the TV usually plays them.</span></span><input type="checkbox" data-k="overlay_clips"></label>
-    <h3 class="sub">Where each alert plays</h3>
-    <p class="hint">A URL's <span class="mono">&amp;screen=tv</span>, <span class="mono">overlay</span> or <span class="mono">both</span> overrides this for that one alert. Room lights always follow the TV.</p>
+    <label class="switch"><span>Stream overlay: play a clip after shoutouts and raids<br><span class="hint">On the overlay only, separate from the TV's switch. Off by default, so a clip's sound doesn't play twice (from the TV in your room and on stream). Full-screen alerts play it full screen; the others in a small player.</span></span><input type="checkbox" data-k="overlay_clips"></label>
+    <h3 class="sub">Where each alert plays, and how big it is on stream</h3>
+    <p class="hint"><b>Compact</b>: a small card in your corner. <b>Centre</b>: a bigger card in the middle, the stream a little darker.
+      <b>Full screen</b>: the TV's own animation over your game, the stream darkened behind it (a web page can't blur what's under it in OBS).
+      "Each alert (seconds)" is for Compact and Centre; Full screen uses the TV's timings. A URL's <span class="mono">&amp;screen=tv</span>,
+      <span class="mono">overlay</span> or <span class="mono">both</span> overrides where one alert plays. Room lights always follow the TV.</p>
     <div class="routes" id="routes"></div>
   </section>
 
@@ -457,21 +465,42 @@ const ROUTE_LABELS = { shoutout: "Shoutout", raid: "Raid", follow: "Follow", sub
   streak: "Watch streak", modiversary: "Modiversary", gigantify: "Gigantified emote", message: "Message", welcome: "First-time chatter", hype: "Hype train",
   tiktok_gift: "TikTok gift", tts: "Text to speech" };
 const ROUTE_NAMES = { tv: "TV only", overlay: "Overlay only", both: "Both" };
+const SIZE_NAMES = { compact: "Compact", centre: "Centre", full: "Full screen" };
 function renderRoutes() {
   const routes = state.settings.routes || {}, defs = state.route_defaults;
-  $("routes").innerHTML = state.route_events.map(ev => {
+  const sizes = state.settings.overlay_sizes || {}, sdefs = state.size_defaults;
+  const head = '<div class="rrow rhead"><span>Alert</span><span>Plays on</span><span>Size on stream</span></div>';
+  $("routes").innerHTML = head + state.route_events.map(ev => {
     const v = routes[ev] || defs[ev];
-    return `<label>${esc(ROUTE_LABELS[ev] || ev)}<select data-route="${ev}" class="${v !== defs[ev] ? "changed" : ""}">${
-      Object.entries(ROUTE_NAMES).map(([k, n]) => `<option value="${k}"${k === v ? " selected" : ""}>${n}${k === defs[ev] ? " (default)" : ""}</option>`).join("")}</select></label>`;
+    const where = `<select data-route="${ev}" class="${v !== defs[ev] ? "changed" : ""}">${
+      Object.entries(ROUTE_NAMES).map(([k, n]) => `<option value="${k}"${k === v ? " selected" : ""}>${n}${k === defs[ev] ? " (default)" : ""}</option>`).join("")}</select>`;
+    let size = '<span class="nosize">Its own style</span>';
+    if (sdefs[ev]) {
+      const sv = sizes[ev] || sdefs[ev];
+      size = `<select data-size="${ev}" class="${sv !== sdefs[ev] ? "changed" : ""}"${v === "tv" ? " disabled" : ""} title="How big it is on the stream overlay">${
+        Object.entries(SIZE_NAMES).map(([k, n]) => `<option value="${k}"${k === sv ? " selected" : ""}>${n}${k === sdefs[ev] ? " (default)" : ""}</option>`).join("")}</select>`;
+    }
+    return `<div class="rrow"><span>${esc(ROUTE_LABELS[ev] || ev)}</span>${where}${size}</div>`;
   }).join("");
   $("routes").querySelectorAll("select").forEach(el => el.addEventListener("input", () => {
-    el.classList.toggle("changed", el.value !== defs[el.dataset.route]);
+    if (el.dataset.route) {
+      el.classList.toggle("changed", el.value !== defs[el.dataset.route]);
+      const sz = $("routes").querySelector(`[data-size="${el.dataset.route}"]`);
+      if (sz) sz.disabled = el.value === "tv";        // not on the overlay: no size to pick
+    } else {
+      el.classList.toggle("changed", el.value !== sdefs[el.dataset.size]);
+    }
     markDirty();
   }));
 }
 function collectRoutes() {
   const out = {};
   document.querySelectorAll("[data-route]").forEach(el => { out[el.dataset.route] = el.value; });
+  return out;
+}
+function collectSizes() {
+  const out = {};
+  document.querySelectorAll("[data-size]").forEach(el => { out[el.dataset.size] = el.value; });
   return out;
 }
 
@@ -676,7 +705,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes() };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes() };
 }
 
 async function save() {

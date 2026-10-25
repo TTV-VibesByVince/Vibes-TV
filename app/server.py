@@ -50,7 +50,7 @@ from PIL import Image
 from tiktok import TikTokWatcher
 from tts import VOICE_RE, Speaker
 
-VERSION = "1.6"
+VERSION = "1.7"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -126,6 +126,8 @@ SCHEMA = {
     "overlay_opacity":      (float, 0.85),        # the alert panel's background
     "overlay_seconds":      (float, 6.0),         # how long each overlay alert stays up
     "overlay_clips":        (bool,  False),       # clips also play on the overlay (off: no double audio)
+    "overlay_sizes":        (dict,  {}),          # event -> "compact" | "centre" | "full", see SIZE_DEFAULTS
+    "overlay_darken":       (float, 0.5),         # how dark the stream gets behind full-screen alerts (0 = not at all)
     # TikTok LIVE (optional): follows, subs and gifts from your own live, via TikTokLive
     "tiktok_enabled":       (bool,  os.getenv("TIKTOK_ENABLED", "0") == "1"),
     "tiktok_username":      (str,   os.getenv("TIKTOK_USERNAME", "")),
@@ -150,7 +152,7 @@ LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "follow_seconds": (2, 60), "gift_seconds": (4, 60),
           "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30),
           "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60),
-          "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30),
+          "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30), "overlay_darken": (0, 0.9),
           "tiktok_min_coins": (0, 1000000),
           "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
@@ -233,11 +235,23 @@ ROUTE_EVENTS = ["shoutout", "raid", "follow", "sub", "bits", "gift", "streak", "
                 "gigantify", "message", "welcome", "hype", "tiktok_gift", "tts"]
 ROUTE_DEFAULTS = {e: "both" for e in ROUTE_EVENTS} | {"gigantify": "tv", "tts": "overlay"}
 ROUTE_CHOICES = ("tv", "overlay", "both")
+# How big each alert is on the stream overlay: a small card in the corner, a
+# bigger card in the middle, or the TV's full-screen animation over the game.
+SIZE_EVENTS = ["shoutout", "raid", "follow", "sub", "bits", "gift", "streak", "modiversary",
+               "gigantify", "message", "tiktok_gift"]
+SIZE_DEFAULTS = {e: "compact" for e in SIZE_EVENTS} | {"raid": "full"}
+SIZE_CHOICES = ("compact", "centre", "full")
 OVERLAY_POSITIONS = ("top-left", "top-right", "bottom-left", "bottom-right", "bottom-center")
 
 
 def route_key(kind):
     return "sub" if kind == "resub" else kind
+
+
+def overlay_size(kind):
+    """compact, centre or full: how an alert looks on the stream overlay."""
+    k = route_key(kind)
+    return S["overlay_sizes"].get(k, SIZE_DEFAULTS.get(k, "compact"))
 
 
 def destinations(kind, override=None):
@@ -289,6 +303,19 @@ def _check_dict(key, val):
             if v not in ROUTE_CHOICES:
                 return None, f"routes.{k}: tv, overlay or both"
             if v != ROUTE_DEFAULTS[k]:
+                out[k] = v
+        return out, None
+    if key == "overlay_sizes":
+        if not isinstance(val, dict):
+            return None, "overlay_sizes: must be an object"
+        out = {}
+        for k, v in val.items():
+            v = str(v).strip().lower().replace("center", "centre")
+            if k not in SIZE_EVENTS:
+                continue
+            if v not in SIZE_CHOICES:
+                return None, f"overlay_sizes.{k}: compact, centre or full"
+            if v != SIZE_DEFAULTS[k]:
                 out[k] = v
         return out, None
     if key == "theme_schedule":
@@ -436,7 +463,7 @@ def logo_url():
 
 def overlay_info():
     return {"position": S["overlay_position"], "scale": S["overlay_scale"],
-            "opacity": S["overlay_opacity"], "seconds": S["overlay_seconds"]}
+            "opacity": S["overlay_opacity"], "seconds": S["overlay_seconds"], "darken": S["overlay_darken"]}
 
 
 def screen_info():
@@ -951,7 +978,7 @@ class TV:
         profile = await self.build_profile(ev)
         color = event_color(kind, await self.avatar_color(profile["avatar"]))
         payload = {"type": kind, "user": profile, "color": color}
-        out = {"payload": payload, "color": color, "tier": 1, "raid": kind == "raid", "clip_task": None}
+        out = {"payload": payload, "color": color, "tier": 1, "raid": kind == "raid", "clip_task": None, "clip_for": []}
         ctx = {"name": profile["display_name"], "tier": ev.get("tier"),
                "months": ev.get("months"), "amount": ev.get("amount")}
         if kind in ("shoutout", "raid"):
@@ -961,9 +988,14 @@ class TV:
                         "label": text_for("raid.label", **ctx)}
             else:
                 text = {"kicker": text_for("shoutout.kicker", **ctx), "sub": text_for("shoutout.sub", **ctx)}
-            want_clip = ev["clip"] if ev.get("clip") is not None else S["clips"]
-            clip_somewhere = "tv" in dests or ("overlay" in dests and S["overlay_clips"])
-            if want_clip and clip_somewhere and self.twitch.enabled and profile.get("id"):
+            # Each screen has its own clip switch. A URL's &clip=0 skips clips
+            # everywhere; &clip=1 forces one on the TV (the overlay keeps its own
+            # switch, so a clip's sound never plays twice by surprise).
+            override = ev.get("clip")
+            wants = {"tv": S["clips"] if override is None else override,
+                     "overlay": S["overlay_clips"] and override is not False}
+            out["clip_for"] = [d for d in dests if wants.get(d)]
+            if out["clip_for"] and self.twitch.enabled and profile.get("id"):
                 out["clip_task"] = asyncio.create_task(self.fetch_clip(profile["id"]))
             secs = S["raid_seconds"] if kind == "raid" else S["card_seconds"]
             out["sound"] = ev["sound"] if ev.get("sound") is not None else S["clip_sound"]
@@ -1029,15 +1061,19 @@ class TV:
         payload = dict(data["payload"])
         on_tv = screen.name == "tv"
         try:
+            size = None if on_tv else overlay_size(payload["type"])
+            big = on_tv or size == "full"           # full-screen on the overlay keeps the TV's timing
+            if size:
+                payload["size"] = size
             if payload["type"] == "message":
-                secs = S["message_seconds"] if on_tv else S["overlay_seconds"]
+                secs = S["message_seconds"] if big else S["overlay_seconds"]
                 payload["seconds"] = secs
                 screen.current = payload
                 await self.broadcast(payload, screen.name)
-                await asyncio.sleep(secs + (1 if on_tv else 0.4))
+                await asyncio.sleep(secs + (1 if big else 0.4))
                 return
-            secs = data["secs"] if on_tv else S["overlay_seconds"]
-            clip_task = data["clip_task"] if (on_tv or S["overlay_clips"]) else None
+            secs = data["secs"] if big else S["overlay_seconds"]
+            clip_task = data["clip_task"] if screen.name in data.get("clip_for", []) else None
             payload["card_seconds"] = secs
             if payload["type"] in ("shoutout", "raid"):
                 payload["clip_pending"] = bool(clip_task)
@@ -1056,7 +1092,7 @@ class TV:
                 preload = asyncio.create_task(announce())
             try:
                 # (shoutouts and raids hand straight over to their clip or the logo)
-                tail = 0 if payload["type"] in ("shoutout", "raid") else (0.6 if on_tv else 0.4)
+                tail = 0 if payload["type"] in ("shoutout", "raid") else (0.6 if big else 0.4)
                 await asyncio.sleep(secs + tail)
                 clip = None
                 if clip_task:
@@ -1491,6 +1527,8 @@ async def api_state(request):
         "themes": THEMES,
         "route_events": ROUTE_EVENTS,
         "route_defaults": ROUTE_DEFAULTS,
+        "size_events": SIZE_EVENTS,
+        "size_defaults": SIZE_DEFAULTS,
         "overlay_positions": OVERLAY_POSITIONS,
         "active_theme": active_theme_id(),
         "requests": list(tv.requests),

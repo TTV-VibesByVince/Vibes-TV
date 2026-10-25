@@ -24,6 +24,16 @@
   body[data-pos="bottom-right"] #stage { bottom: 5vh; right: 3vw; transform-origin: 100% 100%; align-items: flex-end; flex-direction: column-reverse; }
   body[data-pos="bottom-center"] #stage { bottom: 5vh; left: 50%; transform: translateX(-50%) scale(var(--s)); transform-origin: 50% 100%; align-items: center; flex-direction: column-reverse; }
 
+  /* Centre size: the same card, bigger, in the middle, with the stream a
+     little darker behind it. Full screen: the TV's own animation, played by
+     the TV page in a see-through frame (/tv?embed=overlay). */
+  #scrim { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s ease;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,.55), #000 90%); }
+  #center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
+    --in: inUp; --out: outDown; }
+  #cwrap { display: flex; flex-direction: column; align-items: center; gap: 2vh; transform: scale(calc(var(--s) * 1.6)); }
+  #big { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; pointer-events: none; }
+
   /* ── the alert card ─────────────────────────────────────────────── */
   .ocard { position: relative; display: flex; align-items: center; gap: 2.2vh; min-width: 34vh; max-width: 62vw; padding: 1.8vh 3.2vh 1.8vh 1.8vh;
     border-radius: 3vh; background: rgba(10, 8, 18, var(--op)); border: .35vh solid var(--accent);
@@ -149,8 +159,11 @@
 </style>
 </head>
 <body data-pos="bottom-left">
+<iframe id="big" title="" allowtransparency="true" tabindex="-1" aria-hidden="true"></iframe>
+<div id="scrim"></div>
 <canvas id="fx"></canvas>
 <div id="stage"></div>
+<div id="center"><div id="cwrap"></div></div>
 <div id="side"><div id="welcomes"></div><div id="ttsbox"></div></div>
 <div id="hype"><span class="htitle" id="hypetitle">HYPE TRAIN</span><span class="hlevel" id="hypelevel">LEVEL 1</span>
   <div class="htrack"><div class="hfill" id="hypefill"></div></div><span class="hpct" id="hypepct"></span></div>
@@ -311,6 +324,7 @@ function buildCard(ev) {
 /* ── showing and hiding ───────────────────────────────────────────── */
 function hideCard(now) {
   clearTimeout(outTimer);
+  $("scrim").style.opacity = 0;
   [card, clipBox].forEach(el => {
     if (!el) return;
     if (now) { el.remove(); return; }
@@ -324,7 +338,9 @@ function playCard(ev) {
   hideCard(true);
   setAccent(ev.color);
   card = buildCard(ev);
-  stage.appendChild(card);
+  const centre = ev.size === "centre";
+  (centre ? $("cwrap") : stage).appendChild(card);
+  $("scrim").style.opacity = centre ? Math.min(.9, DARKEN * .6) : 0;
   void card.offsetWidth;
   card.classList.add("in");
   const total = (ev.card_seconds || ev.seconds || 6) * 1000;
@@ -334,7 +350,9 @@ function playCard(ev) {
   if (!ev.clip_pending) outTimer = setTimeout(() => hideCard(), total - 350);
 }
 
+let cardHost = null;   // where the last card was (the corner or the centre): its clip goes there too
 function playClip(ev) {
+  cardHost = card ? card.parentNode : cardHost;
   if (card) { card.classList.add("out"); const c = card; setTimeout(() => c.remove(), 450); card = null; }
   setAccent(ev.color);
   clipBox = document.createElement("div");
@@ -345,7 +363,7 @@ function playClip(ev) {
   v.muted = PREVIEW || !ev.sound;
   v.src = ev.clip.src;
   v.onended = () => hideCard();
-  stage.appendChild(clipBox);
+  (cardHost || stage).appendChild(clipBox);
   v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
 }
 
@@ -444,11 +462,37 @@ function showTts(ev) {
 function hideTts() { stopTts(); $("ttsbox").classList.remove("on"); }
 
 /* ── messages from the server ─────────────────────────────────────── */
+/* ── full-screen alerts: the TV page, see-through, in a frame ─────── */
+const big = $("big");
+let bigReady = false, bigOn = false, lastConfig = null, DARKEN = .5;
+const bigQueue = [];
+big.src = "/tv?embed=overlay" + (PREVIEW ? "&preview=1" : "") + (Q.get("mode") ? "&mode=" + encodeURIComponent(Q.get("mode")) : "");
+function toBig(msg) {
+  if (bigReady) big.contentWindow.postMessage(msg, location.origin);
+  else bigQueue.push(msg);
+}
+addEventListener("message", e => {
+  if (e.origin !== location.origin || !e.data || e.data.type !== "embed_ready") return;
+  bigReady = true;
+  if (lastConfig) big.contentWindow.postMessage(lastConfig, location.origin);
+  bigQueue.splice(0).forEach(m => big.contentWindow.postMessage(m, location.origin));
+});
+function endBig() { if (bigOn) { toBig({ type: "logo" }); bigOn = false; } }
+
 openSocket("overlay", ev => {
-  if (ev.type === "hello" || ev.type === "logo_src") applyConfig(ev);
-  else if (CARD_TYPES.includes(ev.type) || ev.type === "message") playCard(ev);
-  else if (ev.type === "clip") playClip(ev);
-  else if (ev.type === "logo") hideCard();
+  if (ev.type === "hello" || ev.type === "logo_src") {
+    applyConfig(ev);
+    DARKEN = (ev.overlay || {}).darken ?? .5;
+    lastConfig = ev;
+    if (bigReady) toBig(ev);
+  }
+  else if (CARD_TYPES.includes(ev.type) || ev.type === "message") {
+    if (ev.size === "full") { hideCard(true); bigOn = true; toBig(ev); }
+    else { endBig(); playCard(ev); }
+  }
+  else if (ev.type === "clip_preload") { if (bigOn) toBig(ev); }
+  else if (ev.type === "clip") { if (bigOn) toBig(ev); else playClip(ev); }
+  else if (ev.type === "logo") { hideCard(); endBig(); }
   else if (ev.type === "welcome") showWelcome(ev);
   else if (ev.type === "hype") showHype(ev);
   else if (ev.type === "tts") showTts(ev);

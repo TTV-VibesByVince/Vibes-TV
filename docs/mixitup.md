@@ -39,7 +39,9 @@ bits `amount` and the gigantified `emote`. If a variable reaches Vibe TV
 unfilled (still `$emoteurl`, or a `<placeholder>`), it's ignored instead of
 shown on screen, and **Last requests received** says so.
 
-- Shoutout and raid: `&clip=0|1`, `&sound=0|1`, `&display=Name`,
+- Shoutout and raid: `&clip=0` (no clip anywhere) or `&clip=1` (a clip on the
+  TV even if its clip switch is off; the overlay keeps its own switch),
+  `&sound=0|1`, `&display=Name`,
   `&game=Game`, `&avatar=<picture link>`.
 - Sub and resub `tier`: MixItUp's `$usersubplan` (`Prime`, `Tier 1`, `Tier 2`,
   `Tier 3`), or `1`, `2`, `3`, `prime`, or Twitch's `1000/2000/3000`.
