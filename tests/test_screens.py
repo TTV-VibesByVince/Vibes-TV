@@ -10,7 +10,7 @@ from aiohttp import web
 async def test_hello_tells_each_screen_what_it_needs(client, tv, overlay):
     assert tv.hello["screen"] == "tv" and "logo" in tv.hello
     cfg = overlay.hello["overlay"]
-    assert set(cfg) == {"position", "scale", "opacity", "seconds"}
+    assert set(cfg) == {"position", "scale", "opacity", "seconds", "darken"}
     assert (cfg["position"], cfg["scale"], cfg["opacity"]) == ("bottom-left", 1.0, 0.85)
 
 
@@ -185,3 +185,77 @@ async def test_overlay_page_is_served(client):
     assert r.status == 200
     html = await r.text()
     assert "background: transparent" in html and "/static/shared.js" in html
+
+
+# ── 1.6: separate clip switches, and alert sizes on the overlay ──────────
+
+def fake_twitch(srv, monkeypatch, clip_seconds=0.2):
+    srv.S.update({"twitch_client_id": "id", "twitch_client_secret": "secret"})
+
+    async def user(login):
+        return {"id": "42", "login": login, "display_name": login, "avatar": "", "game": ""}
+
+    async def fetch_clip(broadcaster_id):
+        return {"src": "/cache/clip.mp4", "title": "a clip", "duration": clip_seconds}
+
+    monkeypatch.setattr(srv.tv.twitch, "user", user)
+    monkeypatch.setattr(srv.tv, "fetch_clip", fetch_clip)
+
+
+async def test_overlay_clips_without_tv_clips(client, srv, tv, overlay, monkeypatch):
+    """Turning the TV's clips off no longer turns them off on the overlay."""
+    fake_twitch(srv, monkeypatch)
+    srv.S.update({"clips": False, "overlay_clips": True})
+    await client.get("/shoutout/Streamer")
+    assert (await tv.next("shoutout"))["clip_pending"] is False
+    assert (await overlay.next("shoutout"))["clip_pending"] is True
+    assert await overlay.next("clip", timeout=3)
+    assert await tv.next("clip", timeout=1) is None
+
+
+async def test_clip_url_override(client, srv, tv, overlay, monkeypatch):
+    fake_twitch(srv, monkeypatch)
+    srv.S.update({"clips": True, "overlay_clips": True})
+    await client.get("/shoutout/Streamer?clip=0")                  # no clip anywhere
+    assert (await tv.next("shoutout"))["clip_pending"] is False
+    assert (await overlay.next("shoutout"))["clip_pending"] is False
+    srv.S.update({"clips": False, "overlay_clips": False})
+    await client.get("/shoutout/Streamer?clip=1")                  # forced on the TV, the overlay keeps its own
+    assert (await tv.next("shoutout"))["clip_pending"] is True
+    assert (await overlay.next("shoutout"))["clip_pending"] is False
+
+
+async def test_sizes_default_and_timing(client, srv, tv, overlay):
+    srv.S.data.update({"raid_seconds": 0.7, "follow_seconds": 0.6, "overlay_seconds": 0.3})
+    await client.get("/raid/Raider?viewers=5&clip=0")
+    raid_tv, raid_ov = await tv.next("raid"), await overlay.next("raid")
+    assert "size" not in raid_tv
+    assert raid_ov["size"] == "full" and raid_ov["card_seconds"] == 0.7    # full screen keeps the TV's timing
+    await client.get("/follow/Pal")
+    follow = await overlay.next("follow", timeout=3)
+    assert follow["size"] == "compact" and follow["card_seconds"] == 0.3
+
+
+async def test_size_settings(client, srv, overlay):
+    assert (await client.post("/api/settings", json={"overlay_sizes": {"raid": "huge"}})).status == 400
+    assert (await client.post("/api/settings", json={"overlay_darken": 1})).status == 400
+    r = await client.post("/api/settings", json={"overlay_sizes": {"follow": "center", "raid": "full", "welcome": "full"},
+                                                 "overlay_darken": 0.3})
+    assert r.status == 200
+    assert srv.S["overlay_sizes"] == {"follow": "centre"}            # "center" works; defaults and unknowns aren't kept
+    assert (await overlay.next("logo_src", timeout=2))["overlay"]["darken"] == 0.3
+    await client.get("/follow/Pal")
+    assert (await overlay.next("follow", timeout=3))["size"] == "centre"
+    srv.S.update({"overlay_sizes": {"message": "full", "sub": "centre"}})
+    srv.S.data["message_seconds"] = 0.5
+    await client.get("/message?text=hi&from=Pal")
+    assert (await overlay.next("message", timeout=3))["seconds"] == 0.5
+    await client.get("/resub/Loyal?months=3")                       # resubs follow the sub size
+    assert (await overlay.next("resub", timeout=3))["size"] == "centre"
+
+
+async def test_embedded_tv_page(client):
+    r = await client.get("/tv?embed=overlay")
+    assert r.status == 200 and "EMBED" in await r.text()
+    state = await (await client.get("/api/state")).json()
+    assert state["size_defaults"]["raid"] == "full" and "welcome" not in state["size_events"]
