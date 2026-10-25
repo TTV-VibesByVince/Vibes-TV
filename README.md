@@ -108,7 +108,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Under the hood.** One small Python server (aiohttp) and three web pages (TV, overlay, settings), no database. The image is built by GitHub for Intel/AMD and ARM, and rebuilt weekly with the newest yt-dlp. Fonts are bundled, so the TV page works without internet. Lite mode keeps animations smooth on TV sticks and smart TVs. Optional password for the settings page.
 
-## Status: 1.6
+## Status: 1.7
 
 > [!IMPORTANT]
 > Vibe TV is young. It works and it's tested, but it is a hobby project made for one channel first, so expect rough edges. The [changelog](CHANGELOG.md) lists what changed in each version.

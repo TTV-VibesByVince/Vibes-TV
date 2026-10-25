@@ -50,7 +50,7 @@ from PIL import Image
 from tiktok import TikTokWatcher
 from tts import VOICE_RE, Speaker
 
-VERSION = "1.6"
+VERSION = "1.7"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"

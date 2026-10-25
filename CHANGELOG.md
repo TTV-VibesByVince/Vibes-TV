@@ -4,6 +4,18 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 1.7 (2026-10-25)
+
+- **Alert sizes on the stream overlay**: for each alert type, **Compact** (a
+  card in your corner), **Centre** (a bigger card in the middle) or **Full
+  screen** (the TV's own animation over your game). Raids are full screen
+  by default. Behind big alerts the stream is darkened, with a setting for
+  how much.
+- **Fix**: the TV's "play a clip after shoutouts and raids" switch also
+  turned clips off on the overlay. Each screen now has its own switch,
+  clearly named. `&clip=0` still skips clips everywhere; `&clip=1` forces
+  one on the TV.
+
 ## 1.6 (2026-10-25)
 
 - **Text to speech** (optional, off by default): TikTok LIVE chat, and
@@ -21,15 +33,6 @@ working in later ones.
   ones arrived unfilled.
 - The settings page's MixItUp URLs (and the docs) use MixItUp's real
   variable names for every event, so the copy buttons give working URLs.
-- **Alert sizes on the stream overlay**: for each alert type, **Compact** (a
-  card in your corner), **Centre** (a bigger card in the middle) or **Full
-  screen** (the TV's own animation over your game). Raids are full screen
-  by default. Behind big alerts the stream is darkened, with a setting for
-  how much.
-- **Fix**: the TV's "play a clip after shoutouts and raids" switch also
-  turned clips off on the overlay. Each screen now has its own switch,
-  clearly named. `&clip=0` still skips clips everywhere; `&clip=1` forces
-  one on the TV.
 - Pillow 13 and aiohttp 3.14.
 
 ## 1.5 (2026-10-22)
