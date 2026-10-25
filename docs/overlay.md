@@ -28,8 +28,11 @@ Source (or "web page" source) at 1920 x 1080.
 ## What it shows
 
 - **Between alerts, nothing at all.** No logo, no background.
-- **Alerts** are compact cards with the same words, colours, themes and
-  pictures as on the TV: shoutouts, raids, follows, subs and resubs (with
+- **Alerts** in the size you pick for each one (see below): a compact card
+  in your corner, a bigger card in the centre, or the TV's full-screen
+  animation over your game. Raids are full screen by default; everything
+  else is compact. They use the same words, colours, themes and pictures as
+  on the TV: shoutouts, raids, follows, subs and resubs (with
   the Tier 2 and 3 styles), bits, gifted subs, watch streaks, modiversaries,
   gigantified emotes, messages and TikTok gifts. Each card stays up for a
   few seconds, then slides away.
@@ -59,12 +62,29 @@ Settings > **Stream overlay**:
 | Position | Top left, top right, bottom left (default), bottom right or bottom centre. |
 | Size | 0.5 to 2. `1` is about a fifth of the screen wide for a typical card. |
 | Panel opacity | How see-through the card's dark panel is: 0.2 (very) to 1 (solid). Default 0.85. |
-| Each alert (seconds) | How long every card stays up on the overlay, 2 to 30. Default 6. The TV keeps its own timings. |
-| Play clips on the overlay too | Off by default, so a clip's sound doesn't play twice (once from the TV in your room, once on stream). When on, the clip plays in a small player in the same corner. |
+| Darken the stream behind big alerts | 0 (not at all) to 0.9. Default 0.5. Full-screen alerts darken your game by this much; centre ones by a bit over half of it. |
+| Each alert (seconds) | How long Compact and Centre alerts stay up, 2 to 30. Default 6. Full-screen alerts keep the TV's timings (a raid's 12 seconds, for example). |
+| Stream overlay: play a clip after shoutouts and raids | The overlay's own switch, separate from the TV's. Off by default, so a clip's sound doesn't play twice (once from the TV in your room, once on stream). When on, a full-screen alert's clip plays full screen; the others in a small player. |
 
 The **Live preview** at the top of the settings page has a **TV / Stream
 overlay** switch. The overlay preview sits on a stand-in game scene so you
 can see what's see-through.
+
+## Choose how big each alert is
+
+Next to each alert in **Where each alert plays** is its **Size on stream**:
+
+| Size | What it looks like |
+| --- | --- |
+| Compact | A small card in your corner. Your game stays clear. |
+| Centre | A bigger card in the middle of the screen, the stream a little darker behind it. |
+| Full screen | The TV's own animation (the raid portal, the Tier 3 crown and coins, the follow hearts…) over your game, the stream darkened behind it. |
+
+Full-screen alerts are played by the TV page itself, see-through, inside the
+overlay, so they always look exactly like the TV. The stream behind them is
+**darkened**, not blurred: a Browser Source can only draw on top of your
+other sources, it can't see (or blur) them. If you want real blur, OBS can
+do it with a blur filter on your game source.
 
 ## Choose where each alert plays
 
