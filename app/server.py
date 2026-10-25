@@ -25,7 +25,7 @@ Added in 1.4:
                              get bigger animations
   /streak/<user>?count=N     watch streak    &message=
   /modiversary/<user>?years=N (or &months=N) mod anniversary, with swords
-  /gigantify/<user>?emote=<emote ID, name or image link>   a giant emote
+  /gigantify/<user>?emote=<emote ID, name or image link>[&name=]   a giant emote
 TV page: /  or  /tv  (?mode=lite or ?mode=full to override)   Settings: /admin
 """
 
@@ -48,8 +48,9 @@ from aiohttp import web
 from PIL import Image
 
 from tiktok import TikTokWatcher
+from tts import VOICE_RE, Speaker
 
-VERSION = "1.5"
+VERSION = "1.6"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -63,6 +64,10 @@ USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{1,25}$")
 EMOTE_ID_RE = re.compile(r"^(emotesv2_[0-9a-f]{8,}|\d{1,12})$")
 # "default" = animated when the emote is animated, otherwise the still image
 EMOTE_CDN = "https://static-cdn.jtvnw.net/emoticons/v2/{id}/default/dark/3.0"
+# a Twitch emote image link (any size or theme): its ID, to use the biggest size
+EMOTE_LINK_RE = re.compile(r"^https://static-cdn\.jtvnw\.net/emoticons/v[12]/([A-Za-z0-9_]+)/")
+# a URL value MixItUp didn't fill in: "<emote ID or name>" or "$emoteurl" left as text
+PLACEHOLDER_RE = re.compile(r"^\s*(<[^<>]*>|\$[a-z]+)\s*$")
 HEX_RE = re.compile(r"^[0-9a-fA-F]{6}$")
 VIDEO_EXT = {".mp4", ".webm", ".mov", ".m4v"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -126,6 +131,17 @@ SCHEMA = {
     "tiktok_username":      (str,   os.getenv("TIKTOK_USERNAME", "")),
     "tiktok_sign_key":      (str,   os.getenv("TIKTOK_SIGN_KEY", "")),   # optional eulerstream.com key
     "tiktok_min_coins":     (float, 1.0),         # smaller gifts (in coins, combo total) aren't shown
+    # Text to speech (optional): TikTok chat and /tts read aloud with Edge voices
+    "tts_enabled":          (bool,  False),
+    "tts_tiktok_chat":      (bool,  True),        # read TikTok LIVE chat (when TikTok is on too)
+    "tts_voice":            (str,   "en-US-EmmaMultilingualNeural"),
+    "tts_rate":             (float, 0.0),         # speed, percent faster (+) or slower (-)
+    "tts_volume":           (float, 1.0),         # 0 to 1, on the overlay / TV
+    "tts_format":           (str,   "{name} says {message}"),
+    "tts_max_chars":        (float, 150.0),       # longer messages are cut
+    "tts_cooldown":         (float, 15.0),        # seconds before the same person is read again
+    "tts_blocked":          (str,   ""),          # words (comma or line separated): messages with them aren't read
+    "tts_show_text":        (bool,  True),        # show what's being read on the overlay
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
 TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
@@ -135,7 +151,8 @@ LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30),
           "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60),
           "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30),
-          "tiktok_min_coins": (0, 1000000)}
+          "tiktok_min_coins": (0, 1000000),
+          "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
 REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
@@ -213,8 +230,8 @@ THEMES = {
 SCREENS = ("tv", "overlay")
 # Where each kind of alert plays. Subs and resubs share "sub".
 ROUTE_EVENTS = ["shoutout", "raid", "follow", "sub", "bits", "gift", "streak", "modiversary",
-                "gigantify", "message", "welcome", "hype", "tiktok_gift"]
-ROUTE_DEFAULTS = {e: "both" for e in ROUTE_EVENTS} | {"gigantify": "tv"}
+                "gigantify", "message", "welcome", "hype", "tiktok_gift", "tts"]
+ROUTE_DEFAULTS = {e: "both" for e in ROUTE_EVENTS} | {"gigantify": "tv", "tts": "overlay"}
 ROUTE_CHOICES = ("tv", "overlay", "both")
 OVERLAY_POSITIONS = ("top-left", "top-right", "bottom-left", "bottom-right", "bottom-center")
 
@@ -356,6 +373,17 @@ class Settings:
                 continue
             if key.startswith("govee_") and val and not val.startswith(("http://", "https://")):
                 errors.append(f"{key}: must start with http://")
+                continue
+            if key == "tts_voice" and not val:
+                continue                        # voices not loaded on the page yet: keep the saved one
+            if key == "tts_voice" and not VOICE_RE.match(val):
+                errors.append("tts_voice: pick a voice from the list")
+                continue
+            if key == "tts_format" and ("{message}" not in val or len(val) > 120):
+                errors.append("tts_format: must include {message} (120 characters at most)")
+                continue
+            if key == "tts_blocked" and len(val) > 4000:
+                errors.append("tts_blocked: too long")
                 continue
             if key == "tiktok_username":
                 val = val.lstrip("@").strip()
@@ -793,12 +821,17 @@ class TV:
                            "screen": b.get("screen")})
 
     # ── gigantified emotes: an ID or link works as is, a name is looked up ──
-    async def resolve_emote(self, value):
-        value = value.strip()
+    async def resolve_emote(self, value, name=""):
+        """value: an emote ID, an image link or a name. name: the emote's name,
+        when MixItUp sends it alongside the link (shown in the caption)."""
+        value, name = value.strip(), name.strip()[:60]
+        twitch_link = EMOTE_LINK_RE.match(value)
+        if twitch_link:                         # a Twitch emote link: the biggest, animated size
+            return {"id": twitch_link.group(1), "url": EMOTE_CDN.format(id=twitch_link.group(1)), "name": name}
         if value.startswith(("https://", "http://")):
-            return {"url": value, "name": ""}
+            return {"url": value, "name": name}
         if EMOTE_ID_RE.match(value):
-            return {"id": value, "url": EMOTE_CDN.format(id=value), "name": ""}
+            return {"id": value, "url": EMOTE_CDN.format(id=value), "name": name}
         name = value[:60]
         if name and self.twitch.enabled:
             try:
@@ -966,7 +999,7 @@ class TV:
             payload.update({"gift": ev["gift"], "count": count, "coins": coins, "amount": coins})
         elif kind == "gigantify":
             secs = S["gigantify_seconds"]
-            emote = await self.resolve_emote(ev.get("emote") or "")
+            emote = await self.resolve_emote(ev.get("emote") or "", ev.get("emote_name") or "")
             ctx["emote"] = emote.get("name") or ""
             text = {"caption": text_for("gigantify.caption", **ctx)}
             payload["emote"] = emote
@@ -1046,7 +1079,17 @@ class TV:
                 await self.govee(None)
 
 tv = TV()
-tiktok = TikTokWatcher(S, lambda ev: tv.dispatch(ev, limit=True))
+
+
+async def tts_play(msg, override=None):
+    """Send a text-to-speech message to the screens TTS is routed to."""
+    for screen in destinations("tts", override):
+        await tv.broadcast(msg, screen)
+
+
+speaker = Speaker(S, lambda msg, override: tts_play(msg, override), CACHE / "tts")
+tiktok = TikTokWatcher(S, lambda ev: tv.dispatch(ev, limit=True),
+                       chat=lambda who, text: speaker.say(text, who["display"], source="tiktok"))
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -1226,12 +1269,16 @@ async def modiversary(request):
 
 
 async def gigantify(request):
-    """Gigantified emote: /gigantify/<user>?emote=<emote ID, name or image link>"""
-    emote = next((request.query.get(k) for k in ("emote", "emote_id", "id", "name", "url") if request.query.get(k)), "")
+    """Gigantified emote: /gigantify/<user>?emote=<emote ID, name or image link>[&name=<emote name>]
+    From MixItUp: /gigantify/$username?emote=$emoteurl&name=$emotename"""
+    emote = next((request.query.get(k) for k in ("emote", "emote_id", "id", "url") if request.query.get(k)), "")
+    name = request.query.get("name") or request.query.get("emote_name") or ""
     if not emote.strip():
-        raise web.HTTPBadRequest(text="emote required, e.g. /gigantify/name?emote=emotesv2_... or ?emote=LUL")
+        emote, name = name, ""                  # ?name=LUL on its own: look the name up
+    if not emote.strip():
+        raise web.HTTPBadRequest(text="emote missing: in MixItUp use ?emote=$emoteurl (or an emote ID or name)")
     ev = _card_event(request, "gigantify")
-    ev.update({"clip": False, "emote": emote})
+    ev.update({"clip": False, "emote": emote, "emote_name": name})
     return _queue_or_skip(ev)
 
 
@@ -1294,9 +1341,50 @@ async def logo(request):
     for name in targets:
         tv.screens[name].clear()
         await tv.broadcast({"type": "logo"}, name)
+    if set(targets) & set(destinations("tts")):    # and stop reading chat there
+        speaker.clear()
     if "tv" in targets:
         await tv.govee(None)
     return web.json_response({"ok": True, "cleared": targets})
+
+
+async def tts(request):
+    """Read a message aloud: /tts?text=$allargs&from=$username (TTS must be on)."""
+    text = (request.query.get("text") or request.query.get("message") or "").strip()
+    who = (request.query.get("from") or request.query.get("user") or "").strip().lstrip("@")[:40]
+    ok, why = speaker.say(text, who, source="mixitup", screen=screen_param(request))
+    if not ok:
+        return web.json_response({"ok": False, "skipped": why})
+    return web.json_response({"ok": True, "waiting": len(speaker.waiting)})
+
+
+async def tts_skip(request):
+    speaker.skip()
+    return web.json_response({"ok": True})
+
+
+async def api_tts_voices(request):
+    try:
+        return web.json_response({"ok": True, "voices": await speaker.voices()})
+    except Exception as e:
+        return web.json_response({"ok": False, "result": f"Couldn't load the voices: {type(e).__name__}: {e}"[:200]})
+
+
+async def api_tts_preview(request):
+    """The chosen voice reading a line, for the settings page to play."""
+    voice = request.query.get("voice") or S["tts_voice"]
+    if not VOICE_RE.match(voice):
+        raise web.HTTPBadRequest(text="unknown voice")
+    try:
+        rate = max(-50.0, min(100.0, float(request.query.get("rate", S["tts_rate"]))))
+    except ValueError:
+        rate = 0.0
+    text = (request.query.get("text") or "VibeCaptain says: hello chat, welcome to the stream!").strip()[:200]
+    try:
+        audio = await speaker.synth(text, voice, rate)
+    except Exception as e:
+        return web.json_response({"ok": False, "result": f"{type(e).__name__}: {e}"[:200]}, status=502)
+    return web.Response(body=audio, content_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
 
 async def reload(request):
@@ -1321,7 +1409,8 @@ async def status(request):
 # ── Admin page + API ─────────────────────────────────────────────────────
 
 EVENT_PATHS = ("/shoutout/", "/raid/", "/follow/", "/gift/", "/giftbomb/", "/sub/", "/resub/", "/bits/",
-               "/streak/", "/modiversary/", "/gigantify/", "/welcome/", "/hypetrain", "/message", "/logo")
+               "/streak/", "/modiversary/", "/gigantify/", "/welcome/", "/hypetrain", "/message", "/logo",
+               "/tts")
 
 
 @web.middleware
@@ -1333,12 +1422,20 @@ async def request_log(request, handler):
     entry = {"time": time.strftime("%H:%M:%S"), "method": request.method,
              "url": unquote(request.path_qs), "status": 500}
     tv.requests.appendleft(entry)
+    # A value MixItUp left as text ("<emote ID or name>", "$emoteurl") is
+    # treated as missing, so it never ends up on screen.
+    unfilled = [k for k, v in request.query.items() if PLACEHOLDER_RE.match(v)]
+    if unfilled:
+        request = request.clone(rel_url=request.rel_url.with_query(
+            [(k, v) for k, v in request.query.items() if not PLACEHOLDER_RE.match(v)]))
+        entry["note"] = "not filled in by MixItUp, ignored: " + ", ".join(unfilled)
     try:
         resp = await handler(request)
         entry["status"] = resp.status
         return resp
     except web.HTTPException as e:
-        entry["status"], entry["note"] = e.status, (e.text or "")[:100]
+        entry["status"] = e.status
+        entry["note"] = "; ".join(filter(None, [entry.get("note"), (e.text or "")[:100]]))
         raise
 
 
@@ -1385,7 +1482,7 @@ async def api_state(request):
                    "overlays_connected": tv.count("overlay"), "queued_overlay": tv.screens["overlay"].queue.qsize(),
                    "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
                    "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee,
-                   "tiktok": tiktok.status(), **logo_info()},
+                   "tiktok": tiktok.status(), "tts": speaker.status(), **logo_info()},
         "media": list_media(),
         "password_protected": bool(ADMIN_PASSWORD),
         "text_defaults": TEXT_DEFAULTS,
@@ -1561,6 +1658,7 @@ async def on_startup(app):
     app["workers"] = [asyncio.create_task(screen.worker()) for screen in tv.screens.values()]
     app["themes"] = asyncio.create_task(tv.theme_watch())
     tiktok.reconfigure()
+    app["tts"] = asyncio.create_task(speaker.worker())
     log.info("Vibe TV v%s on :%d (twitch api: %s, logo: %s, admin password: %s)",
              VERSION, PORT, tv.twitch.enabled, logo_url() or "none", "on" if ADMIN_PASSWORD else "off")
 
@@ -1569,6 +1667,7 @@ async def on_cleanup(app):
     for w in app["workers"]:
         w.cancel()
     app["themes"].cancel()
+    app["tts"].cancel()
     await tiktok.stop()
     tiktok.config = None
     await tv.session.close()
@@ -1603,6 +1702,8 @@ def make_app():
     app.router.add_route("*", "/message", message)
     app.router.add_route("*", "/logo", logo)
     app.router.add_route("*", "/reload", reload)
+    app.router.add_route("*", "/tts", tts)
+    app.router.add_route("*", "/tts/skip", tts_skip)
     app.router.add_get("/status", status)
     app.router.add_get("/favicon.ico", favicon)
     app.router.add_get("/admin", admin_page)
@@ -1613,6 +1714,8 @@ def make_app():
     app.router.add_post("/api/test/lights", api_test_lights)
     app.router.add_post("/api/test/twitch", api_test_twitch)
     app.router.add_post("/api/test/tiktok", api_test_tiktok)
+    app.router.add_get("/api/tts/voices", api_tts_voices)
+    app.router.add_get("/api/tts/preview", api_tts_preview)
     app.router.add_get("/api/backup", api_backup)
     app.router.add_post("/api/restore", api_restore)
     app.router.add_static("/media", MEDIA, show_index=False)

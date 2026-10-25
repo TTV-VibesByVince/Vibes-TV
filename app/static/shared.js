@@ -179,3 +179,30 @@ function openSocket(screen, onEvent, dot) {
   ws.onerror = () => ws.close();
   ws.onmessage = e => onEvent(JSON.parse(e.data));
 }
+
+/* ── text to speech: the server sends {type:"tts", src, volume, ...} ──
+   One message at a time; the settings page's preview stays silent (the
+   real overlay or TV is already playing it). */
+let ttsAudio = null;
+function playTts(ev) {
+  stopTts();
+  const a = new Audio(ev.src);
+  a.volume = Math.max(0, Math.min(1, ev.volume ?? 1));
+  a.muted = PREVIEW;
+  a.play().catch(() => {});
+  ttsAudio = a;
+  // a browser that's just started can stall on its first audio: nudge it once
+  setTimeout(() => { if (ttsAudio === a && a.readyState < 2) { a.load(); a.play().catch(() => {}); } }, 1500);
+}
+function stopTts() {
+  if (ttsAudio) { ttsAudio.pause(); ttsAudio.removeAttribute("src"); ttsAudio = null; }
+}
+const SPEAKER_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+// The "now reading" bubble both pages show: fills el and returns it.
+function ttsBubble(el, ev) {
+  el.innerHTML = `<span class="tspk">${SPEAKER_SVG}</span><div class="tbody"><b></b><span></span></div>`;
+  el.querySelector("b").textContent = ev.from || "";
+  el.querySelector("b").style.display = ev.from ? "" : "none";
+  el.querySelector(".tbody span").textContent = ev.text || "";
+  return el;
+}

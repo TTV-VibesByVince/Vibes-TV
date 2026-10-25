@@ -37,6 +37,8 @@ You can also set these on the container instead: `TIKTOK_ENABLED=1`,
 
 ## What shows
 
+TikTok **chat** can also be read aloud: see [Text to speech](tts.md).
+
 | TikTok event | Card |
 | --- | --- |
 | Follow | The follow card, with a small **TIKTOK** tag. Someone who unfollows and follows again within an hour is only shown once. |
