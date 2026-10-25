@@ -34,6 +34,8 @@ Source (or "web page" source) at 1920 x 1080.
   gigantified emotes, messages and TikTok gifts. Each card stays up for a
   few seconds, then slides away.
 - **First-time chatters** get a small pop-up in the opposite top corner.
+- **Text to speech** ([Text to speech](tts.md)) plays here by default, with a
+  small bubble showing who's being read, in the corner opposite your alerts.
 - **Hype trains** show a slim progress bar along the top (or the bottom, if
   your cards are at the top), with the same start, level-up and end banners.
 

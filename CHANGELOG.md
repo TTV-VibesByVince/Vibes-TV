@@ -4,6 +4,25 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 1.6 (2026-10-25)
+
+- **Text to speech** (optional, off by default): TikTok LIVE chat, and
+  anything MixItUp sends to `/tts`, read aloud in a Microsoft Edge voice
+  (edge-tts: free, no key). One message at a time from its own queue, on
+  the stream overlay by default, with a "now reading" bubble. Voice picker
+  with preview, speed, volume and what it says. Against trolls: commands and
+  links are skipped, a per-person cooldown, a length limit and a
+  blocked-words list. `/tts/skip` stops it.
+- **Giant emotes from MixItUp**: `/gigantify/$username?emote=$emoteurl&name=$emotename`.
+  Twitch emote links are switched to the biggest, animated size, and the
+  name goes in the caption.
+- **Unfilled MixItUp variables are ignored** instead of shown on screen (no
+  more a giant `<EMOTE ID OR NAME>`). **Last requests received** says which
+  ones arrived unfilled.
+- The settings page's MixItUp URLs (and the docs) use MixItUp's real
+  variable names for every event, so the copy buttons give working URLs.
+- Pillow 13 and aiohttp 3.14.
+
 ## 1.5 (2026-10-22)
 
 - **Stream overlay** (`/overlay`): the same alerts on your stream, as an

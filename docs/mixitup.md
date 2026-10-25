@@ -9,35 +9,41 @@ server's address.
 | MixItUp event / command | URL |
 | --- | --- |
 | Shoutout command | `/shoutout/$targetusername` |
-| Channel Raided | `/raid/$username?viewers=<raid viewer count>` |
+| Channel Raided | `/raid/$username?viewers=$raidviewercount` |
 | Followed | `/follow/$username` |
 | Subscription Gifted | `/gift/$username?to=$targetusername` |
-| Mass Subscriptions Gifted (optional) | `/giftbomb/$username?count=<amount>` |
-| Subscribed | `/sub/$username?tier=<tier>` |
-| Resubscribed | `/resub/$username?months=<months>&message=<message>` |
-| Bits Cheered | `/bits/$username?amount=<bits>&message=<message>` |
-| Watch Streak | `/streak/$username?count=<streak count>&message=<message>` |
-| Modiversary | `/modiversary/$username?years=<years>` (or `&months=<months>`) |
-| Gigantified Emote | `/gigantify/$username?emote=<emote ID or name>` |
+| Mass Subscriptions Gifted (optional) | `/giftbomb/$username?count=$subsgiftedamount` |
+| Subscribed | `/sub/$username?tier=$usersubplan` |
+| Resubscribed | `/resub/$username?months=$usersubmonths&tier=$usersubplan&message=$message` |
+| Bits Cheered | `/bits/$username?amount=$bitsamount&message=$messagenocheermotes` |
+| Watch Streak | `/streak/$username?count=$userwatchstreak&message=$message` |
+| Modiversary | `/modiversary/$username?months=$usermodiversarymonths` |
+| Power-Up Gigantified Emote | `/gigantify/$username?emote=$emoteurl&name=$emotename` |
 | First chat message | `/welcome/$username` |
-| Hype Train Start | `/hypetrain/start?level=<level>` |
-| Hype Train progress / Level Up | `/hypetrain/progress?level=<level>&percent=<percent>` |
-| Hype Train End | `/hypetrain/end?level=<level>` |
+| Hype Train Start | `/hypetrain/start?level=$hypetrainlevel&progress=$hypetrainlevelpoints&goal=$hypetrainlevelgoal` |
+| Hype Train Progress / Level Up | `/hypetrain/progress?level=$hypetrainlevel&progress=$hypetrainlevelpoints&goal=$hypetrainlevelgoal` |
+| Hype Train End | `/hypetrain/end?level=$hypetraintotallevel` |
 | A chat command | `/message?text=$allargs&from=$username` |
+| A chat command (read aloud) | `/tts?text=$allargs&from=$username` |
+| | `/tts/skip`: stop what's being read aloud |
 | | `/logo`: clear the queues and the hype bar: the TV goes back to the logo, the overlay goes empty. `/logo?screen=tv` or `/logo?screen=overlay` clears just one |
 | | `/reload`: reload every TV and overlay page |
 | | `/status`: JSON status |
 
-Words in `<angle brackets>` are MixItUp's special identifiers for that
-event; pick the matching ones in MixItUp's event editor (the names vary by
-event and version). Everything after `?` is optional except the bits
-`amount`:
+The `$words` are MixItUp's special identifiers for each event (from
+[MixItUp's Twitch event list](https://mixitup.bot/docs/platforms/twitch)).
+Type them exactly as shown: MixItUp fills them in when the event happens.
+The settings page lists the same URLs with copy buttons, already filled in
+with your server's address. Everything after `?` is optional except the
+bits `amount` and the gigantified `emote`. If a variable reaches Vibe TV
+unfilled (still `$emoteurl`, or a `<placeholder>`), it's ignored instead of
+shown on screen, and **Last requests received** says so.
 
 - Shoutout and raid: `&clip=0|1`, `&sound=0|1`, `&display=Name`,
   `&game=Game`, `&avatar=<picture link>`.
-- Sub and resub `tier`: `1`, `2`, `3`, `prime`, `Tier 2`, or Twitch's
-  `1000/2000/3000`. **Tier 2** gets a bigger card (two stars, confetti
-  cannons, a short shake) and **Tier 3** the biggest (spotlights, a gold
+- Sub and resub `tier`: MixItUp's `$usersubplan` (`Prime`, `Tier 1`, `Tier 2`,
+  `Tier 3`), or `1`, `2`, `3`, `prime`, or Twitch's `1000/2000/3000`.
+  **Tier 2** gets a bigger card (two stars, confetti cannons, a short shake) and **Tier 3** the biggest (spotlights, a gold
   crown, coins raining). If MixItUp has no tier variable for your event, use
   separate URLs instead: `/sub/$username/tier2` and `/sub/$username/tier3`,
   picked with a condition in MixItUp.
@@ -46,12 +52,14 @@ event and version). Everything after `?` is optional except the bits
   arrives for 6 minutes, the bar hides by itself.
 - Modiversary: `years=` or `months=` (18 months shows as "18 MONTHS", 24 as
   "2 YEARS"). It uses Twitch's mod green unless you pick another colour.
-- Gigantified emote `emote=`: an **emote ID** (like `emotesv2_…` or `25`) or
-  an **image link** always works, for any emote. An emote **name** (like
-  `LUL`) is looked up on Twitch: global emotes, and your own channel's if you
-  enter your channel under **Settings > Twitch API**. Anything it can't find
-  is shown as big text. Emote images are small (112 pixels at most, older
-  ones less), so a giant emote is a little soft.
+- Gigantified emote `emote=`: an **image link** (MixItUp's `$emoteurl`) or an
+  **emote ID** (like `emotesv2_…` or `25`) always works, for any emote. A
+  Twitch emote link is switched to the biggest size, animated when the emote
+  is. `&name=` (MixItUp's `$emotename`) adds the emote's name to the caption.
+  An emote **name** on its own (like `LUL`) is looked up on Twitch: global
+  emotes, and your own channel's if you enter your channel under **Settings >
+  Twitch API**. Emote images are small (112 pixels at most, older ones
+  less), so a giant emote is a little soft.
 - `/welcome` shows straight away in the corner, even over another screen;
   everything else waits its turn in the queue.
 - Any alert URL: `&screen=tv`, `&screen=overlay` or `&screen=both` decides
