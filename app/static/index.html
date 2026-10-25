@@ -23,6 +23,14 @@
   #shade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .6s ease; pointer-events: none; }
   #clip { opacity: 0; transition: opacity .5s ease; object-fit: contain; }
   #clip.show { opacity: 1; }
+  /* Embedded in the stream overlay (/tv?embed=overlay): no background and no
+     logo. Behind an alert the stream is darkened (a page can't blur what's
+     under it in OBS). Corner pop-ups and the hype bar are the overlay's own. */
+  html.embed, html.embed body { background: transparent; cursor: default; }
+  html.embed #logo, html.embed #logoimg, html.embed #dot, html.embed #welcomes,
+  html.embed #hype, html.embed #hypebanner, html.embed #ttsbox { display: none !important; }
+  html.embed #shade { background: radial-gradient(ellipse at center, rgba(0,0,0,.72), #000 85%); }
+  html.embed video#clip { background: transparent; }
   .layer { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
   #fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
@@ -495,6 +503,9 @@
 <script src="/static/shared.js"></script>
 <script>
 const logo = $("logo"), logoImg = $("logoimg"), clip = $("clip"), shade = $("shade");
+const EMBED = Q.get("embed") === "overlay";      // inside the stream overlay, for full-screen alerts
+if (EMBED) document.documentElement.classList.add("embed");
+let DARKEN = .5;                                 // embedded: how dark the stream gets behind an alert
 let logoKind = "video";
 let preloading = "";
 
@@ -502,6 +513,11 @@ let preloading = "";
 
 function setLogo(info) {
   applyMode(info.tv_mode || "auto");
+  if (EMBED) {                                   // no logo here: just the look
+    if (info.theme) THEME = info.theme;
+    if (info.overlay && info.overlay.darken !== undefined) DARKEN = info.overlay.darken;
+    return;
+  }
   if (info.theme) {
     const changed = info.theme.id !== THEME.id;
     THEME = info.theme;
@@ -525,6 +541,10 @@ function setLogo(info) {
 
 // Behind cards: blur the logo on a PC, a cheap black veil in lite mode
 function dim(on, deep) {
+  if (EMBED) {
+    shade.style.opacity = on ? Math.min(.95, DARKEN * (deep ? 1.25 : 1)) : 0;
+    return;
+  }
   if (LITE) {
     shade.style.opacity = on ? (deep ? .86 : .72) : 0;
     return;
@@ -1201,7 +1221,13 @@ function onServer(ev) {
 
 addEventListener("resize", () => { if (fxRun) sizeFx(); if ($("raid").classList.contains("go")) measurePortal(); });
 logo.addEventListener("stalled", () => { if (logo.src) logo.load(); });
-openSocket("tv", onServer, $("dot"));
+if (EMBED) {
+  // the overlay page sends this frame its full-screen alerts
+  addEventListener("message", e => { if (e.origin === location.origin && e.data && e.data.type) onServer(e.data); });
+  parent.postMessage({ type: "embed_ready" }, location.origin);
+} else {
+  openSocket("tv", onServer, $("dot"));
+}
 </script>
 </body>
 </html>
