@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe TV TikTok widget</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/static/icon/icon.svg" type="image/svg+xml">
+<link href="/static/fonts/fonts.css" rel="stylesheet">
+<link href="/static/shared.css" rel="stylesheet">
+<style>
+  /* TikTok LIVE widgets for OBS: /tiktok/likes, /likers, /gifters, /combined.
+     See-through; sized in pixels from the top-left corner, so the OBS source
+     can be any size (move and crop it in OBS). */
+  :root { --accent: #9146ff; --op: .85; --s: 1; --like: #fe2c55; --gold: #ffc93c; --silver: #dfe4ff; --bronze: #e0915a; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: transparent; overflow: hidden; font-family: "Outfit", system-ui, sans-serif; color: #fff; }
+  #root { position: absolute; left: 14px; top: 14px; transform: scale(var(--s)); transform-origin: 0 0; display: flex; gap: 16px; align-items: flex-start;
+    transition: opacity .6s ease; }
+  #root.col { flex-direction: column; }
+  #root.away { opacity: 0; }
+  .panel { position: relative; background: rgba(10, 8, 18, var(--op)); border: 3px solid var(--accent); border-radius: 22px; padding: 14px 16px;
+    box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 10px 26px rgba(0,0,0,.4); }
+  body.lite .panel { box-shadow: none; }
+  .ptitle { display: flex; align-items: center; gap: 9px; font-family: "Bungee", sans-serif; font-size: 19px; letter-spacing: .08em; margin-bottom: 10px; white-space: nowrap; }
+  .ptitle svg { width: 24px; height: 24px; flex: none; }
+
+  /* ── like counter ── */
+  .likes { min-width: 300px; }
+  .lrow { display: flex; align-items: center; gap: 14px; }
+  .lheart { position: relative; width: 58px; height: 58px; flex: none; }
+  .lheart svg { width: 100%; height: 100%; filter: drop-shadow(0 4px 10px rgba(254,44,85,.55)); }
+  .lheart.beat svg { animation: heartbeat .45s ease; }
+  .lnum { font-family: "Bungee", sans-serif; font-size: 46px; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+  .llabel { font-family: "Bungee", sans-serif; font-size: 15px; letter-spacing: .14em; color: var(--like); }
+  .lviewers { font-size: 15px; opacity: .8; margin-top: 3px; }
+  .lviewers:empty { display: none; }
+  .goal { margin-top: 12px; }
+  .goal[hidden] { display: none; }
+  .gtrack { position: relative; height: 16px; border-radius: 99px; background: rgba(255,255,255,.14); overflow: hidden; }
+  .gfill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 99px; transition: width .8s cubic-bezier(.2,1,.3,1);
+    background: repeating-linear-gradient(-45deg, var(--like) 0 12px, #ff6f8f 12px 24px); }
+  .gtext { display: flex; justify-content: space-between; font-size: 14px; margin-top: 5px; opacity: .9; font-variant-numeric: tabular-nums; }
+  .gtext b { font-family: "Bungee", sans-serif; font-weight: 400; letter-spacing: .06em; color: var(--like); }
+  .goal.done .gfill { background: repeating-linear-gradient(-45deg, var(--gold) 0 12px, #fff1b0 12px 24px); }
+  .goal.done .gtext b { color: var(--gold); }
+  .burst { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); font-family: "Bungee", sans-serif; font-size: 30px; white-space: nowrap;
+    color: var(--gold); text-shadow: 0 0 14px rgba(255,201,60,.8), 0 3px 0 rgba(0,0,0,.6); pointer-events: none; animation: bannerIn 2.6s ease both; z-index: 3; }
+
+  /* ── top likers / top gifters ── */
+  .board { min-width: 330px; }
+  .rows { position: relative; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: grid; grid-template-columns: 30px 46px 1fr auto; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 14px;
+    background: rgba(255,255,255,.06); transition: transform .5s cubic-bezier(.2,1,.3,1), opacity .4s ease; }
+  .row.enter { animation: popIn .4s cubic-bezier(.2,1.5,.4,1) both; }
+  .rank { font-family: "Bungee", sans-serif; font-size: 20px; text-align: center; opacity: .75; }
+  .row img { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: #111; border: 3px solid rgba(255,255,255,.25); }
+  .row .who { min-width: 0; font-weight: 800; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .val { display: flex; align-items: center; gap: 6px; font-family: "Bungee", sans-serif; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .row .val svg { width: 18px; height: 18px; }
+  .row[data-r="1"] { background: linear-gradient(90deg, rgba(255,201,60,.22), rgba(255,255,255,.05)); }
+  .row[data-r="1"] .rank { color: var(--gold); opacity: 1; }
+  .row[data-r="1"] img { border-color: var(--gold); box-shadow: 0 0 14px rgba(255,201,60,.6); }
+  .row[data-r="2"] .rank { color: var(--silver); opacity: 1; }
+  .row[data-r="2"] img { border-color: var(--silver); }
+  .row[data-r="3"] .rank { color: var(--bronze); opacity: 1; }
+  .row[data-r="3"] img { border-color: var(--bronze); }
+  .row { position: relative; }
+  .row .crown { position: absolute; left: 47px; top: -11px; width: 26px; animation: crownDrop .7s cubic-bezier(.3,1.5,.5,1) both; z-index: 2; }
+  .empty { font-size: 15px; opacity: .65; padding: 6px 4px; }
+  .newtop { position: absolute; right: 12px; top: -16px; padding: 4px 12px; border-radius: 99px; font-family: "Bungee", sans-serif; font-size: 14px;
+    letter-spacing: .08em; color: #1a1028; background: var(--gold); box-shadow: 0 0 16px rgba(255,201,60,.7); animation: bannerIn 2.6s ease both; }
+  body.lite .row[data-r="1"] img, body.lite .newtop { box-shadow: none; }
+  /* row layout: lists side by side, each a single horizontal line */
+  #root:not(.col) { flex-wrap: wrap; max-width: calc((100vw - 28px) / var(--s)); }   /* a panel that doesn't fit goes on the next line */
+  #root:not(.col) .board .rows { flex-direction: row; }
+  #root:not(.col) .board .row { flex: none; }
+  #root:not(.col) .board .row .who { max-width: 170px; }
+  #root:not(.col) .board .row { grid-template-columns: 26px 40px auto auto; }
+  #root:not(.col) .board .row img { width: 40px; height: 40px; }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div id="root" class="col"></div>
+
+<script src="/static/shared.js"></script>
+<script>
+/* ── what this page shows ─────────────────────────────────────────── */
+const KIND = (location.pathname.split("/").pop() || "combined").toLowerCase();
+const SAMPLE = Q.get("sample") === "1";
+const HEART = '<svg viewBox="0 0 32 29" aria-hidden="true"><path fill="#fe2c55" stroke="#fff" stroke-width="1.6" d="M16 27.5S2 19.2 2 9.6A6.9 6.9 0 0 1 9 2.5c2.8 0 5.2 1.6 7 4 1.8-2.4 4.2-4 7-4a6.9 6.9 0 0 1 7 7.1c0 9.6-14 17.9-14 17.9z"/></svg>';
+const COIN = '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#ffc93c" stroke="#fff" stroke-width="2"/><circle cx="16" cy="16" r="9" fill="none" stroke="#c97a06" stroke-width="2.4"/><path d="M19.5 12.5a5 5 0 1 0 0 7" fill="none" stroke="#c97a06" stroke-width="2.6" stroke-linecap="round"/></svg>';
+const GIFT = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="26" width="48" height="34" rx="4" fill="#ffc93c" stroke="#fff" stroke-width="3"/><rect x="4" y="16" width="56" height="13" rx="3" fill="#ffe08a" stroke="#fff" stroke-width="3"/><rect x="27" y="16" width="10" height="44" fill="#fe2c55"/></svg>';
+const CROWN_SVG = '<svg class="crown" viewBox="0 0 120 76" aria-hidden="true"><path fill="#ffc93c" stroke="#fff" stroke-width="5" stroke-linejoin="round" d="M8 62 L4 16 L34 38 L60 6 L86 38 L116 16 L112 62 Z"/></svg>';
+
+let cfg = { count: 5, layout: "column", scale: 1, opacity: .85, goal: 0, hide_offline: true };
+let stats = { likes: 0, viewers: 0, live: false, likers: [], gifters: [] };
+// the URL can override any setting for this one source: ?count=3&layout=row&scale=1.2&goal=5000&hide=0
+function settings() {
+  const o = { ...cfg };
+  if (Q.get("count")) o.count = Math.max(1, Math.min(10, parseInt(Q.get("count"), 10) || o.count));
+  if (Q.get("layout") === "row" || Q.get("layout") === "column") o.layout = Q.get("layout");
+  if (Q.get("scale")) o.scale = parseFloat(Q.get("scale")) || o.scale;
+  if (Q.get("opacity")) o.opacity = parseFloat(Q.get("opacity")) || o.opacity;
+  if (Q.get("goal")) o.goal = parseInt(Q.get("goal"), 10) || 0;
+  if (Q.get("hide")) o.hide_offline = Q.get("hide") !== "0";
+  return o;
+}
+
+/* ── building the widgets ─────────────────────────────────────────── */
+const root = $("root");
+const parts = {};
+function build() {
+  const o = settings();
+  root.className = o.layout === "row" ? "" : "col";
+  document.documentElement.style.setProperty("--s", o.scale);
+  document.documentElement.style.setProperty("--op", o.opacity);
+  root.innerHTML = "";
+  if (KIND === "likes" || KIND === "combined") {
+    const el = document.createElement("div");
+    el.className = "panel likes";
+    el.innerHTML = `<div class="lrow"><div class="lheart">${HEART}</div><div><div class="lnum">0</div><div class="llabel">LIKES</div><div class="lviewers"></div></div></div>
+      <div class="goal" hidden><div class="gtrack"><div class="gfill"></div></div><div class="gtext"><b>GOAL</b><span></span></div></div>`;
+    root.appendChild(el);
+    parts.likes = el;
+  }
+  for (const [kind, title, icon] of [["likers", "TOP LIKERS", HEART], ["gifters", "TOP GIFTERS", GIFT]]) {
+    if (KIND !== kind && KIND !== "combined") continue;
+    const el = document.createElement("div");
+    el.className = "panel board";
+    el.innerHTML = `<div class="ptitle">${icon}<span>${title}</span></div><div class="rows"></div>`;
+    root.appendChild(el);
+    parts[kind] = { el, rows: el.querySelector(".rows"), byName: new Map(), leader: null };
+  }
+  shownLikes = 0;
+  render();
+}
+
+/* ── the like counter: the number rolls up, hearts fly on big bursts ── */
+let shownLikes = 0, rollFrom = 0, rollTo = 0, rollStart = 0, rolling = false, goalHit = false;
+function fmt(n) { return Math.round(n).toLocaleString(); }
+function roll(now) {
+  const p = Math.min(1, (now - rollStart) / 900), eased = 1 - Math.pow(1 - p, 3);
+  shownLikes = rollFrom + (rollTo - rollFrom) * eased;
+  parts.likes.querySelector(".lnum").textContent = fmt(shownLikes);
+  if (p < 1) requestAnimationFrame(roll); else rolling = false;
+}
+function renderLikes() {
+  const el = parts.likes;
+  if (!el) return;
+  const o = settings(), before = rollTo, n = stats.likes || 0;
+  if (n !== rollTo) {
+    rollFrom = shownLikes; rollTo = n; rollStart = performance.now();
+    if (!rolling) { rolling = true; requestAnimationFrame(roll); }
+    const heart = el.querySelector(".lheart");
+    heart.classList.remove("beat"); void heart.offsetWidth; heart.classList.add("beat");
+    if (n - before >= 20 && before > 0) hearts(Math.min(24, Math.ceil((n - before) / 10)), heart);
+  }
+  el.querySelector(".lviewers").textContent = stats.viewers ? `👀 ${fmt(stats.viewers)} watching` : "";
+  const goal = el.querySelector(".goal");
+  goal.hidden = !(o.goal > 0);
+  if (o.goal > 0) {
+    const done = n >= o.goal;
+    goal.classList.toggle("done", done);
+    goal.querySelector(".gfill").style.width = Math.min(100, n / o.goal * 100).toFixed(1) + "%";
+    goal.querySelector(".gtext b").textContent = done ? "GOAL REACHED!" : "GOAL";
+    goal.querySelector(".gtext span").textContent = `${fmt(Math.min(n, o.goal))} / ${fmt(o.goal)}`;
+    if (done && !goalHit && before < o.goal && before > 0) celebrate(el);
+    goalHit = done;
+  }
+}
+function celebrate(el) {
+  const b = document.createElement("div");
+  b.className = "burst"; b.textContent = "LIKE GOAL!";
+  el.appendChild(b);
+  setTimeout(() => b.remove(), 2700);
+  hearts(40, el.querySelector(".lheart"), true);
+}
+
+/* ── the top lists: rows slide to their new places ──────────────────── */
+function renderBoard(kind, field, icon) {
+  const part = parts[kind];
+  if (!part) return;
+  const o = settings(), list = (stats[kind] || []).slice(0, o.count);
+  if (!list.length) {
+    part.rows.innerHTML = `<div class="empty">${kind === "likers" ? "No likes yet: tap that screen!" : "No gifts yet"}</div>`;
+    part.byName.clear(); part.leader = null;
+    return;
+  }
+  part.rows.querySelector(".empty")?.remove();
+  const before = new Map([...part.byName].map(([k, el]) => [k, el.getBoundingClientRect()]));
+  const keep = new Set();
+  list.forEach((p, i) => {
+    const key = p.name;
+    keep.add(key);
+    let row = part.byName.get(key);
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "row enter";               // pops in once, when they first make the list
+      row.addEventListener("animationend", e => { if (e.animationName === "popIn") row.classList.remove("enter"); });
+      row.innerHTML = `<div class="rank"></div><img alt=""><div class="who"></div><div class="val">${icon}<span></span></div>`;
+      part.byName.set(key, row);
+    }
+    row.dataset.r = i + 1;
+    row.querySelector(".rank").textContent = i + 1;
+    const img = row.querySelector("img"), src = avatarSrc({ avatar: p.avatar, display_name: p.name });
+    if (img.getAttribute("src") !== src) img.src = src;
+    row.querySelector(".who").textContent = p.name;
+    row.querySelector(".val span").textContent = fmt(p[field]);
+    row.querySelector(".crown")?.remove();
+    if (i === 0) row.insertAdjacentHTML("afterbegin", CROWN_SVG);
+    // in rank order (moved only when the rank changed)
+    if (part.rows.children[i] !== row) part.rows.insertBefore(row, part.rows.children[i] || null);
+  });
+  for (const [key, el] of part.byName) if (!keep.has(key)) { el.remove(); part.byName.delete(key); }
+  // slide each row from where it was to where it is now
+  for (const [key, el] of part.byName) {
+    const was = before.get(key);
+    if (!was) continue;
+    const now = el.getBoundingClientRect(), dx = was.left - now.left, dy = was.top - now.top;
+    if (!dx && !dy) continue;
+    el.style.transition = "none"; el.style.transform = `translate(${dx / settings().scale}px, ${dy / settings().scale}px)`;
+    requestAnimationFrame(() => { el.style.transition = ""; el.style.transform = ""; });
+  }
+  const leader = list[0].name;
+  if (part.leader && part.leader !== leader) {
+    const tag = document.createElement("div");
+    tag.className = "newtop"; tag.textContent = "NEW #1!";
+    part.el.appendChild(tag);
+    setTimeout(() => tag.remove(), 2700);
+  }
+  part.leader = leader;
+}
+
+function render() {
+  const o = settings();
+  root.classList.toggle("away", o.hide_offline && !stats.live && !PREVIEW && !SAMPLE);
+  renderLikes();
+  renderBoard("likers", "likes", HEART);
+  renderBoard("gifters", "coins", COIN);
+}
+
+/* ── floating hearts ──────────────────────────────────────────────── */
+const fx = $("fx"), g = fx.getContext("2d");
+let parts2 = [], fxRun = null;
+function hearts(n, from, gold) {
+  fx.width = innerWidth; fx.height = innerHeight;
+  const r = from.getBoundingClientRect();
+  if (LITE) n = Math.ceil(n / 2);
+  for (let i = 0; i < n; i++) {
+    parts2.push({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: (Math.random() - .5) * 5, vy: -2 - Math.random() * 4,
+      s: 14 + Math.random() * 16, life: 1, decay: .008 + Math.random() * .01,
+      img: gold && Math.random() < .5 ? coinSprite() : floatSprite("heart", ["#fe2c55", "#ff6f8f", "#ffffff"][i % 3]) });
+  }
+  if (!fxRun) fxRun = requestAnimationFrame(tick);
+}
+let last = performance.now();
+function tick(now) {
+  const k = Math.min((now - last) / 16.7, 3); last = now;
+  g.clearRect(0, 0, fx.width, fx.height);
+  for (let i = parts2.length - 1; i >= 0; i--) {
+    const p = parts2[i];
+    p.x += p.vx * k + Math.sin(now / 300 + i) * .4; p.y += p.vy * k; p.vy -= .02 * k; p.life -= p.decay * k;
+    if (p.life <= 0) { parts2.splice(i, 1); continue; }
+    g.globalAlpha = Math.min(1, p.life * 1.5);
+    g.drawImage(p.img, p.x - p.s / 2, p.y - p.s / 2, p.s, p.s);
+  }
+  g.globalAlpha = 1;
+  fxRun = parts2.length ? requestAnimationFrame(tick) : null;
+}
+
+/* ── sample data (the settings page preview, or ?sample=1) ─────────── */
+function sampleStats() {
+  const names = ["DanceQueen", "GamerGrl22", "NightOwlTV", "PixelPanda", "LuckyLuna", "CoolCat", "SunnyVibes", "MoonWalker", "TacoTues", "StarDust"];
+  return {
+    likes: 12480, viewers: 342, live: true,
+    likers: names.map((n, i) => ({ name: n, avatar: "", likes: 2400 - i * 210 })),
+    gifters: names.slice(3).concat(names.slice(0, 3)).map((n, i) => ({ name: n, avatar: "", coins: 3000 - i * 280 })),
+  };
+}
+if (SAMPLE) {
+  stats = sampleStats();
+  // keep it moving, to see the animations
+  setInterval(() => {
+    const s = structuredClone(stats);
+    s.likes += 20 + Math.floor(Math.random() * 60);
+    const i = Math.floor(Math.random() * s.likers.length);
+    s.likers[i].likes += 150 + Math.floor(Math.random() * 400);
+    s.likers.sort((a, b) => b.likes - a.likes);
+    if (Math.random() < .3) { const j = Math.floor(Math.random() * s.gifters.length); s.gifters[j].coins += 400; s.gifters.sort((a, b) => b.coins - a.coins); }
+    stats = s; render();
+  }, 2200);
+}
+
+/* ── messages from the server ─────────────────────────────────────── */
+openSocket("tiktok", ev => {
+  if (ev.type === "hello" || ev.type === "logo_src") {
+    applyMode(ev.tv_mode || "auto");
+    if (ev.theme) { THEME = ev.theme; setAccent(null); }
+    const changed = JSON.stringify(ev.widgets) !== JSON.stringify(cfg);
+    cfg = ev.widgets || cfg;
+    if (changed || !root.children.length) build();
+  }
+  else if (ev.type === "tiktok_stats" && !SAMPLE) { stats = ev; render(); }
+  else if (ev.type === "reload") location.reload();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe TV Credits</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/static/icon/icon.svg" type="image/svg+xml">
+<link href="/static/fonts/fonts.css" rel="stylesheet">
+<link href="/static/shared.css" rel="stylesheet">
+<style>
+  /* End credits for an "Ending" scene in OBS (Browser Source 1920x1080).
+     Rolls everyone from this stream, with their pictures, then your logo. */
+  :root { --accent: #9146ff; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; font-family: "Outfit", system-ui, sans-serif; color: #fff; }
+  body.dark { background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--accent) 30%, #0d0b14), #07060c 75%); }
+  body.dark::after { content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px); }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  /* soft fades at the top and bottom, so names drift in and out */
+  #view { position: fixed; inset: 0; overflow: hidden;
+    -webkit-mask-image: linear-gradient(transparent 0, #000 12%, #000 86%, transparent 100%);
+            mask-image: linear-gradient(transparent 0, #000 12%, #000 86%, transparent 100%); }
+  #roll { position: absolute; left: 0; right: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 9vh; padding: 100vh 6vw 0; will-change: transform; }
+
+  .title { text-align: center; }
+  .title h1 { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 2.4vh; font-family: "Bungee", sans-serif; font-weight: 400; font-size: 11vh; line-height: 1.05; }
+  .title h1 span { display: inline-block; opacity: 0; text-shadow: 0 0 4vh var(--accent), 0 .7vh 0 rgba(0,0,0,.5); }
+  .title.in h1 span { animation: slam .55s cubic-bezier(.2,1.6,.5,1) both; }
+  .title p { margin-top: 2vh; font-size: 3.4vh; opacity: 0; letter-spacing: .04em; }
+  .title.in p { animation: fadeUp .6s 1s ease both; }
+
+  .sec { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4vh; }
+  .sec h2 { display: flex; align-items: center; gap: 2vh; font-family: "Bungee", sans-serif; font-weight: 400; font-size: 6vh; letter-spacing: .06em;
+    color: var(--accent); text-shadow: 0 0 3vh var(--accent); opacity: 0; transform: scale(1.6); }
+  .sec h2 i { font-style: normal; text-shadow: none; }
+  .sec.in h2 { animation: secIn .7s cubic-bezier(.2,1.4,.4,1) both; }
+  .sec h2::before, .sec h2::after { content: ""; width: 12vh; height: .5vh; border-radius: 9px; background: linear-gradient(90deg, transparent, var(--accent)); }
+  .sec h2::after { transform: scaleX(-1); }
+  .people { display: flex; flex-wrap: wrap; justify-content: center; gap: 4vh 5vh; max-width: 88vw; }
+  .p { width: 22vh; display: flex; flex-direction: column; align-items: center; gap: 1.2vh; text-align: center; opacity: 0; transform: translateY(4vh) scale(.8); }
+  .p.in { animation: personIn .6s cubic-bezier(.2,1.5,.4,1) both; animation-delay: var(--d, 0s); }
+  .p img.av { width: 13vh; height: 13vh; border-radius: 50%; object-fit: cover; background: #111; border: .5vh solid #000;
+    box-shadow: 0 0 0 .45vh var(--accent), 0 0 3vh color-mix(in srgb, var(--accent) 70%, transparent); }
+  .p b { font-size: 3.2vh; font-weight: 900; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .p small { font-size: 2.3vh; opacity: .8; }
+  .p small:empty { display: none; }
+  /* bigger tiles for small sections (mods, raiders, gifters, stats) */
+  .sec.big .p { width: 28vh; }
+  .sec.big .p img.av { width: 18vh; height: 18vh; }
+  .sec.mods .p img.av { box-shadow: 0 0 0 .45vh #00ad03, 0 0 3vh rgba(0,173,3,.6); }
+  .sec.mods h2, .sec.vips h2 { color: #fff; }
+  .badge { width: 5vh; height: 5vh; margin-top: -6vh; margin-left: 9vh; filter: drop-shadow(0 .4vh .8vh rgba(0,0,0,.6)); }
+  /* a gifter, and everyone they gifted to */
+  .gift { display: flex; flex-direction: column; align-items: center; gap: 2vh; opacity: 0; transform: scale(.85); }
+  .gift.in { animation: personIn .6s cubic-bezier(.2,1.5,.4,1) both; }
+  .gift .to { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.6vh 2.4vh; max-width: 80vw; }
+  .gift .to span { display: flex; align-items: center; gap: 1vh; padding: .6vh 1.8vh .6vh .6vh; border-radius: 99px; background: rgba(255,255,255,.08);
+    border: .25vh solid color-mix(in srgb, var(--accent) 60%, transparent); font-size: 2.4vh; font-weight: 700; }
+  .gift .to img { width: 5vh; height: 5vh; border-radius: 50%; object-fit: cover; background: #111; }
+  .gift .arrow { font-family: "Bungee", sans-serif; font-size: 2.6vh; letter-spacing: .1em; color: var(--accent); }
+  .emotes { display: flex; gap: 1vh; justify-content: center; }
+  .emotes img { width: 7vh; height: 7vh; object-fit: contain; animation: wobble 1.6s ease-in-out infinite; }
+  /* hype train and the stats card */
+  .hype { font-family: "Bungee", sans-serif; font-size: 7vh; text-shadow: 0 0 3vh var(--accent); opacity: 0; }
+  .hype.in { animation: personIn .7s cubic-bezier(.2,1.5,.4,1) both; }
+  .stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 3vh 6vh; max-width: 86vw; }
+  .stat { min-width: 22vh; text-align: center; opacity: 0; }
+  .stat.in { animation: personIn .6s cubic-bezier(.2,1.5,.4,1) both; animation-delay: var(--d, 0s); }
+  .stat b { display: block; font-family: "Bungee", sans-serif; font-size: 9vh; line-height: 1; color: var(--accent); text-shadow: 0 0 3vh var(--accent); }
+  .stat span { font-size: 2.8vh; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+  /* the end: your logo and a last line, held in the middle */
+  .end { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; }
+  .end .logo { max-width: 60vw; max-height: 55vh; border-radius: 2vh; opacity: 0; transform: scale(.8); }
+  .end.in .logo { animation: personIn 1s cubic-bezier(.2,1.3,.4,1) both; }
+  .end h3 { font-family: "Bungee", sans-serif; font-weight: 400; font-size: 7vh; text-align: center; opacity: 0; text-shadow: 0 0 3vh var(--accent); }
+  .end.in h3 { animation: fadeUp .8s .6s ease both; }
+  body.lite .p img.av, body.lite .sec h2, body.lite .stat b, body.lite .title h1 span, body.lite .hype, body.lite .end h3 { text-shadow: none; box-shadow: 0 0 0 .45vh var(--accent); }
+  body.lite .sec h2, body.lite .stat b, body.lite .title h1 span, body.lite .hype, body.lite .end h3 { box-shadow: none; }
+
+  @keyframes secIn { 0% { opacity: 0; transform: scale(1.6); letter-spacing: .5em; } 100% { opacity: 1; transform: none; letter-spacing: .06em; } }
+  @keyframes personIn { 0% { opacity: 0; transform: translateY(4vh) scale(.8); } 100% { opacity: 1; transform: none; } }
+</style>
+</head>
+<body class="dark">
+<canvas id="fx"></canvas>
+<div id="view"><div id="roll"></div></div>
+
+<script src="/static/shared.js"></script>
+<script>
+const SAMPLE = Q.get("sample") === "1";
+let cfg = { title: "Thanks for watching!", end: "See you next stream!", speed: 1, background: "dark", loop: false, sections: [] };
+let logo = { src: "", kind: "image" }, data = null, playing = false, playTimer = null;
+const roll = $("roll");
+
+const SECTION = {
+  mods: ["Thank you to the mods", "🛡️"], vips: ["Thank you to the VIPs", "💎"], raiders: ["Raided by", "🚨"],
+  subs: ["New subscribers", "⭐"], resubs: ["Resubscribed", "🌟"], gifts: ["Gifted subs", "🎁"], cheers: ["Cheered", "💎"],
+  streaks: ["Watch streaks", "🔥"], follows: ["New followers", "💗"], first_chatters: ["First time in chat", "👋"],
+  gigantify: ["Gigantified", "🤩"], hype: ["Hype train", "🚂"], stats: ["This stream", "📊"],
+};
+const BIG = new Set(["mods", "vips", "raiders", "gifts"]);
+const n = x => (x || 0).toLocaleString();
+
+function detail(section, p) {
+  if (section === "raiders") return p.viewers ? `${n(p.viewers)} raiders` : "";
+  if (section === "resubs") return p.months ? `${p.months} months` + (p.tier && p.tier !== "Tier 1" ? ` · ${p.tier}` : "") : (p.tier || "");
+  if (section === "subs") return p.tier && p.tier !== "Tier 1" ? p.tier : "";
+  if (section === "cheers") return p.amount ? `${n(p.amount)} bits` : "";
+  if (section === "streaks") return p.count ? `${p.count} streams in a row` : "";
+  return "";
+}
+function person(p, section, i) {
+  const el = document.createElement("div");
+  el.className = "p";
+  el.style.setProperty("--d", ((i % 6) * .07).toFixed(2) + "s");
+  el.innerHTML = `<img class="av" alt=""><b></b><small></small>`;
+  el.querySelector("img").src = avatarSrc({ avatar: p.avatar, display_name: p.name });
+  el.querySelector("b").textContent = p.name;
+  el.querySelector("small").textContent = detail(section, p);
+  if (section === "gigantify" && (p.emotes || []).length) {
+    const e = document.createElement("div");
+    e.className = "emotes";
+    p.emotes.forEach(src => { const im = document.createElement("img"); im.src = src; im.alt = ""; e.appendChild(im); });
+    el.appendChild(e);
+  }
+  return el;
+}
+
+/* ── laying out the roll ──────────────────────────────────────────── */
+function build(d) {
+  roll.innerHTML = "";
+  const people = d.people || {};
+  const title = document.createElement("div");
+  title.className = "title reveal";
+  title.innerHTML = `<h1></h1><p></p>`;
+  renderWords(title.querySelector("h1"), cfg.title || "Thanks for watching!", .1);
+  title.querySelector("h1").querySelectorAll("span").forEach(s => s.classList.remove("hl"));
+  title.querySelector("p").textContent = new Date((d.started || Date.now() / 1000) * 1000).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  roll.appendChild(title);
+
+  for (const key of cfg.sections) {
+    const [label, icon] = SECTION[key] || [key, ""];
+    const sec = document.createElement("div");
+    sec.className = "sec reveal " + key + (BIG.has(key) ? " big" : "");
+    sec.innerHTML = `<h2><i>${icon}</i><span></span><i>${icon}</i></h2>`;
+    sec.querySelector("h2 span").textContent = label.toUpperCase();
+    if (key === "hype") {
+      if (!d.hype_level) continue;
+      const h = document.createElement("div");
+      h.className = "hype reveal"; h.textContent = `LEVEL ${d.hype_level}`;
+      sec.appendChild(h);
+    } else if (key === "stats") {
+      const st = d.stats || {}, rows = [["follows", "new followers"], ["subs", "subs"], ["gifted", "gifted subs"],
+        ["raids", st.raids === 1 ? "raid" : "raids"], ["bits", "bits"], ["first_chatters", "first-time chatters"]].filter(([k]) => st[k]);
+      if (!rows.length) continue;
+      const box = document.createElement("div");
+      box.className = "stats";
+      rows.forEach(([k, label2], i) => {
+        const s = document.createElement("div");
+        s.className = "stat reveal"; s.style.setProperty("--d", (i * .12).toFixed(2) + "s");
+        s.innerHTML = `<b data-to="${st[k]}">0</b><span>${label2}</span>`;
+        box.appendChild(s);
+      });
+      sec.appendChild(box);
+    } else if (key === "gifts") {
+      const list = people.gifts || [];
+      if (!list.length) continue;
+      list.forEach(p => {
+        const g2 = document.createElement("div");
+        g2.className = "gift reveal";
+        const giver = person(p, "gifts", 0);
+        giver.classList.add("in");
+        giver.querySelector("small").textContent = `gifted ${p.count || (p.to || []).length} sub${(p.count || 1) === 1 ? "" : "s"}`;
+        g2.appendChild(giver);
+        if ((p.to || []).length) {
+          g2.insertAdjacentHTML("beforeend", `<div class="arrow">TO</div><div class="to"></div>`);
+          const to = g2.querySelector(".to");
+          p.to.forEach(r => {
+            const chip = document.createElement("span");
+            chip.innerHTML = `<img alt="">`;
+            chip.querySelector("img").src = avatarSrc({ avatar: r.avatar, display_name: r.name });
+            chip.append(r.name);
+            to.appendChild(chip);
+          });
+        }
+        sec.appendChild(g2);
+      });
+    } else {
+      const list = people[key] || [];
+      if (!list.length) continue;
+      const box = document.createElement("div");
+      box.className = "people";
+      list.forEach((p, i) => {
+        const el = person(p, key, i);
+        el.classList.add("reveal");
+        if (key === "mods") el.insertAdjacentHTML("beforeend", "");
+        box.appendChild(el);
+      });
+      sec.appendChild(box);
+    }
+    roll.appendChild(sec);
+  }
+
+  const end = document.createElement("div");
+  end.className = "end reveal";
+  if (logo.src) {
+    const m = document.createElement(logo.kind === "video" ? "video" : "img");
+    m.className = "logo"; m.src = logo.src;
+    if (logo.kind === "video") { m.muted = true; m.loop = true; m.autoplay = true; m.playsInline = true; }
+    end.appendChild(m);
+  }
+  end.insertAdjacentHTML("beforeend", "<h3></h3>");
+  end.querySelector("h3").textContent = cfg.end || "";
+  roll.appendChild(end);
+}
+
+/* ── rolling it: everything pops in as it comes up from the bottom ─── */
+let y = 0, endY = 0, lastT = 0, holdUntil = 0;
+function play(d) {
+  data = d || data || { people: {}, stats: {} };
+  cancelAnimationFrame(rafId);
+  clearTimeout(playTimer);
+  document.body.classList.toggle("dark", cfg.background !== "clear");
+  build(data);
+  y = 0; roll.style.transform = "translateY(0)";
+  endY = roll.scrollHeight - innerHeight;      // the end card centred
+  holdUntil = 0; playing = true; lastT = performance.now();
+  rafId = requestAnimationFrame(step);
+}
+let rafId = 0;
+function step(t) {
+  const dt = Math.min(t - lastT, 100) / 1000; lastT = t;
+  const speed = innerHeight * .085 * (cfg.speed || 1);      // about a twelfth of the screen a second
+  if (y < endY) {
+    y = Math.min(endY, y + speed * dt);
+    roll.style.transform = `translateY(${-y}px)`;
+  } else if (!holdUntil) {
+    holdUntil = t + 8000;                                  // hold the end card
+  } else if (t > holdUntil) {
+    playing = false;
+    if (cfg.loop) { playTimer = setTimeout(() => play(), 1500); }
+    return;
+  }
+  const line = innerHeight * .9;
+  roll.querySelectorAll(".reveal:not(.in)").forEach(el => {
+    if (el.getBoundingClientRect().top < line) {
+      el.classList.add("in");
+      el.querySelectorAll(".p, .gift, .stat, .hype").forEach(c => c.classList.add("in"));
+      el.querySelectorAll(".stat b[data-to]").forEach(b => countUp(b));
+    }
+  });
+  rafId = requestAnimationFrame(step);
+}
+function countUp(b) {
+  const to = parseInt(b.dataset.to, 10) || 0, t0 = performance.now();
+  const go = now => { const p = Math.min(1, (now - t0) / 1400); b.textContent = n(Math.round(to * (1 - Math.pow(1 - p, 3)))); if (p < 1) requestAnimationFrame(go); };
+  requestAnimationFrame(go);
+}
+
+/* ── theme particles drifting up behind it all ───────────────────── */
+const fx = $("fx"), g = fx.getContext("2d");
+let motes = [];
+function sizeFx() { fx.width = innerWidth; fx.height = innerHeight; }
+function moteTick(t) {
+  if (cfg.background === "clear") { g.clearRect(0, 0, fx.width, fx.height); requestAnimationFrame(moteTick); return; }
+  const want = LITE ? 14 : 40;
+  while (motes.length < want) {
+    const colors = THEME.float_colors || ["#ff2a6d", "#ff6fa8", "#ffffff"];
+    motes.push({ x: Math.random() * fx.width, y: fx.height + Math.random() * fx.height, s: 10 + Math.random() * 22,
+      v: .3 + Math.random() * .8, w: Math.random() * 6.28, img: Math.random() < .5 ? floatSprite(THEME.float || "heart", colors[Math.floor(Math.random() * colors.length)]) : glowSprite(hex6(accent())) });
+  }
+  g.clearRect(0, 0, fx.width, fx.height);
+  for (const m of motes) {
+    m.y -= m.v; m.x += Math.sin(t / 1500 + m.w) * .3;
+    if (m.y < -40) { m.y = fx.height + 40; m.x = Math.random() * fx.width; }
+    g.globalAlpha = .55;
+    g.drawImage(m.img, m.x - m.s / 2, m.y - m.s / 2, m.s, m.s);
+  }
+  g.globalAlpha = 1;
+  requestAnimationFrame(moteTick);
+}
+sizeFx(); addEventListener("resize", sizeFx);
+requestAnimationFrame(moteTick);
+
+/* ── sample data (the settings page preview, or ?sample=1) ─────────── */
+function sampleData() {
+  const P = (name, extra = {}) => ({ login: name.toLowerCase(), name, avatar: "", ...extra });
+  return {
+    started: Date.now() / 1000, hype_level: 3,
+    people: {
+      mods: [P("ModSquadLeader"), P("NightWatch"), P("ChatGuardian")],
+      vips: [P("BestBuddy")],
+      raiders: [P("RaidCaptain", { viewers: 128 })],
+      subs: [P("FreshSub"), P("GoldSub", { tier: "Tier 3" })],
+      resubs: [P("LoyalFan", { months: 12 }), P("OldTimer", { months: 30, tier: "Tier 2" })],
+      gifts: [P("GenerousGifter", { count: 5, to: ["Alpha", "Bravo", "Charlie", "Delta", "Echo"].map(n2 => P(n2)) })],
+      cheers: [P("Cheerful", { amount: 1500 }), P("BitsBoss", { amount: 500 })],
+      streaks: [P("LoyalViewer", { count: 12 })],
+      follows: ["NewViewer", "PixelPanda", "LuckyLuna", "SunnyVibes", "MoonWalker", "TacoTues", "StarDust", "CoolCat"].map(n2 => P(n2)),
+      first_chatters: [P("FirstTimer"), P("HelloThere"), P("JustArrived")],
+      gigantify: [P("EmoteFan", { emotes: ["/static/icon/icon.svg"] })],
+    },
+    stats: { follows: 8, subs: 4, gifted: 5, raids: 1, raiders: 128, bits: 2000, first_chatters: 3 },
+  };
+}
+
+/* ── messages from the server ─────────────────────────────────────── */
+let started = false;
+openSocket("credits", ev => {
+  if (ev.type === "hello" || ev.type === "logo_src") {
+    applyMode(ev.tv_mode || "auto");
+    if (ev.theme) { THEME = ev.theme; setAccent(null); }
+    cfg = ev.credits || cfg;
+    logo = { src: ev.logo || "", kind: ev.logo_kind === "video" ? "video" : "image" };
+    document.body.classList.toggle("dark", cfg.background !== "clear");
+    if (started && ev.type === "logo_src") play();       // settings changed: show them
+  }
+  else if (ev.type === "credits_data") {
+    if (!started) { started = true; play(SAMPLE ? sampleData() : ev.data); }
+    else if (!playing && !SAMPLE) data = ev.data;        // for the next roll
+    else if (!SAMPLE) data = ev.data;
+  }
+  else if (ev.type === "credits_play") { started = true; play(SAMPLE ? sampleData() : ev.data); }
+  else if (ev.type === "reload") location.reload();
+});
+</script>
+</body>
+</html>
