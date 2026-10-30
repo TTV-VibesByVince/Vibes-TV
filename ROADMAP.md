@@ -38,5 +38,7 @@ to vote for one or suggest your own.
   per alert type. See [Stream overlay](docs/overlay.md).
 - **TikTok LIVE alerts** (1.5): follows, subscriptions and gifts, optional.
   See [TikTok LIVE](docs/tiktok.md).
+- **End credits and TikTok widgets** (1.8): see [End credits](docs/credits.md)
+  and [TikTok LIVE](docs/tiktok.md#widgets-for-obs).
 - **Text to speech** (1.6): TikTok chat and `/tts` read aloud with Edge
   voices. See [Text to speech](docs/tts.md).
