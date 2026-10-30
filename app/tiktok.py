@@ -40,12 +40,14 @@ class TikTokWatcher:
     settings: the Settings object (reads tiktok_* keys).
     alert(ev): queues an alert dict; returns the screens it went to.
     chat(who, text): optional, called with each chat message (text to speech).
+    stats: optional TikTokStats, for the like and gifter widgets.
     """
 
-    def __init__(self, settings, alert, chat=None):
+    def __init__(self, settings, alert, chat=None, stats=None):
         self.S = settings
         self.alert = alert
         self.chat_to = chat
+        self.stats = stats
         self.task = None
         self.config = None
         self.state, self.detail, self.since = "off", "", time.time()
@@ -57,6 +59,8 @@ class TikTokWatcher:
         if (state, detail) != (self.state, self.detail):
             log.info("tiktok: %s%s", state, f" ({detail})" if detail else "")
         self.state, self.detail, self.since = state, detail, time.time()
+        if self.stats:
+            self.stats.set_live(state == "live")
 
     def status(self):
         return {"state": self.state, "detail": self.detail, "username": self.S["tiktok_username"],
@@ -95,7 +99,8 @@ class TikTokWatcher:
             from TikTokLive import TikTokLiveClient
             from TikTokLive.client.errors import UserOfflineError
             from TikTokLive.client.web.web_settings import WebDefaults
-            from TikTokLive.events import CommentEvent, FollowEvent, GiftEvent, SubNotifyEvent
+            from TikTokLive.events import (CommentEvent, FollowEvent, GiftEvent, LikeEvent, RoomUserSeqEvent,
+                                           SubNotifyEvent)
         except ImportError:
             self.set_state("error", "The TikTokLive library isn't installed in this image")
             return
@@ -125,9 +130,21 @@ class TikTokWatcher:
                           getattr(g, "diamond_count", 0) or 0, getattr(e, "repeat_count", 1) or 1,
                           streaking=streakable and not getattr(e, "repeat_end", 0))
 
+            @client.on(LikeEvent)
+            async def _like(e):
+                self.like(person(e.user), getattr(e, "like_count", 0) or getattr(e, "count", 0),
+                          getattr(e, "total_like_count", 0) or getattr(e, "total", 0))
+
+            @client.on(RoomUserSeqEvent)
+            async def _viewers(e):
+                if self.stats:
+                    self.stats.viewers(getattr(e, "viewer_count", 0) or getattr(e, "total_user", 0))
+
             try:
                 self.set_state("connecting", "@" + username)
                 loop = await client.start(fetch_live_check=True)
+                if self.stats:
+                    self.stats.new_live(getattr(client, "room_id", None))
                 self.set_state("live", "@" + username)
                 wait = RETRY_ERROR[0]
                 await loop
@@ -159,6 +176,10 @@ class TikTokWatcher:
         self.counts["follow"] += 1
         return self.alert({"type": "follow", "platform": "tiktok", **who, "clip": False})
 
+    def like(self, who, count, total=None):
+        if self.stats:
+            self.stats.like(who, count, total)
+
     def chat(self, who, text):
         self.counts["chat"] += 1
         if self.chat_to and text.strip():
@@ -177,6 +198,8 @@ class TikTokWatcher:
         if streaking:
             return None
         coins = max(0, int(coins_each)) * max(1, int(count))
+        if self.stats:
+            self.stats.gift(who, coins)     # every gift counts for top gifters, even small ones
         if coins < self.S["tiktok_min_coins"]:
             return None
         self.counts["gift"] += 1

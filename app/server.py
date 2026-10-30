@@ -48,9 +48,11 @@ from aiohttp import web
 from PIL import Image
 
 from tiktok import TikTokWatcher
+from session import SECTIONS as CREDIT_SECTIONS, Session
+from tiktok_stats import TikTokStats
 from tts import VOICE_RE, Speaker
 
-VERSION = "1.7"
+VERSION = "1.8"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -144,6 +146,20 @@ SCHEMA = {
     "tts_cooldown":         (float, 15.0),        # seconds before the same person is read again
     "tts_blocked":          (str,   ""),          # words (comma or line separated): messages with them aren't read
     "tts_show_text":        (bool,  True),        # show what's being read on the overlay
+    # TikTok widgets (/tiktok/likes, /likers, /gifters, /combined)
+    "tiktok_widget_count":  (float, 5.0),         # people on the top likers / top gifters lists
+    "tiktok_widget_layout": (str,   "column"),    # column | row
+    "tiktok_widget_scale":  (float, 1.0),
+    "tiktok_widget_opacity": (float, 0.85),
+    "tiktok_like_goal":     (float, 0.0),         # 0 = no goal bar
+    "tiktok_widget_hide_offline": (bool, True),   # hide the widgets while you're not live on TikTok
+    # End credits (/credits)
+    "credits_title":        (str,   "Thanks for watching!"),
+    "credits_end":          (str,   "See you next stream!"),
+    "credits_sections":     (dict,  {}),          # section -> false to leave it out (all on by default)
+    "credits_speed":        (float, 1.0),
+    "credits_background":   (str,   "dark"),      # dark | clear
+    "credits_loop":         (bool,  False),
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
 TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
@@ -154,7 +170,9 @@ LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60),
           "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30), "overlay_darken": (0, 0.9),
           "tiktok_min_coins": (0, 1000000),
-          "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600)}
+          "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600),
+          "tiktok_widget_count": (1, 10), "tiktok_widget_scale": (0.5, 2), "tiktok_widget_opacity": (0.2, 1),
+          "tiktok_like_goal": (0, 1000000000), "credits_speed": (0.3, 3)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
 REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
@@ -230,6 +248,7 @@ THEMES = {
 }
 # ── Screens: the TV and the stream overlay each have their own queue ─────
 SCREENS = ("tv", "overlay")
+WIDGET_SCREENS = ("tiktok", "credits")      # pages that listen but have no alert queue
 # Where each kind of alert plays. Subs and resubs share "sub".
 ROUTE_EVENTS = ["shoutout", "raid", "follow", "sub", "bits", "gift", "streak", "modiversary",
                 "gigantify", "message", "welcome", "hype", "tiktok_gift", "tts"]
@@ -305,6 +324,10 @@ def _check_dict(key, val):
             if v != ROUTE_DEFAULTS[k]:
                 out[k] = v
         return out, None
+    if key == "credits_sections":
+        if not isinstance(val, dict):
+            return None, "credits_sections: must be an object"
+        return {k: False for k, v in val.items() if k in CREDIT_SECTIONS and v is False}, None
     if key == "overlay_sizes":
         if not isinstance(val, dict):
             return None, "overlay_sizes: must be an object"
@@ -401,6 +424,15 @@ class Settings:
             if key.startswith("govee_") and val and not val.startswith(("http://", "https://")):
                 errors.append(f"{key}: must start with http://")
                 continue
+            if key == "tiktok_widget_layout" and val not in ("column", "row"):
+                errors.append("tiktok_widget_layout: column or row")
+                continue
+            if key == "credits_background" and val not in ("dark", "clear"):
+                errors.append("credits_background: dark or clear")
+                continue
+            if key in ("credits_title", "credits_end") and len(val) > 80:
+                errors.append(f"{key}: 80 characters at most")
+                continue
             if key == "tts_voice" and not val:
                 continue                        # voices not loaded on the page yet: keep the saved one
             if key == "tts_voice" and not VOICE_RE.match(val):
@@ -469,7 +501,19 @@ def overlay_info():
 def screen_info():
     """Sent to every screen on connect and whenever these settings change.
     The TV uses the logo part; the overlay uses the overlay part."""
-    return {**logo_info(), "overlay": overlay_info()}
+    return {**logo_info(), "overlay": overlay_info(), "widgets": widget_info(), "credits": credits_info()}
+
+
+def widget_info():
+    return {"count": int(S["tiktok_widget_count"]), "layout": S["tiktok_widget_layout"],
+            "scale": S["tiktok_widget_scale"], "opacity": S["tiktok_widget_opacity"],
+            "goal": int(S["tiktok_like_goal"]), "hide_offline": S["tiktok_widget_hide_offline"]}
+
+
+def credits_info():
+    return {"title": S["credits_title"], "end": S["credits_end"], "speed": S["credits_speed"],
+            "background": S["credits_background"], "loop": S["credits_loop"],
+            "sections": [k for k in CREDIT_SECTIONS if S["credits_sections"].get(k, True)]}
 
 
 def active_theme_id(today=None):
@@ -743,11 +787,30 @@ class TV:
         if limit:
             dests = [d for d in dests if self.screens[d].queue.qsize() < MAX_QUEUE]
         if not dests:
+            self.credit(ev)
             return []
         prep = asyncio.create_task(self.prepare(ev, dests))
         for d in dests:
             self.screens[d].queue.put_nowait((ev, prep))
+        self.credit(ev, prep)
         return dests
+
+    def credit(self, ev, prep=None):
+        """Remember an alert for the end credits (not tests, not TikTok)."""
+        if ev.get("test") or ev.get("platform") or not ev.get("user"):
+            return
+
+        async def later():
+            try:
+                payload = (await asyncio.shield(prep))["payload"] if prep else None
+            except Exception:
+                payload = None
+            if payload is None:          # not shown (a full queue): remember them anyway
+                payload = {**ev, "user": {"login": ev["user"].lower(), "display_name": ev.get("display") or ev["user"],
+                                          "avatar": ev.get("avatar") or ""},
+                           "recipients": [{"login": r.lower(), "display_name": r} for r in ev.get("recipients") or []]}
+            session.record(ev["type"], payload)
+        asyncio.create_task(later())
 
     async def call_url(self, template, hex_color=""):
         if not template:
@@ -817,7 +880,7 @@ class TV:
         return people
 
     # ── gifted subs arrive one request per recipient; batch them ──
-    async def add_gift(self, gifter, recipient=None, count=None, avatar=None, display=None, screen=None):
+    async def add_gift(self, gifter, recipient=None, count=None, avatar=None, display=None, screen=None, test=False):
         key = gifter.lower()
         now = time.monotonic()
         b = self.gifts.get(key)
@@ -831,6 +894,7 @@ class TV:
         b["avatar"] = avatar or b["avatar"]
         b["display"] = display or b["display"]
         b["screen"] = screen or b.get("screen")
+        b["test"] = test or b.get("test", False)
         if b["task"]:
             b["task"].cancel()
         complete = b["count"] and len(b["recipients"]) >= b["count"]
@@ -845,7 +909,7 @@ class TV:
             self.dispatch({"type": "gift", "user": b["user"], "avatar": b["avatar"],
                            "display": b["display"], "recipients": b["recipients"],
                            "count": b["count"] or len(b["recipients"]), "clip": False,
-                           "screen": b.get("screen")})
+                           "screen": b.get("screen"), "test": b.get("test", False)})
 
     # ── gigantified emotes: an ID or link works as is, a name is looked up ──
     async def resolve_emote(self, value, name=""):
@@ -888,6 +952,8 @@ class TV:
             profile = await self.build_profile(ev)
             color = event_color("welcome", await self.avatar_color(profile["avatar"]))
             ctx = {"name": profile["display_name"]}
+            if not ev.get("test"):
+                session.record("welcome", {"user": profile})
             msg = {"type": "welcome", "user": profile, "color": color, "seconds": S["welcome_seconds"],
                    "text": {"title": text_for("welcome.title", **ctx), "sub": text_for("welcome.sub", **ctx)}}
             for screen in destinations("welcome", ev.get("screen")):
@@ -908,7 +974,9 @@ class TV:
         for screen in destinations("hype", override):
             await self.broadcast(msg, screen)
 
-    async def hype_update(self, action, level=None, progress=None, goal=None, percent=None, screen=None):
+    async def hype_update(self, action, level=None, progress=None, goal=None, percent=None, screen=None, test=False):
+        if not test:
+            session.hype(level)
         prev = self.hype
         if action == "end":
             lvl = level or (prev["level"] if prev else 1)
@@ -1124,8 +1192,41 @@ async def tts_play(msg, override=None):
 
 
 speaker = Speaker(S, lambda msg, override: tts_play(msg, override), CACHE / "tts")
+session = Session(CONFIG / "session.json")
+tiktok_stats = TikTokStats(CONFIG / "tiktok_stats.json")
+
+
+def later_push(key, make):
+    """Send a fresh copy to the widget pages at most every 0.4 s: likes can
+    arrive many times a second, and the pages only need the latest numbers."""
+    if PUSHING.get(key):
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    PUSHING[key] = True
+
+    async def push():
+        await asyncio.sleep(0.4)
+        PUSHING[key] = False
+        await tv.broadcast(make(), key)
+    loop.create_task(push())
+
+
+PUSHING = {}
+
+
+def hook_up():
+    """Push changes to the open credits and TikTok widget pages."""
+    session.on_change = lambda: later_push("credits", lambda: {"type": "credits_data", "data": session.snapshot()})
+    tiktok_stats.on_change = lambda: later_push("tiktok", lambda: {"type": "tiktok_stats", **tiktok_stats.snapshot()})
+
+
+hook_up()
 tiktok = TikTokWatcher(S, lambda ev: tv.dispatch(ev, limit=True),
-                       chat=lambda who, text: speaker.say(text, who["display"], source="tiktok"))
+                       chat=lambda who, text: speaker.say(text, who["display"], source="tiktok"),
+                       stats=tiktok_stats)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -1168,6 +1269,48 @@ async def index(request):
     return web.FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
+async def credits_page(request):
+    """End credits for an "Ending" scene in OBS."""
+    return web.FileResponse(STATIC / "credits.html", headers={"Cache-Control": "no-cache"})
+
+
+async def tiktok_widget(request):
+    """/tiktok/likes, /tiktok/likers, /tiktok/gifters, /tiktok/combined"""
+    if request.match_info["kind"] not in ("likes", "likers", "gifters", "combined"):
+        raise web.HTTPNotFound(text="use /tiktok/likes, /tiktok/likers, /tiktok/gifters or /tiktok/combined")
+    return web.FileResponse(STATIC / "tiktok.html", headers={"Cache-Control": "no-cache"})
+
+
+async def credits_seen(request):
+    """/credits/seen/<user>?role=mod|vip[&avatar=]: thank them in the credits.
+    From MixItUp: an Entrance Command for each mod (or VIP)."""
+    role = (request.query.get("role") or "mod").strip().lower()
+    if role not in ("mod", "vip"):
+        raise web.HTTPBadRequest(text="role must be mod or vip")
+    user = clean_user(request.match_info["user"])
+    profile = await tv.build_profile({"user": user, "avatar": request.query.get("avatar"),
+                                      "display": request.query.get("display")})
+    session.seen(profile, role)
+    return web.json_response({"ok": True, "role": role, "count": len(session.data["people"][role + "s"])})
+
+
+async def credits_reset(request):
+    """A new stream: MixItUp's Stream Start event calls this."""
+    session.reset()
+    return web.json_response({"ok": True})
+
+
+async def credits_play(request):
+    """Start the credits again on every open credits page (e.g. a Stream Deck button)."""
+    await tv.broadcast({"type": "credits_play", "data": session.snapshot()}, "credits")
+    return web.json_response({"ok": True, "pages": tv.count("credits")})
+
+
+async def tiktok_reset(request):
+    tiktok_stats.reset(tiktok_stats.data.get("room"))
+    return web.json_response({"ok": True})
+
+
 async def overlay_page(request):
     """The transparent stream overlay, for an OBS Browser Source."""
     return web.FileResponse(STATIC / "overlay.html", headers={"Cache-Control": "no-cache"})
@@ -1181,11 +1324,16 @@ async def ws_handler(request):
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     preview = request.query.get("preview") == "1"
-    screen = request.query.get("screen") if request.query.get("screen") in SCREENS else "tv"
+    asked = request.query.get("screen")
+    screen = asked if asked in SCREENS + WIDGET_SCREENS else "tv"
     tv.clients[ws] = {"screen": screen, "preview": preview}
     who = f"{screen}{' preview' if preview else ''}"
     log.info("%s connected (%d tv, %d overlay)", who, tv.count("tv"), tv.count("overlay"))
     await ws.send_str(json.dumps({"type": "hello", "version": VERSION, "screen": screen, **screen_info()}))
+    if screen == "tiktok":
+        await ws.send_str(json.dumps({"type": "tiktok_stats", **tiktok_stats.snapshot()}))
+    elif screen == "credits":
+        await ws.send_str(json.dumps({"type": "credits_data", "data": session.snapshot()}))
     if tv.hype and screen in destinations("hype"):     # a screen that (re)connects mid hype train
         await ws.send_str(json.dumps(tv.hype_message()))
     try:
@@ -1201,7 +1349,7 @@ def _card_event(request, kind):
     ev = {"type": kind, "user": clean_user(request.match_info["user"]),
           "avatar": request.query.get("avatar"), "display": request.query.get("display"),
           "game": request.query.get("game"), "clip": flag(request, "clip"),
-          "sound": flag(request, "sound"), "screen": screen_param(request)}
+          "sound": flag(request, "sound"), "screen": screen_param(request), "test": bool(flag(request, "test"))}
     if kind == "raid":
         viewers = request.query.get("viewers", "").strip()
         ev["viewers"] = int(viewers) if viewers.isdigit() else None
@@ -1236,7 +1384,7 @@ async def gift(request):
     n = 0
     for r in recipients or [None]:
         n = await tv.add_gift(gifter, r, _count(request), request.query.get("avatar"),
-                              request.query.get("display"), screen_param(request))
+                              request.query.get("display"), screen_param(request), bool(flag(request, "test")))
     return web.json_response({"ok": True, "collected": n})
 
 
@@ -1245,7 +1393,7 @@ async def giftbomb(request):
     in the next few seconds are shown with it."""
     gifter = clean_user(request.match_info["user"])
     n = await tv.add_gift(gifter, None, _count(request) or 1, request.query.get("avatar"),
-                          request.query.get("display"), screen_param(request))
+                          request.query.get("display"), screen_param(request), bool(flag(request, "test")))
     return web.json_response({"ok": True, "collected": n})
 
 
@@ -1349,7 +1497,8 @@ async def hypetrain(request):
         pct = None
     await tv.hype_update("start" if action == "start" else "end" if action == "end" else "progress",
                          level=_int(request, "level", 1, 100), progress=_int(request, "progress"),
-                         goal=_int(request, "goal", 1), percent=pct, screen=screen_param(request))
+                         goal=_int(request, "goal", 1), percent=pct, screen=screen_param(request),
+                         test=bool(flag(request, "test")))
     return web.json_response({"ok": True, "hype": tv.hype})
 
 
@@ -1433,6 +1582,8 @@ async def status(request):
         "version": VERSION,
         "tvs_connected": tv.tv_count,
         "overlays_connected": tv.count("overlay"),
+        "widgets_connected": tv.count("tiktok"),
+        "credits_connected": tv.count("credits"),
         "queued": tv.queue.qsize(),
         "queued_overlay": tv.screens["overlay"].queue.qsize(),
         "showing": tv.current["type"] if tv.current else "logo",
@@ -1446,7 +1597,7 @@ async def status(request):
 
 EVENT_PATHS = ("/shoutout/", "/raid/", "/follow/", "/gift/", "/giftbomb/", "/sub/", "/resub/", "/bits/",
                "/streak/", "/modiversary/", "/gigantify/", "/welcome/", "/hypetrain", "/message", "/logo",
-               "/tts")
+               "/tts", "/credits/", "/tiktok/reset")
 
 
 @web.middleware
@@ -1518,7 +1669,10 @@ async def api_state(request):
                    "overlays_connected": tv.count("overlay"), "queued_overlay": tv.screens["overlay"].queue.qsize(),
                    "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
                    "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee,
-                   "tiktok": tiktok.status(), "tts": speaker.status(), **logo_info()},
+                   "tiktok": tiktok.status(), "tts": speaker.status(),
+                   "widgets_connected": tv.count("tiktok"), "credits_connected": tv.count("credits"),
+                   "tiktok_stats": tiktok_stats.snapshot(3), "credits_stats": session.snapshot()["stats"],
+                   **logo_info()},
         "media": list_media(),
         "password_protected": bool(ADMIN_PASSWORD),
         "text_defaults": TEXT_DEFAULTS,
@@ -1528,6 +1682,7 @@ async def api_state(request):
         "route_events": ROUTE_EVENTS,
         "route_defaults": ROUTE_DEFAULTS,
         "size_events": SIZE_EVENTS,
+        "credit_sections": CREDIT_SECTIONS,
         "size_defaults": SIZE_DEFAULTS,
         "overlay_positions": OVERLAY_POSITIONS,
         "active_theme": active_theme_id(),
@@ -1665,13 +1820,19 @@ async def api_test_twitch(request):
         return web.json_response({"ok": False, "result": f"{e.__class__.__name__}: {e}"})
 
 
+TIKTOK_TEST_LIKERS = ["DanceQueen", "PixelPanda", "LuckyLuna", "NightOwlTV", "SunnyVibes", "TacoTues"]
 TIKTOK_TEST_GIFTS = {"small": ("Rose", 1, 5), "medium": ("Doughnut", 30, 4), "big": ("Lion", 29999, 1)}
 
 
 async def api_test_tiktok(request):
     """Play a made-up TikTok alert (no TikTok connection needed):
-    ?kind=follow|sub|gift&size=small|medium|big, plus the usual &screen=."""
+    ?kind=follow|sub|gift|likes&size=small|medium|big, plus the usual &screen=.
+    Test gifts and likes add to the real widget counts (Reset clears them)."""
     kind = request.query.get("kind", "gift")
+    if kind == "likes":
+        for name in random.sample(TIKTOK_TEST_LIKERS, 3):
+            tiktok_stats.like({"user": name.lower(), "display": name, "avatar": ""}, random.randint(20, 120))
+        return web.json_response({"ok": True, "likes": tiktok_stats.data["likes"]})
     who = {"user": "tiktok_tester", "display": "TikTok Tester", "avatar": ""}
     override = screen_param(request)
     if kind == "follow":
@@ -1682,6 +1843,7 @@ async def api_test_tiktok(request):
         name, coins, count = TIKTOK_TEST_GIFTS.get(request.query.get("size", "small"), TIKTOK_TEST_GIFTS["small"])
         ev = {"type": "tiktok_gift", "platform": "tiktok", **who, "clip": False,
               "gift": {"name": name, "image": ""}, "count": count, "coins": coins * count}
+        tiktok_stats.gift(who, coins * count)
     else:
         raise web.HTTPBadRequest(text="kind must be follow, sub or gift")
     ev["screen"] = override
@@ -1720,6 +1882,12 @@ def make_app():
     app.router.add_get("/", index)
     app.router.add_get("/tv", index)
     app.router.add_get("/overlay", overlay_page)
+    app.router.add_get("/credits", credits_page)
+    app.router.add_route("*", "/credits/seen/{user}", credits_seen)
+    app.router.add_route("*", "/credits/reset", credits_reset)
+    app.router.add_route("*", "/credits/play", credits_play)
+    app.router.add_route("*", "/tiktok/reset", tiktok_reset)
+    app.router.add_get("/tiktok/{kind}", tiktok_widget)
     app.router.add_get("/ws", ws_handler)
     app.router.add_route("*", "/shoutout/{user}", shoutout)
     app.router.add_route("*", "/raid/{user}", raid)
