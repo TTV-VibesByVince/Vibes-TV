@@ -4,18 +4,31 @@
 
 Movie-style credits for the end of your stream: everyone who followed,
 subbed, gifted, raided, cheered or chatted for the first time, a thank-you
-to your mods, with their profile pictures, then your logo. Put them in an
-"Ending" scene in OBS.
+to your mods, with their profile pictures, then your logo. They can sit
+invisibly on top of your stream until you play them, or have a scene of
+their own.
+
+They're Twitch only: TikTok follows, subs and gifts are left out (the
+[TikTok widgets](tiktok.md#widgets-for-obs) cover those all stream).
 
 ## Add them to OBS
 
-1. Add a **Browser** source with `http://<server-ip>:8777/credits`, **Width
-   1920**, **Height 1080**.
-2. Tick **Refresh browser when scene becomes active**, so they roll from the
-   top each time you switch to the scene.
+The credits have their own address: `http://<server-ip>:8777/credits`. Add
+it as a **Browser** source, **Width 1920**, **Height 1080**. Then pick one of
+two ways to use it:
 
-`/credits/play` starts them again on every open credits page, for example
-from a Stream Deck button or a MixItUp command.
+**On top of your main scene (recommended).** Settings > Credits: **When they
+start** = *Only when /credits/play is called*, **When they finish** = *Fade
+away*. The source stays invisible all stream. When you call `/credits/play`
+(a Stream Deck button, or a MixItUp command like `!credits`), they take over
+the whole screen, roll, then fade away and your stream is back.
+
+**In an "Ending" scene.** **When they start** = *When the source appears*,
+and in OBS tick **Refresh browser when scene becomes active**, so they roll
+from the top each time you switch to the scene. **When they finish** = *Stay
+on the end card* (or *Start again* to loop).
+
+`/credits/play` starts them again on every open credits page, either way.
 
 ## Who's in them
 
@@ -41,6 +54,26 @@ train. Test alerts from the settings page aren't remembered.
 
 Lists with nobody in them are left out. Untick any list under **Settings >
 Credits > What's in the credits**.
+
+## Animations
+
+Each list can have its own animation as it rolls in (on by default; untick
+**Animation** next to a list to turn it off). They play behind the names, so
+the names stay readable.
+
+| List | Animation |
+| --- | --- |
+| Thank you to the mods | Two swords swing in and cross with a slash of light, like the mod badge |
+| Thank you to the VIPs | Sparkles |
+| Raided by | Police lights sweeping, and hazard tape across the top and bottom |
+| New subscribers / Resubscribed | A burst of stars |
+| Gifted subs | Gift boxes raining down |
+| Cheered | Gems in Twitch's cheer colours raining down |
+| Watch streaks | A wall of fire along the bottom |
+| New followers | Hearts floating up |
+| First time in chat | Waving hands popping up |
+| Hype train | A train crossing the screen |
+| This stream | Confetti cannons |
 
 ## Set it up in MixItUp
 
@@ -74,10 +107,12 @@ Settings > **Credits**:
 | Title | The big line at the top. "Thanks for watching!" by default. |
 | Last line | Under your logo at the end. "See you next stream!" by default. |
 | Speed | 0.3 (slow) to 3 (fast); 1 is about a twelfth of the screen a second. |
-| Background | **Dark**, with your theme's particles drifting up, or **See-through**, over your stream. |
-| Loop | Start again after the end card, instead of staying on it. |
+| Background | **Dark** (your theme's particles drifting up), **Starfield** (flying through stars), **Neon grid** (a synthwave sun over a moving grid), **Aurora** (glowing colour waves), **Your logo** (blurred and darkened, like the TV) or **See-through** (over your stream). |
+| When they start | **When the source appears** (or the scene is switched to), or **Only when /credits/play is called**. |
+| When they finish | **Fade away** (back to see-through: your stream is back), **Stay on the end card**, or **Start again** (loop). |
 
-The end card shows your logo (from the Logo section) and holds for 8 seconds.
+The end card shows your logo (from the Logo section) for 7 seconds before
+the credits fade away or loop (or for good, with *Stay on the end card*).
 The credits use your theme's colour and particles, so they turn spooky in
 October with the Halloween theme.
 
@@ -86,5 +121,8 @@ October with the Halloween theme.
 - The list is saved on the server, so a restart mid-stream doesn't lose it.
 - Each person is listed once per list, however many times they cheered or
   gifted (the amounts add up).
-- The live preview on the Credits tab shows them with sample names; untick
-  **Show sample data** to see this stream's real list.
+- The live preview on the Credits tab shows them with sample names, and
+  follows your changes **before you save**, so you can try backgrounds and
+  animations. **Replay preview** starts just the preview again (the credits
+  in OBS aren't touched). Untick **Show sample data** to see this stream's
+  real list.

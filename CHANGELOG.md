@@ -15,8 +15,12 @@ working in later ones.
   Everyone is remembered automatically from your alerts (test alerts
   aren't). MixItUp's Stream Start calls `/credits/reset`; each mod's
   Entrance Command calls `/credits/seen/$username?role=mod`. `/credits/play`
-  rolls them again. Title, last line, speed, background, loop and which
-  sections are all settings.
+  rolls them again. Six backgrounds (dark, starfield, neon grid, aurora,
+  your logo, see-through), an animation per list (swords for the mods,
+  sirens for raiders, gems for cheers, a train for the hype train…), and
+  they can start only on `/credits/play` and fade away at the end, so they
+  can sit invisibly on top of your main scene. Twitch only. The settings
+  preview follows changes before you save.
 - **TikTok widgets**, each its own OBS source with profile pictures:
   `/tiktok/likes` (like counter with an optional goal), `/tiktok/likers`
   (top likers), `/tiktok/gifters` (top gifters by coins) and
