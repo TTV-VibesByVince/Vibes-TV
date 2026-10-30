@@ -89,13 +89,21 @@ async def test_credits_page_gets_the_list_and_play(client, srv):
 
 
 async def test_credits_settings(client, srv):
-    for bad in ({"credits_background": "neon"}, {"credits_title": "x" * 81}, {"credits_speed": 9}):
+    for bad in ({"credits_background": "lava"}, {"credits_title": "x" * 81}, {"credits_speed": 9},
+                {"credits_start": "soon"}, {"credits_finish": "explode"}, {"credits_effects": "all"}):
         assert (await client.post("/api/settings", json=bad)).status == 400, bad
     r = await client.post("/api/settings", json={"credits_sections": {"mods": True, "stats": False, "nope": False},
                                                  "credits_title": "GG everyone!"})
     assert r.status == 200 and srv.S["credits_sections"] == {"stats": False}
     info = srv.credits_info()
     assert "stats" not in info["sections"] and info["sections"][0] == "mods" and info["title"] == "GG everyone!"
+    assert info["start"] == "open" and info["finish"] == "fade" and info["background"] == "dark"
+    assert "mods" in info["effects"] and "gigantify" not in info["effects"]       # gigantify has no effect of its own
+    r = await client.post("/api/settings", json={"credits_background": "neon", "credits_start": "play", "credits_finish": "hold",
+                                                 "credits_effects": {"mods": False, "cheers": True}})
+    assert r.status == 200 and srv.S["credits_effects"] == {"mods": False}
+    info = srv.credits_info()
+    assert (info["background"], info["start"], info["finish"]) == ("neon", "play", "hold") and "mods" not in info["effects"]
     assert (await client.get("/credits")).status == 200
 
 

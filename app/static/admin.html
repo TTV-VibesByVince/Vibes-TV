@@ -148,8 +148,10 @@
   .addr { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; margin-top: 12px; }
   .addr b { grid-column: 1 / -1; font-size: 13px; margin-top: 6px; }
   .addr b span { font-weight: 400; color: var(--muted); }
-  .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 14px; margin-top: 10px; }
+  .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 0 26px; margin-top: 10px; }
   .checks label { display: flex; align-items: center; gap: 9px; font-size: 14px; cursor: pointer; }
+  .checks .csec { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .checks .cfx { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .checks input { width: 17px; height: 17px; accent-color: var(--accent); }
   .counts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
   .counts span { padding: 6px 12px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line); font-size: 13px; }
@@ -187,6 +189,8 @@
     <h2>Live preview <span class="seg" id="pvSeg"><button class="on" data-pv="tv">TV</button><button data-pv="overlay">Stream overlay</button><button data-pv="tiktok">TikTok</button><button data-pv="credits">Credits</button></span></h2>
     <p class="hint" id="pvHint">What the TV shows right now. Test buttons play on every connected TV.</p>
     <div class="preview" id="pv"><iframe id="pvframe" src="/tv?preview=1" title="TV preview"></iframe></div>
+    <div class="row" id="pvReplayRow" hidden style="margin-top:10px"><button onclick="frame.contentWindow.postMessage({ type: 'credits_replay' }, location.origin)">Replay preview</button>
+      <span class="hint">Only here: the credits in OBS aren't touched.</span></div>
     <label class="switch" id="pvSampleRow" hidden><span>Show sample data<br><span class="hint">Made-up names, so you can see it before your stream.</span></span><input type="checkbox" id="pvSample" checked></label>
     <div class="tests" id="tests">
       <label class="f" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="" placeholder="Your channel name (blank = twitch)" maxlength="25"></label>
@@ -386,11 +390,22 @@
       <label class="f"><span>Title</span><input type="text" data-k="credits_title" maxlength="80"></label>
       <label class="f"><span>Last line, under your logo</span><input type="text" data-k="credits_end" maxlength="80"></label>
       <label class="f"><span>Speed <span class="hint">(0.3 to 3, 1 = normal)</span></span><input type="number" data-k="credits_speed" min="0.3" max="3" step="0.1"></label>
-      <label class="f"><span>Background</span><select data-k="credits_background"><option value="dark">Dark, with theme particles</option><option value="clear">See-through (over your stream)</option></select></label>
+      <label class="f"><span>Background</span><select data-k="credits_background">
+        <option value="dark">Dark, with theme particles</option><option value="starfield">Starfield (flying through stars)</option>
+        <option value="neon">Neon grid (synthwave sun)</option><option value="aurora">Aurora (glowing colour waves)</option>
+        <option value="logo">Your logo, blurred (like the TV)</option><option value="clear">See-through (over your stream)</option></select></label>
+      <label class="f"><span>When they start</span><select data-k="credits_start">
+        <option value="open">When the source appears (or the scene is switched to)</option>
+        <option value="play">Only when /credits/play is called</option></select></label>
+      <label class="f"><span>When they finish</span><select data-k="credits_finish">
+        <option value="fade">Fade away, so your stream is back</option><option value="hold">Stay on the end card</option>
+        <option value="loop">Start again (loop)</option></select></label>
     </div>
-    <label class="switch"><span>Loop<br><span class="hint">Start again after the end card, instead of staying on it.</span></span><input type="checkbox" data-k="credits_loop"></label>
+    <p class="hint" style="margin-top:8px">To keep them on top of your main scene all stream: <b>Only when /credits/play is called</b> + <b>Fade away</b>.
+      They stay invisible until you play them (a Stream Deck button or a MixItUp command), take over the screen, then fade back out.</p>
     <h3 class="sub">What's in the credits</h3>
-    <p class="hint">Lists with nobody in them this stream are left out by themselves.</p>
+    <p class="hint">Lists with nobody in them this stream are left out by themselves. <b>Animation</b>: an effect as the section rolls in
+      (swords for the mods, sirens for raiders, gems for cheers, a train for the hype train…).</p>
     <div class="checks" id="crSections"></div>
     <h3 class="sub">Set it up in MixItUp</h3>
     <p class="hint"><b>Stream Start</b> event: a Web Request to start a new list each stream.</p>
@@ -803,7 +818,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits() };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects() };
 }
 
 async function save() {
@@ -972,6 +987,7 @@ function showPreview(which) {
   frame.src = PV_SRC[which] + "preview=1" + sample;
   $("pvHint").textContent = PV_HINT[which];
   $("pvSampleRow").hidden = !(which === "tiktok" || which === "credits");
+  $("pvReplayRow").hidden = which !== "credits";
   $("tests").hidden = !(which === "tv" || which === "overlay");
 }
 $("pvSeg").querySelectorAll("button").forEach(b => b.onclick = () => showPreview(b.dataset.pv));
@@ -1004,16 +1020,39 @@ $("crSeen").textContent = location.origin + "/credits/seen/$username?role=mod&av
 const SECTION_LABELS = { mods: "Thank you to the mods", vips: "Thank you to the VIPs", raiders: "Raiders", subs: "New subs", resubs: "Resubs",
   gifts: "Gifted subs (who gifted, and to whom)", cheers: "Cheers (bits)", streaks: "Watch streaks", follows: "New followers",
   first_chatters: "First-time chatters", gigantify: "Gigantified emotes", hype: "Hype train level", stats: "Stream stats" };
+const EFFECT_NAMES = { mods: "swords", vips: "sparkles", raiders: "sirens", subs: "stars", resubs: "stars", gifts: "gift rain", cheers: "gem rain",
+  streaks: "fire", follows: "hearts", first_chatters: "waves", hype: "a train", stats: "confetti" };
 function renderCredits() {
-  const off = state.settings.credits_sections || {};
-  $("crSections").innerHTML = state.credit_sections.map(k => `<label><input type="checkbox" data-csec="${k}"${off[k] === false ? "" : " checked"}> ${esc(SECTION_LABELS[k] || k)}</label>`).join("");
-  $("crSections").querySelectorAll("input").forEach(el => el.addEventListener("change", markDirty));
+  const off = state.settings.credits_sections || {}, offFx = state.settings.credits_effects || {};
+  $("crSections").innerHTML = state.credit_sections.map(k => `<div class="csec"><label><input type="checkbox" data-csec="${k}"${off[k] === false ? "" : " checked"}> ${esc(SECTION_LABELS[k] || k)}</label>${
+    state.credit_effects.includes(k) ? `<label class="cfx" title="An animation as this section rolls in"><input type="checkbox" data-cfx="${k}"${offFx[k] === false ? "" : " checked"}> ${esc(EFFECT_NAMES[k] || "animation")}</label>` : ""}</div>`).join("");
+  $("crSections").querySelectorAll("input").forEach(el => el.addEventListener("change", () => { markDirty(); previewCredits(); }));
 }
 function collectCredits() {
   const out = {};
   document.querySelectorAll("[data-csec]").forEach(el => { out[el.dataset.csec] = el.checked; });
   return out;
 }
+function collectEffects() {
+  const out = {};
+  document.querySelectorAll("[data-cfx]").forEach(el => { out[el.dataset.cfx] = el.checked; });
+  return out;
+}
+// the preview follows the Credits settings before they're saved
+let creditsPreviewTimer = null;
+function previewCredits() {
+  if (pvNow !== "credits") return;
+  clearTimeout(creditsPreviewTimer);
+  creditsPreviewTimer = setTimeout(() => {
+    const v = k => document.querySelector(`[data-k="${k}"]`).value;
+    const shown = [...document.querySelectorAll("[data-csec]")].filter(el => el.checked).map(el => el.dataset.csec);
+    const fx = [...document.querySelectorAll("[data-cfx]")].filter(el => el.checked).map(el => el.dataset.cfx);
+    frame.contentWindow.postMessage({ type: "credits_cfg", credits: { title: v("credits_title"), end: v("credits_end"),
+      speed: parseFloat(v("credits_speed")) || 1, background: v("credits_background"), start: v("credits_start"), finish: v("credits_finish"),
+      sections: shown, effects: fx } }, location.origin);
+  }, 500);
+}
+document.querySelectorAll('[data-k^="credits_"]').forEach(el => el.addEventListener("input", previewCredits));
 async function resetCredits() {
   if (!confirm("Start a new list for the credits? Everyone remembered from this stream is cleared.")) return;
   await send("/credits/reset");

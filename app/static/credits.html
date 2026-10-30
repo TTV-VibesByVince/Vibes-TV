@@ -9,20 +9,54 @@
 <link href="/static/fonts/fonts.css" rel="stylesheet">
 <link href="/static/shared.css" rel="stylesheet">
 <style>
-  /* End credits for an "Ending" scene in OBS (Browser Source 1920x1080).
-     Rolls everyone from this stream, with their pictures, then your logo. */
+  /* End credits for OBS (Browser Source 1920x1080). Rolls everyone from this
+     stream with their pictures, then your logo. The page itself is always
+     see-through: everything is on #stage, which fades away at the end (when
+     "fade away" is chosen), so the stream underneath is back. */
   :root { --accent: #9146ff; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; font-family: "Outfit", system-ui, sans-serif; color: #fff; }
-  body.dark { background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--accent) 30%, #0d0b14), #07060c 75%); }
-  body.dark::after { content: ""; position: fixed; inset: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px); }
-  #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #stage { position: fixed; inset: 0; opacity: 0; transition: opacity 1.2s ease; }
+  #stage.on { opacity: 1; }
+  #stage.fading { transition-duration: 2.2s; }
+
+  /* ── backgrounds ── */
+  #bg > div { position: absolute; inset: 0; display: none; overflow: hidden; }
+  #stage[data-bg="dark"] .bg-dark, #stage[data-bg="starfield"] .bg-starfield, #stage[data-bg="neon"] .bg-neon,
+  #stage[data-bg="aurora"] .bg-aurora, #stage[data-bg="logo"] .bg-logo { display: block; }
+  .bg-dark { background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--accent) 30%, #0d0b14), #07060c 75%); }
+  .bg-dark::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px); }
+  .bg-starfield { background: radial-gradient(ellipse at center, #10102a, #02020a 70%); }
+  /* synthwave: a striped sun over a moving neon grid */
+  .bg-neon { background: linear-gradient(#0b0420 0%, #2a0a4a 45%, color-mix(in srgb, var(--accent) 60%, #ff2a6d) 62%, #0b0420 62.1%); }
+  .bg-neon .sun { position: absolute; left: 50%; top: 22%; width: 46vh; height: 46vh; margin-left: -23vh; border-radius: 50%;
+    background: linear-gradient(#ffe14d, #ff2a6d 70%);
+    -webkit-mask-image: linear-gradient(#000 52%, transparent 52% 56%, #000 56% 63%, transparent 63% 68%, #000 68% 74%, transparent 74% 80%, #000 80% 85%, transparent 85% 91%, #000 91%);
+            mask-image: linear-gradient(#000 52%, transparent 52% 56%, #000 56% 63%, transparent 63% 68%, #000 68% 74%, transparent 74% 80%, #000 80% 85%, transparent 85% 91%, #000 91%);
+    filter: drop-shadow(0 0 4vh #ff2a6d); }
+  .bg-neon .grid { position: absolute; left: -50%; right: -50%; top: 62%; height: 80%; transform-origin: 50% 0; transform: perspective(40vh) rotateX(62deg);
+    background-image: linear-gradient(color-mix(in srgb, var(--accent) 85%, #fff) .3vh, transparent .3vh), linear-gradient(90deg, color-mix(in srgb, var(--accent) 85%, #fff) .3vh, transparent .3vh);
+    background-size: 8vh 8vh; animation: gridRun 1.2s linear infinite; opacity: .8; }
+  .bg-neon::after { content: ""; position: absolute; left: 0; right: 0; top: 55%; height: 14%; background: linear-gradient(transparent, rgba(11,4,32,.9) 55%, transparent); }
+  /* aurora: big soft colour clouds drifting */
+  .bg-aurora { background: #050812; }
+  .bg-aurora i { position: absolute; width: 90vw; height: 70vh; border-radius: 50%; filter: blur(9vh); opacity: .55; mix-blend-mode: screen; }
+  .bg-aurora i:nth-child(1) { background: var(--accent); left: -20vw; top: -10vh; animation: drift1 16s ease-in-out infinite alternate; }
+  .bg-aurora i:nth-child(2) { background: #ff2a6d; right: -25vw; top: 20vh; animation: drift2 19s ease-in-out infinite alternate; }
+  .bg-aurora i:nth-child(3) { background: #2b45ff; left: 10vw; bottom: -30vh; animation: drift1 22s ease-in-out infinite alternate-reverse; }
+  /* your logo, blurred and darkened behind the names (like the TV) */
+  .bg-logo img, .bg-logo video { position: absolute; inset: -4vh; width: calc(100% + 8vh); height: calc(100% + 8vh); object-fit: cover; filter: blur(12px) brightness(.32) saturate(1.4); }
+  .bg-logo::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,.7)); }
+  body.lite .bg-aurora i { filter: blur(5vh); }
+  body.lite .bg-logo img, body.lite .bg-logo video { filter: brightness(.25); }
+
+  #fx, #sfx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   /* soft fades at the top and bottom, so names drift in and out */
-  #view { position: fixed; inset: 0; overflow: hidden;
+  #view { position: absolute; inset: 0; overflow: hidden;
     -webkit-mask-image: linear-gradient(transparent 0, #000 12%, #000 86%, transparent 100%);
             mask-image: linear-gradient(transparent 0, #000 12%, #000 86%, transparent 100%); }
   #roll { position: absolute; left: 0; right: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 9vh; padding: 100vh 6vw 0; will-change: transform; }
+  #effects { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 
   .title { text-align: center; }
   .title h1 { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 2.4vh; font-family: "Bungee", sans-serif; font-weight: 400; font-size: 11vh; line-height: 1.05; }
@@ -33,7 +67,7 @@
 
   .sec { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4vh; }
   .sec h2 { display: flex; align-items: center; gap: 2vh; font-family: "Bungee", sans-serif; font-weight: 400; font-size: 6vh; letter-spacing: .06em;
-    color: var(--accent); text-shadow: 0 0 3vh var(--accent); opacity: 0; transform: scale(1.6); }
+    color: var(--accent); text-shadow: 0 0 3vh var(--accent), 0 .5vh 0 rgba(0,0,0,.5); opacity: 0; transform: scale(1.6); }
   .sec h2 i { font-style: normal; text-shadow: none; }
   .sec.in h2 { animation: secIn .7s cubic-bezier(.2,1.4,.4,1) both; }
   .sec h2::before, .sec h2::after { content: ""; width: 12vh; height: .5vh; border-radius: 9px; background: linear-gradient(90deg, transparent, var(--accent)); }
@@ -43,26 +77,22 @@
   .p.in { animation: personIn .6s cubic-bezier(.2,1.5,.4,1) both; animation-delay: var(--d, 0s); }
   .p img.av { width: 13vh; height: 13vh; border-radius: 50%; object-fit: cover; background: #111; border: .5vh solid #000;
     box-shadow: 0 0 0 .45vh var(--accent), 0 0 3vh color-mix(in srgb, var(--accent) 70%, transparent); }
-  .p b { font-size: 3.2vh; font-weight: 900; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .p small { font-size: 2.3vh; opacity: .8; }
+  .p b { font-size: 3.2vh; font-weight: 900; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 .4vh 0 rgba(0,0,0,.5); }
+  .p small { font-size: 2.3vh; opacity: .85; }
   .p small:empty { display: none; }
-  /* bigger tiles for small sections (mods, raiders, gifters, stats) */
   .sec.big .p { width: 28vh; }
   .sec.big .p img.av { width: 18vh; height: 18vh; }
   .sec.mods .p img.av { box-shadow: 0 0 0 .45vh #00ad03, 0 0 3vh rgba(0,173,3,.6); }
   .sec.mods h2, .sec.vips h2 { color: #fff; }
-  .badge { width: 5vh; height: 5vh; margin-top: -6vh; margin-left: 9vh; filter: drop-shadow(0 .4vh .8vh rgba(0,0,0,.6)); }
-  /* a gifter, and everyone they gifted to */
   .gift { display: flex; flex-direction: column; align-items: center; gap: 2vh; opacity: 0; transform: scale(.85); }
   .gift.in { animation: personIn .6s cubic-bezier(.2,1.5,.4,1) both; }
   .gift .to { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.6vh 2.4vh; max-width: 80vw; }
-  .gift .to span { display: flex; align-items: center; gap: 1vh; padding: .6vh 1.8vh .6vh .6vh; border-radius: 99px; background: rgba(255,255,255,.08);
+  .gift .to span { display: flex; align-items: center; gap: 1vh; padding: .6vh 1.8vh .6vh .6vh; border-radius: 99px; background: rgba(0,0,0,.35);
     border: .25vh solid color-mix(in srgb, var(--accent) 60%, transparent); font-size: 2.4vh; font-weight: 700; }
   .gift .to img { width: 5vh; height: 5vh; border-radius: 50%; object-fit: cover; background: #111; }
   .gift .arrow { font-family: "Bungee", sans-serif; font-size: 2.6vh; letter-spacing: .1em; color: var(--accent); }
   .emotes { display: flex; gap: 1vh; justify-content: center; }
   .emotes img { width: 7vh; height: 7vh; object-fit: contain; animation: wobble 1.6s ease-in-out infinite; }
-  /* hype train and the stats card */
   .hype { font-family: "Bungee", sans-serif; font-size: 7vh; text-shadow: 0 0 3vh var(--accent); opacity: 0; }
   .hype.in { animation: personIn .7s cubic-bezier(.2,1.5,.4,1) both; }
   .stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 3vh 6vh; max-width: 86vw; }
@@ -70,29 +100,80 @@
   .stat.in { animation: personIn .6s cubic-bezier(.2,1.5,.4,1) both; animation-delay: var(--d, 0s); }
   .stat b { display: block; font-family: "Bungee", sans-serif; font-size: 9vh; line-height: 1; color: var(--accent); text-shadow: 0 0 3vh var(--accent); }
   .stat span { font-size: 2.8vh; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
-  /* the end: your logo and a last line, held in the middle */
   .end { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; }
   .end .logo { max-width: 60vw; max-height: 55vh; border-radius: 2vh; opacity: 0; transform: scale(.8); }
   .end.in .logo { animation: personIn 1s cubic-bezier(.2,1.3,.4,1) both; }
-  .end h3 { font-family: "Bungee", sans-serif; font-weight: 400; font-size: 7vh; text-align: center; opacity: 0; text-shadow: 0 0 3vh var(--accent); }
+  .end h3 { font-family: "Bungee", sans-serif; font-weight: 400; font-size: 7vh; text-align: center; opacity: 0; text-shadow: 0 0 3vh var(--accent), 0 .5vh 0 rgba(0,0,0,.5); }
   .end.in h3 { animation: fadeUp .8s .6s ease both; }
-  body.lite .p img.av, body.lite .sec h2, body.lite .stat b, body.lite .title h1 span, body.lite .hype, body.lite .end h3 { text-shadow: none; box-shadow: 0 0 0 .45vh var(--accent); }
-  body.lite .sec h2, body.lite .stat b, body.lite .title h1 span, body.lite .hype, body.lite .end h3 { box-shadow: none; }
+  body.lite .p img.av { box-shadow: 0 0 0 .45vh var(--accent); }
+  body.lite .sec h2, body.lite .stat b, body.lite .title h1 span, body.lite .hype, body.lite .end h3 { text-shadow: 0 .5vh 0 rgba(0,0,0,.5); }
+
+  /* ── section animations ── */
+  /* the mods: two swords swing in, cross with a slash of light, then swing away */
+  .fx-swords { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  .fx-swords svg { position: absolute; width: 13vh; height: 66vh; left: -6.5vh; top: -33vh; filter: drop-shadow(0 1vh 1.5vh rgba(0,0,0,.6)); }
+  .fx-swords .s1 { animation: swingL 3.2s cubic-bezier(.3,1.3,.5,1) both; }
+  .fx-swords .s2 { animation: swingR 3.2s cubic-bezier(.3,1.3,.5,1) both; }
+  .fx-swords .cut { position: absolute; left: -80vw; top: -.6vh; width: 160vw; height: 1.2vh; border-radius: 99px; background: linear-gradient(90deg, transparent, #fff 40%, #fff 60%, transparent);
+    box-shadow: 0 0 3vh #fff, 0 0 6vh #00ad03; animation: slash .55s .55s ease-out both; }
+  .fx-swords .flash { position: fixed; inset: 0; background: #fff; animation: flash .5s .6s ease-out both; opacity: 0; }
+  /* raiders: police lights sweeping, and hazard tape across the top and bottom */
+  .fx-sirens { position: absolute; inset: 0; animation: fadeOut 3.4s ease both; }
+  .fx-sirens i { position: absolute; top: -40vh; width: 120vh; height: 120vh; border-radius: 50%; opacity: .5; }
+  .fx-sirens i:nth-child(1) { left: -60vh; background: conic-gradient(from 0deg, transparent 0 70%, rgba(255,40,60,.85) 80%, transparent 90%); animation: spin .9s linear infinite; }
+  .fx-sirens i:nth-child(2) { right: -60vh; background: conic-gradient(from 180deg, transparent 0 70%, rgba(43,69,255,.9) 80%, transparent 90%); animation: spin .9s linear infinite reverse; }
+  .fx-sirens b { position: absolute; left: -10vw; right: -10vw; height: 6vh; background: repeating-linear-gradient(-45deg, #ffcc00 0 4vh, #111 4vh 8vh);
+    box-shadow: 0 .6vh 2vh rgba(0,0,0,.6); }
+  .fx-sirens b:nth-of-type(1) { top: 4vh; transform: rotate(-3deg); animation: tapeIn 3.4s ease both; }
+  .fx-sirens b:nth-of-type(2) { bottom: 4vh; transform: rotate(2deg); animation: tapeIn 3.4s .15s ease both; }
+  /* watch streaks: a wall of fire along the bottom */
+  .fx-fire { position: absolute; left: -5vw; right: -5vw; bottom: -4vh; height: 34vh; animation: fadeOut 3.6s ease both;
+    background: radial-gradient(ellipse at 10% 100%, #ffe14d, #ff6a00 35%, transparent 65%), radial-gradient(ellipse at 35% 100%, #ffb000, #ff2a00 40%, transparent 70%),
+      radial-gradient(ellipse at 60% 100%, #ffe14d, #ff6a00 35%, transparent 65%), radial-gradient(ellipse at 85% 100%, #ffb000, #ff2a00 40%, transparent 70%);
+    filter: blur(1.4vh); mix-blend-mode: screen; transform-origin: 50% 100%; }
+  .fx-fire.go { animation: fadeOut 3.6s ease both, flicker .18s ease-in-out infinite alternate; }
+  /* first-time chatters: waves popping up all over */
+  .fx-wave { position: absolute; font-size: 9vh; animation: waveHi 1.8s cubic-bezier(.2,1.5,.4,1) both; filter: drop-shadow(0 .6vh 1vh rgba(0,0,0,.5)); }
+  /* hype train: a train crosses the screen */
+  .fx-train { position: absolute; bottom: 8vh; left: 100%; font-size: 12vh; white-space: nowrap; animation: trainGo 4s linear both; filter: drop-shadow(0 1vh 1vh rgba(0,0,0,.5)); }
+  body.lite .fx-fire { filter: none; }
 
   @keyframes secIn { 0% { opacity: 0; transform: scale(1.6); letter-spacing: .5em; } 100% { opacity: 1; transform: none; letter-spacing: .06em; } }
   @keyframes personIn { 0% { opacity: 0; transform: translateY(4vh) scale(.8); } 100% { opacity: 1; transform: none; } }
+  @keyframes gridRun { from { background-position: 0 0; } to { background-position: 0 8vh; } }
+  @keyframes drift1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(20vw, 12vh) scale(1.25); } }
+  @keyframes drift2 { from { transform: translate(0, 0) scale(1.1); } to { transform: translate(-22vw, -10vh) scale(.9); } }
+  @keyframes swingL { 0% { opacity: 0; transform: translate(-60vw, -60vh) rotate(-140deg); } 22% { opacity: 1; transform: rotate(-38deg); }
+    28% { transform: rotate(-48deg); } 34%, 78% { opacity: 1; transform: rotate(-42deg); } 100% { opacity: 0; transform: translate(-70vw, 30vh) rotate(-160deg); } }
+  @keyframes swingR { 0% { opacity: 0; transform: translate(60vw, -60vh) rotate(140deg); } 22% { opacity: 1; transform: rotate(38deg); }
+    28% { transform: rotate(48deg); } 34%, 78% { opacity: 1; transform: rotate(42deg); } 100% { opacity: 0; transform: translate(70vw, 30vh) rotate(160deg); } }
+  @keyframes fadeOut { 0% { opacity: 0; } 12% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes tapeIn { 0% { clip-path: inset(0 100% 0 0); } 18%, 80% { clip-path: inset(0 0 0 0); opacity: 1; } 100% { clip-path: inset(0 0 0 0); opacity: 0; } }
+  @keyframes waveHi { 0% { opacity: 0; transform: scale(0) rotate(-30deg); } 25% { opacity: 1; transform: scale(1.1) rotate(15deg); } 40% { transform: scale(1) rotate(-15deg); }
+    55% { transform: rotate(15deg); } 70% { opacity: 1; transform: rotate(0); } 100% { opacity: 0; transform: translateY(-6vh) scale(.8); } }
+  @keyframes trainGo { from { transform: translateX(0); } to { transform: translateX(calc(-100vw - 100%)); } }
 </style>
 </head>
-<body class="dark">
-<canvas id="fx"></canvas>
-<div id="view"><div id="roll"></div></div>
+<body>
+<div id="stage">
+  <div id="bg">
+    <div class="bg-dark"></div><div class="bg-starfield"></div>
+    <div class="bg-neon"><div class="sun"></div><div class="grid"></div></div>
+    <div class="bg-aurora"><i></i><i></i><i></i></div>
+    <div class="bg-logo" id="bgLogo"></div>
+  </div>
+  <canvas id="fx"></canvas>
+  <div id="effects"></div>            <!-- swords, sirens, fire, the train: behind the names, so they stay readable -->
+  <div id="view"><div id="roll"></div></div>
+  <canvas id="sfx"></canvas>
+</div>
 
 <script src="/static/shared.js"></script>
 <script>
 const SAMPLE = Q.get("sample") === "1";
-let cfg = { title: "Thanks for watching!", end: "See you next stream!", speed: 1, background: "dark", loop: false, sections: [] };
+let cfg = { title: "Thanks for watching!", end: "See you next stream!", speed: 1, background: "dark", start: "open", finish: "fade", sections: [], effects: [] };
 let logo = { src: "", kind: "image" }, data = null, playing = false, playTimer = null;
-const roll = $("roll");
+const stage = $("stage"), roll = $("roll");
 
 const SECTION = {
   mods: ["Thank you to the mods", "🛡️"], vips: ["Thank you to the VIPs", "💎"], raiders: ["Raided by", "🚨"],
@@ -144,12 +225,13 @@ function build(d) {
     const [label, icon] = SECTION[key] || [key, ""];
     const sec = document.createElement("div");
     sec.className = "sec reveal " + key + (BIG.has(key) ? " big" : "");
+    sec.dataset.key = key;
     sec.innerHTML = `<h2><i>${icon}</i><span></span><i>${icon}</i></h2>`;
     sec.querySelector("h2 span").textContent = label.toUpperCase();
     if (key === "hype") {
       if (!d.hype_level) continue;
       const h = document.createElement("div");
-      h.className = "hype reveal"; h.textContent = `LEVEL ${d.hype_level}`;
+      h.className = "hype"; h.textContent = `LEVEL ${d.hype_level}`;
       sec.appendChild(h);
     } else if (key === "stats") {
       const st = d.stats || {}, rows = [["follows", "new followers"], ["subs", "subs"], ["gifted", "gifted subs"],
@@ -159,7 +241,7 @@ function build(d) {
       box.className = "stats";
       rows.forEach(([k, label2], i) => {
         const s = document.createElement("div");
-        s.className = "stat reveal"; s.style.setProperty("--d", (i * .12).toFixed(2) + "s");
+        s.className = "stat"; s.style.setProperty("--d", (i * .12).toFixed(2) + "s");
         s.innerHTML = `<b data-to="${st[k]}">0</b><span>${label2}</span>`;
         box.appendChild(s);
       });
@@ -169,7 +251,7 @@ function build(d) {
       if (!list.length) continue;
       list.forEach(p => {
         const g2 = document.createElement("div");
-        g2.className = "gift reveal";
+        g2.className = "gift";
         const giver = person(p, "gifts", 0);
         giver.classList.add("in");
         giver.querySelector("small").textContent = `gifted ${p.count || (p.to || []).length} sub${(p.count || 1) === 1 ? "" : "s"}`;
@@ -192,12 +274,7 @@ function build(d) {
       if (!list.length) continue;
       const box = document.createElement("div");
       box.className = "people";
-      list.forEach((p, i) => {
-        const el = person(p, key, i);
-        el.classList.add("reveal");
-        if (key === "mods") el.insertAdjacentHTML("beforeend", "");
-        box.appendChild(el);
-      });
+      list.forEach((p, i) => box.appendChild(person(p, key, i)));
       sec.appendChild(box);
     }
     roll.appendChild(sec);
@@ -216,20 +293,46 @@ function build(d) {
   roll.appendChild(end);
 }
 
+/* ── backgrounds ─────────────────────────────────────────────────── */
+function setBackground() {
+  const bg = cfg.background || "dark";
+  stage.dataset.bg = bg;
+  const holder = $("bgLogo");
+  if (bg === "logo" && logo.src && holder.dataset.src !== logo.src) {
+    holder.innerHTML = "";
+    const m = document.createElement(logo.kind === "video" ? "video" : "img");
+    m.src = logo.src;
+    if (logo.kind === "video") { m.muted = true; m.loop = true; m.autoplay = true; m.playsInline = true; }
+    holder.appendChild(m);
+    holder.dataset.src = logo.src;
+  }
+}
+
 /* ── rolling it: everything pops in as it comes up from the bottom ─── */
-let y = 0, endY = 0, lastT = 0, holdUntil = 0;
+let y = 0, endY = 0, lastT = 0, holdUntil = 0, rafId = 0;
 function play(d) {
   data = d || data || { people: {}, stats: {} };
   cancelAnimationFrame(rafId);
   clearTimeout(playTimer);
-  document.body.classList.toggle("dark", cfg.background !== "clear");
+  setBackground();
   build(data);
+  $("effects").innerHTML = ""; sparks.length = 0;
   y = 0; roll.style.transform = "translateY(0)";
   endY = roll.scrollHeight - innerHeight;      // the end card centred
   holdUntil = 0; playing = true; lastT = performance.now();
+  stage.classList.remove("fading");
+  stage.classList.add("on");
   rafId = requestAnimationFrame(step);
 }
-let rafId = 0;
+function finish() {
+  playing = false;
+  if (cfg.finish === "loop") { playTimer = setTimeout(() => play(), 1500); return; }
+  if (cfg.finish === "fade") {                   // fade everything away: the stream is back
+    stage.classList.add("fading");
+    stage.classList.remove("on");
+    playTimer = setTimeout(() => { roll.innerHTML = ""; }, 2400);
+  }
+}
 function step(t) {
   const dt = Math.min(t - lastT, 100) / 1000; lastT = t;
   const speed = innerHeight * .085 * (cfg.speed || 1);      // about a twelfth of the screen a second
@@ -237,10 +340,9 @@ function step(t) {
     y = Math.min(endY, y + speed * dt);
     roll.style.transform = `translateY(${-y}px)`;
   } else if (!holdUntil) {
-    holdUntil = t + 8000;                                  // hold the end card
+    holdUntil = t + (cfg.finish === "hold" ? Infinity : 7000);   // the end card, a moment
   } else if (t > holdUntil) {
-    playing = false;
-    if (cfg.loop) { playTimer = setTimeout(() => play(), 1500); }
+    finish();
     return;
   }
   const line = innerHeight * .9;
@@ -249,6 +351,7 @@ function step(t) {
       el.classList.add("in");
       el.querySelectorAll(".p, .gift, .stat, .hype").forEach(c => c.classList.add("in"));
       el.querySelectorAll(".stat b[data-to]").forEach(b => countUp(b));
+      if (el.dataset.key && (cfg.effects || []).includes(el.dataset.key)) effect(el.dataset.key);
     }
   });
   rafId = requestAnimationFrame(step);
@@ -259,30 +362,136 @@ function countUp(b) {
   requestAnimationFrame(go);
 }
 
-/* ── theme particles drifting up behind it all ───────────────────── */
+/* ── section animations ──────────────────────────────────────────── */
+const SWORD = i => `<svg class="s${i}" viewBox="0 0 40 200" aria-hidden="true"><defs><linearGradient id="bl${i}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9aa6b8"/><stop offset=".45" stop-color="#ffffff"/><stop offset=".55" stop-color="#e3e9f2"/><stop offset="1" stop-color="#8793a6"/></linearGradient></defs>
+  <path d="M20 2 L27 16 L27 140 L13 140 L13 16 Z" fill="url(#bl${i})" stroke="#fff" stroke-width="1.2"/><path d="M20 14 V136" stroke="#7b8799" stroke-width="1.6"/>
+  <rect x="1" y="138" width="38" height="9" rx="4" fill="#00ad03" stroke="#fff" stroke-width="2"/>
+  <rect x="15.5" y="147" width="9" height="34" rx="3" fill="#2a2018"/><path d="M15.5 154h9M15.5 161h9M15.5 168h9M15.5 175h9" stroke="#5c4632" stroke-width="2"/>
+  <circle cx="20" cy="187" r="7.5" fill="#00ad03" stroke="#fff" stroke-width="2"/></svg>`;
+function addFx(html, ms) {
+  const box = document.createElement("div");
+  box.innerHTML = html;
+  const el = box.firstElementChild;
+  $("effects").appendChild(el);
+  setTimeout(() => el.remove(), ms);
+  return el;
+}
+function effect(key) {
+  const W = innerWidth, H = innerHeight, many = LITE ? .45 : 1;
+  if (key === "mods") addFx(`<div class="fx-swords">${SWORD(1)}${SWORD(2)}<div class="cut"></div><div class="flash"></div></div>`, 3400);
+  else if (key === "raiders") addFx(`<div class="fx-sirens"><i></i><i></i><b></b><b></b></div>`, 3500);
+  else if (key === "streaks") addFx(`<div class="fx-fire go"></div>`, 3700);
+  else if (key === "hype") addFx(`<div class="fx-train">🚂🚃🚃🚃🚃</div>`, 4100);
+  else if (key === "first_chatters") {
+    for (let i = 0; i < Math.round(7 * many) + 1; i++) {
+      const el = addFx(`<div class="fx-wave">👋</div>`, 2600);
+      el.style.left = (8 + Math.random() * 80) + "vw"; el.style.top = (10 + Math.random() * 70) + "vh"; el.style.animationDelay = (i * .15).toFixed(2) + "s";
+    }
+  }
+  else if (key === "follows") burst(Math.round(60 * many), "rise", () => floatSprite("heart", ["#ff2a6d", "#ff6fa8", "#ffffff"][Math.floor(Math.random() * 3)]));
+  else if (key === "cheers") burst(Math.round(70 * many), "rain", () => gemSprite(gemColor([1, 100, 1000, 5000, 10000][Math.floor(Math.random() * 5)])));
+  else if (key === "gifts") burst(Math.round(40 * many), "rain", () => giftSprite());
+  else if (key === "subs" || key === "resubs") burst(Math.round(70 * many), "pop", () => starSprite(Math.random() < .6 ? "#ffd34d" : "#ffffff"));
+  else if (key === "vips") burst(Math.round(50 * many), "pop", () => glowSprite(Math.random() < .5 ? "#ffffff" : "#ff6fa8"));
+  else if (key === "stats") burst(Math.round(120 * many), "cannons", () => confettiSprite());
+}
+
+// sprites drawn once and reused
+const sprites = {};
+function sprite(key, size, draw) {
+  if (sprites[key]) return sprites[key];
+  const c = document.createElement("canvas"); c.width = c.height = size;
+  draw(c.getContext("2d"), size);
+  return (sprites[key] = c);
+}
+function starSprite(color) {
+  return sprite("star" + color, 64, (x, s) => {
+    x.translate(s / 2, s / 2); x.beginPath();
+    for (let i = 0; i < 10; i++) { const r = i % 2 ? s * .2 : s * .46, a = -Math.PI / 2 + i * Math.PI / 5; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    x.closePath(); x.fillStyle = color; x.shadowColor = color; x.shadowBlur = 8; x.fill(); x.lineWidth = 2; x.strokeStyle = "#fff"; x.stroke();
+  });
+}
+function giftSprite() {
+  const colors = ["#9146ff", "#ff2a6d", "#2b45ff", "#ffc93c"], col = colors[Math.floor(Math.random() * colors.length)];
+  return sprite("gift" + col, 64, (x, s) => {
+    x.fillStyle = col; x.strokeStyle = "#fff"; x.lineWidth = 3;
+    x.fillRect(8, 26, 48, 32); x.strokeRect(8, 26, 48, 32);
+    x.fillRect(4, 16, 56, 12); x.strokeRect(4, 16, 56, 12);
+    x.fillStyle = "#ffe14d"; x.fillRect(28, 16, 8, 42);
+    x.beginPath(); x.ellipse(24, 12, 9, 6, -.4, 0, 6.3); x.ellipse(40, 12, 9, 6, .4, 0, 6.3); x.fill();
+  });
+}
+function confettiSprite() {
+  const colors = [...(THEME.confetti || ["#ff2a6d", "#9146ff", "#2b45ff", "#ffc93c"]), "#ffffff"], col = colors[Math.floor(Math.random() * colors.length)];
+  return sprite("conf" + col, 24, (x) => { x.fillStyle = col; x.fillRect(4, 8, 16, 8); });
+}
+const sfx = $("sfx"), sg = sfx.getContext("2d");
+const sparks = [];
+let sfxRun = null;
+function burst(count, how, pick) {
+  const W = sfx.width = innerWidth, H = sfx.height = innerHeight, u = H / 1080;
+  for (let i = 0; i < count; i++) {
+    let p;
+    if (how === "rain") p = { x: Math.random() * W, y: -40 - Math.random() * H * .6, vx: (Math.random() - .5) * 2 * u, vy: (3 + Math.random() * 4) * u, g: .06 * u };
+    else if (how === "rise") p = { x: Math.random() * W, y: H + 20 + Math.random() * H * .3, vx: (Math.random() - .5) * 1.5 * u, vy: -(3 + Math.random() * 4) * u, g: 0 };
+    else if (how === "cannons") { const left = i % 2 === 0; p = { x: left ? -20 : W + 20, y: H * .9, vx: (left ? 1 : -1) * (6 + Math.random() * 12) * u, vy: -(12 + Math.random() * 12) * u, g: .35 * u }; }
+    else { const a = Math.random() * Math.PI * 2, sp = (4 + Math.random() * 12) * u; p = { x: W / 2, y: H * .45, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: .12 * u }; }
+    p.s = (how === "cannons" ? 16 : 26 + Math.random() * 26) * u; p.r = Math.random() * 6; p.vr = (Math.random() - .5) * .2;
+    p.life = 1; p.decay = how === "rain" || how === "rise" ? .004 : .008 + Math.random() * .006; p.img = pick();
+    sparks.push(p);
+  }
+  if (!sfxRun) sfxRun = requestAnimationFrame(sparkTick);
+}
+let lastS = performance.now();
+function sparkTick(t) {
+  const k = Math.min((t - lastS) / 16.7, 3); lastS = t;
+  sg.clearRect(0, 0, sfx.width, sfx.height);
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const p = sparks[i];
+    p.vy += p.g * k; p.x += p.vx * k; p.y += p.vy * k; p.r += p.vr * k; p.life -= p.decay * k;
+    if (p.life <= 0 || p.y > sfx.height + 80 || p.y < -sfx.height) { sparks.splice(i, 1); continue; }
+    sg.save(); sg.globalAlpha = Math.min(1, p.life * 2); sg.translate(p.x, p.y); sg.rotate(p.r);
+    sg.drawImage(p.img, -p.s / 2, -p.s / 2, p.s, p.s); sg.restore();
+  }
+  sfxRun = sparks.length ? requestAnimationFrame(sparkTick) : null;
+  if (!sfxRun) sg.clearRect(0, 0, sfx.width, sfx.height);
+}
+
+/* ── the background canvas: theme particles, or a starfield ───────── */
 const fx = $("fx"), g = fx.getContext("2d");
-let motes = [];
+let motes = [], stars = [];
 function sizeFx() { fx.width = innerWidth; fx.height = innerHeight; }
-function moteTick(t) {
-  if (cfg.background === "clear") { g.clearRect(0, 0, fx.width, fx.height); requestAnimationFrame(moteTick); return; }
-  const want = LITE ? 14 : 40;
-  while (motes.length < want) {
-    const colors = THEME.float_colors || ["#ff2a6d", "#ff6fa8", "#ffffff"];
-    motes.push({ x: Math.random() * fx.width, y: fx.height + Math.random() * fx.height, s: 10 + Math.random() * 22,
-      v: .3 + Math.random() * .8, w: Math.random() * 6.28, img: Math.random() < .5 ? floatSprite(THEME.float || "heart", colors[Math.floor(Math.random() * colors.length)]) : glowSprite(hex6(accent())) });
-  }
+function bgTick(t) {
+  const bg = stage.dataset.bg;
   g.clearRect(0, 0, fx.width, fx.height);
-  for (const m of motes) {
-    m.y -= m.v; m.x += Math.sin(t / 1500 + m.w) * .3;
-    if (m.y < -40) { m.y = fx.height + 40; m.x = Math.random() * fx.width; }
-    g.globalAlpha = .55;
-    g.drawImage(m.img, m.x - m.s / 2, m.y - m.s / 2, m.s, m.s);
+  if (bg === "starfield") {
+    const cx = fx.width / 2, cy = fx.height / 2, want = LITE ? 160 : 420;
+    while (stars.length < want) stars.push({ x: (Math.random() - .5) * fx.width, y: (Math.random() - .5) * fx.height, z: Math.random() * fx.width });
+    for (const s of stars) {
+      const pz = s.z; s.z -= 6;
+      if (s.z < 1) { s.x = (Math.random() - .5) * fx.width; s.y = (Math.random() - .5) * fx.height; s.z = fx.width; continue; }
+      const k = 260 / s.z, k0 = 260 / pz, x = cx + s.x * k, y = cy + s.y * k;
+      g.strokeStyle = `rgba(255,255,255,${Math.min(1, 1.4 - s.z / fx.width)})`; g.lineWidth = Math.max(.5, 2.4 - s.z / fx.width * 2.4);
+      g.beginPath(); g.moveTo(cx + s.x * k0, cy + s.y * k0); g.lineTo(x, y); g.stroke();
+    }
+  } else if (bg === "dark" || bg === "aurora" || bg === "logo") {
+    const want = LITE ? 14 : 36;
+    while (motes.length < want) {
+      const colors = THEME.float_colors || ["#ff2a6d", "#ff6fa8", "#ffffff"];
+      motes.push({ x: Math.random() * fx.width, y: fx.height + Math.random() * fx.height, s: 10 + Math.random() * 22, v: .3 + Math.random() * .8, w: Math.random() * 6.28,
+        img: Math.random() < .5 ? floatSprite(THEME.float || "heart", colors[Math.floor(Math.random() * colors.length)]) : glowSprite(hex6(accent())) });
+    }
+    for (const m of motes) {
+      m.y -= m.v; m.x += Math.sin(t / 1500 + m.w) * .3;
+      if (m.y < -40) { m.y = fx.height + 40; m.x = Math.random() * fx.width; }
+      g.globalAlpha = .55; g.drawImage(m.img, m.x - m.s / 2, m.y - m.s / 2, m.s, m.s);
+    }
+    g.globalAlpha = 1;
   }
-  g.globalAlpha = 1;
-  requestAnimationFrame(moteTick);
+  requestAnimationFrame(bgTick);
 }
 sizeFx(); addEventListener("resize", sizeFx);
-requestAnimationFrame(moteTick);
+requestAnimationFrame(bgTick);
 
 /* ── sample data (the settings page preview, or ?sample=1) ─────────── */
 function sampleData() {
@@ -306,24 +515,36 @@ function sampleData() {
   };
 }
 
-/* ── messages from the server ─────────────────────────────────────── */
-let started = false;
+/* ── starting: when the page opens, or only on /credits/play ───────── */
+let started = false, latest = null;
+function ready() {
+  if (started) return;
+  started = true;
+  // the settings page preview always plays; otherwise wait for /credits/play if asked to
+  if (PREVIEW || SAMPLE || cfg.start !== "play") play(SAMPLE ? sampleData() : latest);
+}
 openSocket("credits", ev => {
   if (ev.type === "hello" || ev.type === "logo_src") {
     applyMode(ev.tv_mode || "auto");
     if (ev.theme) { THEME = ev.theme; setAccent(null); }
     cfg = ev.credits || cfg;
     logo = { src: ev.logo || "", kind: ev.logo_kind === "video" ? "video" : "image" };
-    document.body.classList.toggle("dark", cfg.background !== "clear");
-    if (started && ev.type === "logo_src") play();       // settings changed: show them
+    if (started && ev.type === "logo_src" && (playing || PREVIEW)) play();   // a setting changed: show it
   }
   else if (ev.type === "credits_data") {
-    if (!started) { started = true; play(SAMPLE ? sampleData() : ev.data); }
-    else if (!playing && !SAMPLE) data = ev.data;        // for the next roll
-    else if (!SAMPLE) data = ev.data;
+    latest = ev.data;
+    if (!SAMPLE && !playing) data = ev.data;           // ready for the next roll
+    ready();
   }
   else if (ev.type === "credits_play") { started = true; play(SAMPLE ? sampleData() : ev.data); }
   else if (ev.type === "reload") location.reload();
+});
+
+// the settings page preview: try settings before saving, and replay
+addEventListener("message", e => {
+  if (!PREVIEW || e.origin !== location.origin || !e.data) return;
+  if (e.data.type === "credits_cfg") { cfg = { ...cfg, ...e.data.credits }; play(); }
+  else if (e.data.type === "credits_replay") play();
 });
 </script>
 </body>

@@ -158,8 +158,10 @@ SCHEMA = {
     "credits_end":          (str,   "See you next stream!"),
     "credits_sections":     (dict,  {}),          # section -> false to leave it out (all on by default)
     "credits_speed":        (float, 1.0),
-    "credits_background":   (str,   "dark"),      # dark | clear
-    "credits_loop":         (bool,  False),
+    "credits_background":   (str,   "dark"),      # see CREDITS_BACKGROUNDS
+    "credits_start":        (str,   "open"),      # open: when the source appears | play: only on /credits/play
+    "credits_finish":       (str,   "fade"),      # fade: fade away (see-through) | hold: stay on the end card | loop
+    "credits_effects":      (dict,  {}),          # section -> false to turn its animation off (all on by default)
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
 TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
@@ -247,6 +249,10 @@ THEMES = {
                    "warp": ["#ffffff", "#7cf29c", "#ffd34d"]},
 }
 # ── Screens: the TV and the stream overlay each have their own queue ─────
+CREDITS_BACKGROUNDS = ("dark", "starfield", "neon", "aurora", "logo", "clear")
+# sections with an animation of their own (swords for the mods, gems for cheers...)
+CREDIT_EFFECTS = ["mods", "vips", "raiders", "subs", "resubs", "gifts", "cheers", "streaks", "follows",
+                  "first_chatters", "hype", "stats"]
 SCREENS = ("tv", "overlay")
 WIDGET_SCREENS = ("tiktok", "credits")      # pages that listen but have no alert queue
 # Where each kind of alert plays. Subs and resubs share "sub".
@@ -324,10 +330,11 @@ def _check_dict(key, val):
             if v != ROUTE_DEFAULTS[k]:
                 out[k] = v
         return out, None
-    if key == "credits_sections":
+    if key in ("credits_sections", "credits_effects"):
         if not isinstance(val, dict):
-            return None, "credits_sections: must be an object"
-        return {k: False for k, v in val.items() if k in CREDIT_SECTIONS and v is False}, None
+            return None, f"{key}: must be an object"
+        known = CREDIT_SECTIONS if key == "credits_sections" else CREDIT_EFFECTS
+        return {k: False for k, v in val.items() if k in known and v is False}, None
     if key == "overlay_sizes":
         if not isinstance(val, dict):
             return None, "overlay_sizes: must be an object"
@@ -427,8 +434,14 @@ class Settings:
             if key == "tiktok_widget_layout" and val not in ("column", "row"):
                 errors.append("tiktok_widget_layout: column or row")
                 continue
-            if key == "credits_background" and val not in ("dark", "clear"):
-                errors.append("credits_background: dark or clear")
+            if key == "credits_background" and val not in CREDITS_BACKGROUNDS:
+                errors.append("credits_background: " + ", ".join(CREDITS_BACKGROUNDS))
+                continue
+            if key == "credits_start" and val not in ("open", "play"):
+                errors.append("credits_start: open or play")
+                continue
+            if key == "credits_finish" and val not in ("fade", "hold", "loop"):
+                errors.append("credits_finish: fade, hold or loop")
                 continue
             if key in ("credits_title", "credits_end") and len(val) > 80:
                 errors.append(f"{key}: 80 characters at most")
@@ -512,8 +525,9 @@ def widget_info():
 
 def credits_info():
     return {"title": S["credits_title"], "end": S["credits_end"], "speed": S["credits_speed"],
-            "background": S["credits_background"], "loop": S["credits_loop"],
-            "sections": [k for k in CREDIT_SECTIONS if S["credits_sections"].get(k, True)]}
+            "background": S["credits_background"], "start": S["credits_start"], "finish": S["credits_finish"],
+            "sections": [k for k in CREDIT_SECTIONS if S["credits_sections"].get(k, True)],
+            "effects": [k for k in CREDIT_EFFECTS if S["credits_effects"].get(k, True)]}
 
 
 def active_theme_id(today=None):
@@ -1683,6 +1697,8 @@ async def api_state(request):
         "route_defaults": ROUTE_DEFAULTS,
         "size_events": SIZE_EVENTS,
         "credit_sections": CREDIT_SECTIONS,
+        "credit_effects": CREDIT_EFFECTS,
+        "credits_backgrounds": CREDITS_BACKGROUNDS,
         "size_defaults": SIZE_DEFAULTS,
         "overlay_positions": OVERLAY_POSITIONS,
         "active_theme": active_theme_id(),
