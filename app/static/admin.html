@@ -276,6 +276,13 @@
       <div id="tlCode" class="mono" style="font-size:30px;font-weight:700;letter-spacing:.18em;margin:8px 0"></div>
       <div class="hint">Then approve on Twitch. This page updates by itself when it's done.</div></div>
     <div class="result" id="tlRes"></div>
+    <h3 class="sub">Alerts from Twitch</h3>
+    <p class="hint">Ticked: that alert plays straight from Twitch, and MixItUp's request for it is ignored while Twitch is connected (so it
+      can't play twice; you can turn it off in MixItUp). If the connection drops, MixItUp's requests play again. Test buttons always play.
+      First-time chatters always come from MixItUp. <b>Shoutouts</b> from Twitch play when you or a mod use Twitch's own
+      <span class="mono">/shoutout</span>.</p>
+    <div class="checks" id="srcList" style="grid-template-columns:repeat(auto-fill, minmax(200px, 1fr))"></div>
+    <div class="row" style="margin-top:8px"><button onclick="setSources(true)">Tick all</button><button onclick="setSources(false)">Untick all</button></div>
   </section>
 
   <section data-tab="overlay">
@@ -534,7 +541,7 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderReqs();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs();
   loadVoices(s.tts_voice);
 }
 
@@ -841,7 +848,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects() };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources() };
 }
 
 async function save() {
@@ -944,6 +951,21 @@ async function testLights(which) {
   const r = await api(`/api/test/lights?which=${which}&hex=9146ff`, { method: "POST" });
   setRes($("lightRes"), r.ok, r.result);
 }
+/* ── which alerts play straight from Twitch ─────────────────────────── */
+const SOURCE_LABELS = { shoutout: "Shoutouts (Twitch's /shoutout)", raid: "Raids", follow: "Follows", sub: "Subs and resubs", gift: "Gifted subs",
+  bits: "Bits", streak: "Watch streaks", modiversary: "Modiversaries", gigantify: "Gigantified emotes", hype: "Hype train" };
+function renderSources() {
+  const src = state.settings.alert_sources || {};
+  $("srcList").innerHTML = state.source_events.map(k => `<label><input type="checkbox" data-src="${k}"${src[k] === "twitch" ? " checked" : ""}> ${esc(SOURCE_LABELS[k] || k)}</label>`).join("");
+  $("srcList").querySelectorAll("input").forEach(el => el.addEventListener("change", markDirty));
+}
+function setSources(on) { $("srcList").querySelectorAll("input").forEach(el => { el.checked = on; }); markDirty(); }
+function collectSources() {
+  const out = {};
+  document.querySelectorAll("[data-src]").forEach(el => { out[el.dataset.src] = el.checked ? "twitch" : "mixitup"; });
+  return out;
+}
+
 /* ── Connect Twitch (device login) ─────────────────────────────────── */
 async function twitchConnect() {
   if (dirty) return toast("Save settings first");
