@@ -406,8 +406,10 @@
     <div class="counts" id="crCounts"></div>
     <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(240px, 1fr))">
       <label class="f"><span>Title</span><input type="text" data-k="credits_title" maxlength="80"></label>
-      <label class="f"><span>Last line, under your logo</span><input type="text" data-k="credits_end" maxlength="80"></label>
-      <label class="f"><span>Speed <span class="hint">(0.3 to 3, 1 = normal)</span></span><input type="number" data-k="credits_speed" min="0.3" max="3" step="0.1"></label>
+      <label class="f"><span>Last line, at the very end</span><input type="text" data-k="credits_end" maxlength="80"></label>
+      <label class="f"><span>Speed <b id="crSpeedVal" style="color:var(--accent2)"></b></span>
+        <input type="range" data-k="credits_speed" min="0.5" max="3" step="0.1" style="width:100%;accent-color:var(--accent)">
+        <span class="hint" style="position:relative;display:flex;justify-content:flex-end"><span style="position:absolute;left:20%;transform:translateX(-50%)">▲ normal</span><span>faster</span></span></label>
       <label class="f"><span>Background</span><select data-k="credits_background">
         <option value="dark">Dark, with theme particles</option><option value="starfield">Starfield (flying through stars)</option>
         <option value="neon">Neon grid (synthwave sun)</option><option value="aurora">Aurora (glowing colour waves)</option>
@@ -419,6 +421,7 @@
         <option value="fade">Fade away, so your stream is back</option><option value="hold">Stay on the end card</option>
         <option value="loop">Start again (loop)</option></select></label>
     </div>
+    <label class="switch"><span>Show my logo at the end<br><span class="hint">Off: the end card is just the last line.</span></span><input type="checkbox" data-k="credits_show_logo"></label>
     <p class="hint" style="margin-top:8px">To keep them on top of your main scene all stream: <b>Only when /credits/play is called</b> + <b>Fade away</b>.
       They stay invisible until you play them (a Stream Deck button or a MixItUp command), take over the screen, then fade back out.</p>
     <h3 class="sub">What's in the credits</h3>
@@ -541,7 +544,7 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel();
   loadVoices(s.tts_voice);
 }
 
@@ -1127,11 +1130,18 @@ function previewCredits() {
     const shown = [...document.querySelectorAll("[data-csec]")].filter(el => el.checked).map(el => el.dataset.csec);
     const fx = [...document.querySelectorAll("[data-cfx]")].filter(el => el.checked).map(el => el.dataset.cfx);
     frame.contentWindow.postMessage({ type: "credits_cfg", credits: { title: v("credits_title"), end: v("credits_end"),
-      speed: parseFloat(v("credits_speed")) || 1, background: v("credits_background"), start: v("credits_start"), finish: v("credits_finish"),
+      speed: parseFloat(v("credits_speed")) || 1, logo: document.querySelector('[data-k="credits_show_logo"]').checked, background: v("credits_background"), start: v("credits_start"), finish: v("credits_finish"),
       sections: shown, effects: fx } }, location.origin);
   }, 500);
 }
 document.querySelectorAll('[data-k^="credits_"]').forEach(el => el.addEventListener("input", previewCredits));
+// the speed slider says what it's set to
+function speedLabel() {
+  const x = parseFloat(document.querySelector('[data-k="credits_speed"]').value) || 1;
+  $("crSpeedVal").textContent = x.toFixed(1) + "× · " + (x < 0.85 ? "slower" : x <= 1.15 ? "normal" : x <= 1.6 ? "a bit faster" : "faster");
+}
+document.querySelector('[data-k="credits_speed"]').addEventListener("input", speedLabel);
+document.querySelector('[data-k="credits_show_logo"]').addEventListener("change", previewCredits);
 async function resetCredits() {
   if (!confirm("Start a new list for the credits? Everyone remembered from this stream is cleared.")) return;
   await send("/credits/reset");

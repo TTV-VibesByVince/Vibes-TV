@@ -286,7 +286,7 @@ function build(d) {
 
   const end = document.createElement("div");
   end.className = "end reveal";
-  if (logo.src) {
+  if (logo.src && cfg.logo !== false) {          // your logo on the end card, unless it's switched off
     const m = document.createElement(logo.kind === "video" ? "video" : "img");
     m.className = "logo"; m.src = logo.src;
     if (logo.kind === "video") { m.muted = true; m.loop = true; m.autoplay = true; m.playsInline = true; }

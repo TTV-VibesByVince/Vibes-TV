@@ -53,7 +53,7 @@ from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "1.9"
+VERSION = "1.95"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -159,6 +159,7 @@ SCHEMA = {
     "credits_end":          (str,   "See you next stream!"),
     "credits_sections":     (dict,  {}),          # section -> false to leave it out (all on by default)
     "credits_speed":        (float, 1.0),
+    "credits_show_logo":    (bool,  True),        # your logo on the end card
     "credits_background":   (str,   "dark"),      # see CREDITS_BACKGROUNDS
     "credits_start":        (str,   "open"),      # open: when the source appears | play: only on /credits/play
     "credits_finish":       (str,   "fade"),      # fade: fade away (see-through) | hold: stay on the end card | loop
@@ -553,7 +554,7 @@ def widget_info():
 
 
 def credits_info():
-    return {"title": S["credits_title"], "end": S["credits_end"], "speed": S["credits_speed"],
+    return {"title": S["credits_title"], "end": S["credits_end"], "speed": S["credits_speed"], "logo": S["credits_show_logo"],
             "background": S["credits_background"], "start": S["credits_start"], "finish": S["credits_finish"],
             "sections": [k for k in CREDIT_SECTIONS if S["credits_sections"].get(k, True)],
             "effects": [k for k in CREDIT_EFFECTS if S["credits_effects"].get(k, True)]}
