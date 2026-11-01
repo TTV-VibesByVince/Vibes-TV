@@ -52,6 +52,10 @@ def srv(monkeypatch):
     monkeypatch.setattr(server, "session", server.Session(server.CONFIG / "session.json"))
     monkeypatch.setattr(server, "tiktok_stats", server.TikTokStats(server.CONFIG / "tiktok_stats.json"))
     monkeypatch.setattr(server, "PUSHING", {})
+    (server.CONFIG / "twitch_login.json").unlink(missing_ok=True)
+    monkeypatch.setattr(server, "twitch_live", server.TwitchLive(server.S, server.CONFIG / "twitch_login.json",
+                                                                 lambda kind, d: server.twitch_event(kind, d)))
+    monkeypatch.setattr(server, "PROFILES", {})
     server.hook_up()
     monkeypatch.setattr(server, "tiktok", server.TikTokWatcher(
         server.S, lambda ev: server.tv.dispatch(ev, limit=True),
