@@ -14,6 +14,14 @@ working in later ones.
 - **End credits, with Twitch connected**: mods and VIPs who chat are added
   by themselves (no Entrance Commands), and a new list starts when you go
   live (no Stream Start request).
+- **Alerts straight from Twitch** (Settings > Setup > Alerts from Twitch):
+  follows, subs and resubs (tier, months, message), gifted subs (a gift bomb
+  is one screen with exactly who got them), bits, raids (with the raider's
+  picture), watch streaks, modiversaries, gigantified emotes, the hype train
+  (exact progress) and Twitch's own `/shoutout`, each ticked separately.
+  MixItUp's request for a ticked alert is ignored while Twitch is connected,
+  so nothing plays twice; if the connection drops, MixItUp's requests play
+  again. First-time chatters stay with MixItUp.
 - **Fill the credits from Twitch directly** (Settings > Credits): follows,
   subs, resubs, gifted subs with their recipients, cheers, raids, watch
   streaks, gigantified emotes and the hype train come from Twitch instead

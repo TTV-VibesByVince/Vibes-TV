@@ -2,7 +2,10 @@
 
 [← Back to the README](../README.md) · [All docs](README.md)
 
-Add **one Web Request action (GET) per event**, pointing at Vibe TV. The
+Add **one Web Request action (GET) per event**, pointing at Vibe TV. (With
+[Connect Twitch](install.md#connect-your-twitch-account-optional), most
+alerts can come straight from Twitch instead, and MixItUp is only needed
+for first-time chatters and your own commands.) The
 settings page lists these with copy buttons, already filled in with your
 server's address.
 

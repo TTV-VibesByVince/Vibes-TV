@@ -15,9 +15,6 @@ to vote for one or suggest your own.
 
 ## Later
 
-- **Alerts straight from Twitch**: Connect Twitch (1.9) already feeds the
-  end credits; next, the alerts themselves (follows, subs, bits, raids, hype
-  trains) without a bot, chosen per event so nothing plays twice.
 - **Scenes**: several logos on rotation, and `starting soon`, `be right
   back` and `ending` screens switched by URL.
 - **Channel point redemptions**: a picture or video per reward.
@@ -39,6 +36,8 @@ to vote for one or suggest your own.
   per alert type. See [Stream overlay](docs/overlay.md).
 - **TikTok LIVE alerts** (1.5): follows, subscriptions and gifts, optional.
   See [TikTok LIVE](docs/tiktok.md).
+- **Connect to Twitch directly** (1.9): alerts and the credits straight from
+  Twitch, chosen per alert. See [Connect your Twitch account](docs/install.md#connect-your-twitch-account-optional).
 - **End credits and TikTok widgets** (1.8): see [End credits](docs/credits.md)
   and [TikTok LIVE](docs/tiktok.md#widgets-for-obs).
 - **Text to speech** (1.6): TikTok chat and `/tts` read aloud with Edge
