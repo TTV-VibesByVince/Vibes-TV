@@ -15,8 +15,9 @@ to vote for one or suggest your own.
 
 ## Later
 
-- **Connect to Twitch directly** (EventSub), so follows, subs, bits, raids
-  and hype trains arrive without a bot, with exact gift recipient lists.
+- **Alerts straight from Twitch**: Connect Twitch (1.9) already feeds the
+  end credits; next, the alerts themselves (follows, subs, bits, raids, hype
+  trains) without a bot, chosen per event so nothing plays twice.
 - **Scenes**: several logos on rotation, and `starting soon`, `be right
   back` and `ending` screens switched by URL.
 - **Channel point redemptions**: a picture or video per reward.

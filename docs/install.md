@@ -69,6 +69,25 @@ MixItUp sends `&avatar=`).
 3. Paste both into the settings page > Twitch API, **Save**, then
    **Test connection**.
 
+## Connect your Twitch account (optional)
+
+The keys above only let Vibe TV look up public things. Connecting your
+account lets it hear your channel's events straight from Twitch, for the
+[end credits](credits.md#with-twitch-connected): mods and VIPs who chat are
+added by themselves, and a new list starts when you go live.
+
+1. Settings > **Setup** > Twitch API > **Connect Twitch** (the keys must be
+   saved first).
+2. On your phone or PC, open the **twitch.tv/activate** link shown, type the
+   code, and approve what Vibe TV asks for: reading chat, followers, bits
+   and the hype train.
+3. The settings page shows **Connected as @you** by itself.
+
+Your server connects out to Twitch, like a browser does: nothing has to be
+opened on your router. The login is kept in `config/twitch_login.json`, never
+in your settings or backups, and renews itself; if Vibe TV isn't running for
+30 days in a row, press Connect again. **Disconnect** forgets it.
+
 ## Settings page password
 
 Set `ADMIN_PASSWORD` to protect `/admin` (the browser asks for a user name
