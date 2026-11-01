@@ -265,6 +265,24 @@
     <label class="f"><span>Your Twitch channel <span class="hint">(optional: lets gigantified emotes be found by name)</span></span><input type="text" class="mono" data-k="twitch_channel" placeholder="your_channel" autocomplete="off" spellcheck="false"></label>
     <div class="row" style="margin-top:12px"><button onclick="testTwitch()">Test connection</button><span class="hint">Save first.</span></div>
     <div class="result" id="twRes"></div>
+    <h3 class="sub">Connect your Twitch account <span class="chip" id="tlChip"><i></i><span>Not connected</span></span></h3>
+    <p class="hint">Optional. Lets Vibe TV hear your channel's events straight from Twitch: mods and VIPs who chat go into the credits by themselves,
+      a new credits list starts when you go live, and the credits can be filled from Twitch directly (see the Credits tab).
+      Your server connects out to Twitch; nothing is opened to the internet. Needs the Client ID and secret above, saved.</p>
+    <div class="row" style="margin-top:10px" id="tlButtons"><button class="primary" onclick="twitchConnect()">Connect Twitch</button>
+      <button class="danger" onclick="twitchDisconnect()" id="tlOff" hidden>Disconnect</button></div>
+    <div id="tlLogin" hidden style="margin-top:12px;padding:14px;border-radius:12px;background:var(--card2);border:1px solid var(--accent)">
+      <div class="hint">On your phone or PC, open <a id="tlUrl" target="_blank" rel="noopener">twitch.tv/activate</a> and enter this code:</div>
+      <div id="tlCode" class="mono" style="font-size:30px;font-weight:700;letter-spacing:.18em;margin:8px 0"></div>
+      <div class="hint">Then approve on Twitch. This page updates by itself when it's done.</div></div>
+    <div class="result" id="tlRes"></div>
+    <h3 class="sub">Alerts from Twitch</h3>
+    <p class="hint">Ticked: that alert plays straight from Twitch, and MixItUp's request for it is ignored while Twitch is connected (so it
+      can't play twice; you can turn it off in MixItUp). If the connection drops, MixItUp's requests play again. Test buttons always play.
+      First-time chatters always come from MixItUp. <b>Shoutouts</b> from Twitch play when you or a mod use Twitch's own
+      <span class="mono">/shoutout</span>.</p>
+    <div class="checks" id="srcList" style="grid-template-columns:repeat(auto-fill, minmax(200px, 1fr))"></div>
+    <div class="row" style="margin-top:8px"><button onclick="setSources(true)">Tick all</button><button onclick="setSources(false)">Untick all</button></div>
   </section>
 
   <section data-tab="overlay">
@@ -407,6 +425,17 @@
     <p class="hint">Lists with nobody in them this stream are left out by themselves. <b>Animation</b>: an effect as the section rolls in
       (swords for the mods, sirens for raiders, gems for cheers, a train for the hype train…).</p>
     <div class="checks" id="crSections"></div>
+    <h3 class="sub">Where the names come from</h3>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(300px, 1fr))">
+      <label class="f"><span>Fill the credits from</span><select data-k="credits_source">
+        <option value="alerts">Your alerts (what MixItUp sends)</option>
+        <option value="twitch">Twitch directly (needs Connect Twitch)</option></select></label>
+    </div>
+    <p class="hint" style="margin-top:6px"><b>Twitch directly</b>: follows, subs, resubs, gifted subs (with who got them), cheers, raids, watch streaks,
+      gigantified emotes and the hype train come straight from Twitch, so the credits don't depend on MixItUp. Your alerts still play as before.
+      First-time chatters still come from MixItUp's <span class="mono">/welcome</span>: Twitch doesn't say who's new.</p>
+    <label class="switch"><span>Start a new list when I go live<br><span class="hint">With Twitch connected. Then MixItUp's Stream Start request isn't needed.</span></span><input type="checkbox" data-k="credits_auto_reset"></label>
+    <p class="hint" style="margin-top:8px" id="crTwitchNote"></p>
     <h3 class="sub">Set it up in MixItUp</h3>
     <p class="hint"><b>Stream Start</b> event: a Web Request to start a new list each stream.</p>
     <pre class="mono code" id="crReset"></pre>
@@ -512,7 +541,7 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderReqs();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs();
   loadVoices(s.tts_voice);
 }
 
@@ -748,6 +777,7 @@ function renderStatus() {
   const cs = st.credits_stats || {};
   $("crCounts").innerHTML = [["follows", "new followers"], ["subs", "subs"], ["gifted", "gifted subs"], ["raids", "raids"], ["bits", "bits"], ["first_chatters", "first-time chatters"]]
     .map(([k, l]) => `<span><b>${(cs[k] || 0).toLocaleString()}</b> ${l}</span>`).join("") + '<span class="hint">this stream so far</span>';
+  renderTwitchLive(st.twitch_live);
   const ts = st.tts || {}, tchip = $("ttsChip");
   tchip.className = "chip " + (ts.error ? "bad" : ts.enabled ? "ok" : "");
   tchip.lastChild.textContent = !ts.enabled ? "Off" : ts.speaking ? "Reading" : "On";
@@ -818,7 +848,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects() };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources() };
 }
 
 async function save() {
@@ -921,6 +951,55 @@ async function testLights(which) {
   const r = await api(`/api/test/lights?which=${which}&hex=9146ff`, { method: "POST" });
   setRes($("lightRes"), r.ok, r.result);
 }
+/* ── which alerts play straight from Twitch ─────────────────────────── */
+const SOURCE_LABELS = { shoutout: "Shoutouts (Twitch's /shoutout)", raid: "Raids", follow: "Follows", sub: "Subs and resubs", gift: "Gifted subs",
+  bits: "Bits", streak: "Watch streaks", modiversary: "Modiversaries", gigantify: "Gigantified emotes", hype: "Hype train" };
+function renderSources() {
+  const src = state.settings.alert_sources || {};
+  $("srcList").innerHTML = state.source_events.map(k => `<label><input type="checkbox" data-src="${k}"${src[k] === "twitch" ? " checked" : ""}> ${esc(SOURCE_LABELS[k] || k)}</label>`).join("");
+  $("srcList").querySelectorAll("input").forEach(el => el.addEventListener("change", markDirty));
+}
+function setSources(on) { $("srcList").querySelectorAll("input").forEach(el => { el.checked = on; }); markDirty(); }
+function collectSources() {
+  const out = {};
+  document.querySelectorAll("[data-src]").forEach(el => { out[el.dataset.src] = el.checked ? "twitch" : "mixitup"; });
+  return out;
+}
+
+/* ── Connect Twitch (device login) ─────────────────────────────────── */
+async function twitchConnect() {
+  if (dirty) return toast("Save settings first");
+  setRes($("tlRes"), null, "Asking Twitch for a code…");
+  const r = await api("/api/twitch/connect", { method: "POST" });
+  if (!r.ok) return setRes($("tlRes"), false, r.result || "Couldn't start the login");
+  showTwitchLogin(r);
+  setRes($("tlRes"), null, "");
+}
+function showTwitchLogin(l) {
+  $("tlLogin").hidden = !l;
+  if (!l) return;
+  $("tlCode").textContent = l.code;
+  $("tlUrl").href = l.url; $("tlUrl").textContent = l.url.replace(/^https?:\/\//, "").replace(/\?.*$/, "");
+}
+async function twitchDisconnect() {
+  if (!confirm("Disconnect your Twitch account from Vibe TV?")) return;
+  await api("/api/twitch/disconnect", { method: "POST" });
+  refresh();
+}
+function renderTwitchLive(t) {
+  t = t || { state: "off" };
+  const chip = $("tlChip"), names = { off: "Not connected", starting: "Starting", connecting: "Connecting", live: "Connected", error: "Problem" };
+  chip.className = "chip " + (t.state === "live" ? "ok" : t.state === "error" ? "bad" : "");
+  chip.lastChild.textContent = t.state === "live" && t.account ? "Connected as @" + t.account : (names[t.state] || t.state);
+  $("tlOff").hidden = !t.account;
+  showTwitchLogin(t.login);
+  if (t.state === "error") setRes($("tlRes"), false, t.detail);
+  else if (t.state === "live") setRes($("tlRes"), true, `Listening to ${t.events} kinds of events` + (t.last_event ? ` · last one at ${new Date(t.last_event * 1000).toLocaleTimeString()}` : ""));
+  else if (!t.login) setRes($("tlRes"), null, "");
+  $("crTwitchNote").textContent = t.account ? `Twitch is connected as @${t.account}: mods and VIPs who chat are added by themselves.`
+    : "Twitch isn't connected (Setup tab), so the credits are filled from your alerts.";
+}
+
 async function testTwitch() {
   if (dirty) return toast("Save settings first");
   setRes($("twRes"), null, "Checking…");

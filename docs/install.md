@@ -69,6 +69,52 @@ MixItUp sends `&avatar=`).
 3. Paste both into the settings page > Twitch API, **Save**, then
    **Test connection**.
 
+## Connect your Twitch account (optional)
+
+The keys above only let Vibe TV look up public things. Connecting your
+account lets it hear your channel's events straight from Twitch, for the
+[end credits](credits.md#with-twitch-connected): mods and VIPs who chat are
+added by themselves, and a new list starts when you go live.
+
+1. Settings > **Setup** > Twitch API > **Connect Twitch** (the keys must be
+   saved first).
+2. On your phone or PC, open the **twitch.tv/activate** link shown, type the
+   code, and approve what Vibe TV asks for: reading chat, followers, bits,
+   the hype train and shoutouts.
+3. The settings page shows **Connected as @you** by itself.
+
+### Alerts straight from Twitch
+
+Once connected, each alert can play straight from Twitch instead of from
+MixItUp's request: Settings > Setup > **Alerts from Twitch**, tick the ones
+you want (or **Tick all**), and save.
+
+| Alert | From Twitch |
+| --- | --- |
+| Follows | Yes |
+| Subs and resubs | Yes, with the tier, months and their message |
+| Gifted subs | Yes, and a gift bomb is one screen with exactly who got them |
+| Bits | Yes, with their message |
+| Raids | Yes, with the raider's picture and viewer count |
+| Watch streaks | Yes, with their message |
+| Modiversaries | Yes |
+| Gigantified emotes | Yes |
+| Hype train | Yes: start, progress, level up and end, with the exact progress |
+| Shoutouts | When you or a mod use Twitch's own `/shoutout` |
+| First-time chatters | No: Twitch doesn't say who's new, so these stay with MixItUp's `/welcome` |
+
+For a ticked alert, MixItUp's request is **ignored while Twitch is
+connected**, so it can't play twice even if you leave it in MixItUp
+(**Last requests received** says so). If the connection drops, MixItUp's
+requests play again until it's back. The settings page's test buttons
+always play. Lights, routing, sizes, text and colours all work the same
+whichever way an alert arrives.
+
+Your server connects out to Twitch, like a browser does: nothing has to be
+opened on your router. The login is kept in `config/twitch_login.json`, never
+in your settings or backups, and renews itself; if Vibe TV isn't running for
+30 days in a row, press Connect again. **Disconnect** forgets it.
+
 ## Settings page password
 
 Set `ADMIN_PASSWORD` to protect `/admin` (the browser asks for a user name

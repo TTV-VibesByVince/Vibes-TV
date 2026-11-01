@@ -110,7 +110,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Under the hood.** One small Python server (aiohttp) and three web pages (TV, overlay, settings), no database. The image is built by GitHub for Intel/AMD and ARM, and rebuilt weekly with the newest yt-dlp. Fonts are bundled, so the TV page works without internet. Lite mode keeps animations smooth on TV sticks and smart TVs. Optional password for the settings page.
 
-## Status: 1.8
+## Status: 1.9
 
 > [!IMPORTANT]
 > Vibe TV is young. It works and it's tested, but it is a hobby project made for one channel first, so expect rough edges. The [changelog](CHANGELOG.md) lists what changed in each version.
@@ -118,7 +118,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 - **Running for real** on a NAS with Portainer, shown on an Android TV with Fully Kiosk Browser.
 - **Tested automatically on every change** ([tests](tests/)): settings, every MixItUp URL, gift batching, the hype train, themes and the date schedule, backup and restore (including older backups), uploads, the settings password, the calls to your lights, the TV and overlay queues running independently, routing, TikTok events, text to speech and its filters, and unfilled MixItUp variables.
 - **Checked by hand and by screenshots**: every animation in full and lite mode on the TV and on the overlay (over a coloured background, to check it's really transparent), the settings page, Twitch lookups and clips.
-- **Known gaps**: the settings page's MixItUp URLs use MixItUp's variable names from its documentation; if your version names one differently, **Settings > Last requests received** shows what actually arrived, and an unfilled variable is ignored instead of shown ([MixItUp URLs](docs/mixitup.md)). No alert sounds yet, and it needs a bot like MixItUp to report Twitch events (it doesn't connect to Twitch by itself). TikTok LIVE and text to speech use unofficial libraries, so they can break for a while when TikTok or Microsoft change things. See the [roadmap](ROADMAP.md).
+- **Known gaps**: the settings page's MixItUp URLs use MixItUp's variable names from its documentation; if your version names one differently, **Settings > Last requests received** shows what actually arrived, and an unfilled variable is ignored instead of shown ([MixItUp URLs](docs/mixitup.md)). No alert sounds yet. Without [Connect Twitch](docs/install.md#connect-your-twitch-account-optional), a bot like MixItUp reports the Twitch events; with it, everything but first-time chatters can come straight from Twitch. TikTok LIVE and text to speech use unofficial libraries, so they can break for a while when TikTok or Microsoft change things. See the [roadmap](ROADMAP.md).
 
 ## FAQ
 
@@ -134,6 +134,8 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 **Does it work with TikTok?** Optionally, for TikTok LIVE follows, subscriptions and gifts, through the unofficial open source [TikTokLive](https://github.com/isaackogan/TikTokLive) library. Switch it on under **Settings > TikTok LIVE** with your username. See [TikTok LIVE](docs/tiktok.md).
 
 **Can it read chat aloud?** Yes: TikTok LIVE chat, and anything MixItUp sends to `/tts` (a `!tts` command, for example), in a Microsoft Edge voice of your choice, on the stream overlay. Switch it on under **Settings > Text to speech**. See [Text to speech](docs/tts.md).
+
+**Can it read my Twitch chat?** Yes, if you connect your Twitch account (Settings > Setup > **Connect Twitch**: type a code at twitch.tv/activate). Then follows, subs, gifted subs, bits, raids, watch streaks, modiversaries, gigantified emotes, the hype train and Twitch's own shoutouts can play straight from Twitch (each one your choice), mods and VIPs who chat go into the end credits by themselves, and a new credits list starts when you go live. Only first-time chatters still need MixItUp. See [Connect your Twitch account](docs/install.md#connect-your-twitch-account-optional).
 
 **Do I need Twitch API keys?** No. Without them, names show as typed and pictures come from `&avatar=` on the URL (or a big initial). With them you get real display names, profile pictures, the last game played, pictures for gift recipients, and clips.
 

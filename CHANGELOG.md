@@ -4,6 +4,30 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 1.9 (2026-11-01)
+
+- **Connect Twitch** (Settings > Setup, optional): log in once with a code
+  at twitch.tv/activate, and Vibe TV hears your channel's events straight
+  from Twitch (EventSub). Your server connects out; nothing is opened to the
+  internet. The login is kept in its own file, renews itself, and is never
+  in settings or backups.
+- **End credits, with Twitch connected**: mods and VIPs who chat are added
+  by themselves (no Entrance Commands), and a new list starts when you go
+  live (no Stream Start request).
+- **Alerts straight from Twitch** (Settings > Setup > Alerts from Twitch):
+  follows, subs and resubs (tier, months, message), gifted subs (a gift bomb
+  is one screen with exactly who got them), bits, raids (with the raider's
+  picture), watch streaks, modiversaries, gigantified emotes, the hype train
+  (exact progress) and Twitch's own `/shoutout`, each ticked separately.
+  MixItUp's request for a ticked alert is ignored while Twitch is connected,
+  so nothing plays twice; if the connection drops, MixItUp's requests play
+  again. First-time chatters stay with MixItUp.
+- **Fill the credits from Twitch directly** (Settings > Credits): follows,
+  subs, resubs, gifted subs with their recipients, cheers, raids, watch
+  streaks, gigantified emotes and the hype train come from Twitch instead
+  of from the alerts. The alerts still play from MixItUp, and nobody is
+  counted twice. First-time chatters still come from MixItUp's `/welcome`.
+
 ## 1.8 (2026-10-29)
 
 - **End credits** (`/credits`): movie-style credits for an "Ending" scene in

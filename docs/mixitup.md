@@ -2,7 +2,10 @@
 
 [← Back to the README](../README.md) · [All docs](README.md)
 
-Add **one Web Request action (GET) per event**, pointing at Vibe TV. The
+Add **one Web Request action (GET) per event**, pointing at Vibe TV. (With
+[Connect Twitch](install.md#connect-your-twitch-account-optional), most
+alerts can come straight from Twitch instead, and MixItUp is only needed
+for first-time chatters and your own commands.) The
 settings page lists these with copy buttons, already filled in with your
 server's address.
 
@@ -26,8 +29,8 @@ server's address.
 | A chat command | `/message?text=$allargs&from=$username` |
 | A chat command (read aloud) | `/tts?text=$allargs&from=$username` |
 | | `/tts/skip`: stop what's being read aloud |
-| Stream Start | `/credits/reset`: a new list for the end credits |
-| Each mod's Entrance Command | `/credits/seen/$username?role=mod&avatar=$useravatar` (or `role=vip`) |
+| Stream Start | `/credits/reset`: a new list for the end credits (not needed with Connect Twitch) |
+| Each mod's Entrance Command | `/credits/seen/$username?role=mod&avatar=$useravatar` (or `role=vip`; not needed with Connect Twitch) |
 | | `/credits/play`: roll the credits again on every open credits page |
 | | `/tiktok/reset`: start the TikTok like and gifter counts over |
 | | `/logo`: clear the queues and the hype bar: the TV goes back to the logo, the overlay goes empty. `/logo?screen=tv` or `/logo?screen=overlay` clears just one |

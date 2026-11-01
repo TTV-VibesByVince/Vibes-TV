@@ -50,9 +50,10 @@ from PIL import Image
 from tiktok import TikTokWatcher
 from session import SECTIONS as CREDIT_SECTIONS, Session
 from tiktok_stats import TikTokStats
+from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "1.8"
+VERSION = "1.9"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -162,6 +163,9 @@ SCHEMA = {
     "credits_start":        (str,   "open"),      # open: when the source appears | play: only on /credits/play
     "credits_finish":       (str,   "fade"),      # fade: fade away (see-through) | hold: stay on the end card | loop
     "credits_effects":      (dict,  {}),          # section -> false to turn its animation off (all on by default)
+    "credits_source":       (str,   "alerts"),    # alerts: from the alerts MixItUp sends | twitch: straight from Twitch (needs Connect Twitch)
+    "credits_auto_reset":   (bool,  True),        # with Twitch connected: a new list when you go live
+    "alert_sources":        (dict,  {}),          # alert -> "twitch" to play it straight from Twitch (default: MixItUp)
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
 TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
@@ -253,6 +257,21 @@ CREDITS_BACKGROUNDS = ("dark", "starfield", "neon", "aurora", "logo", "clear")
 # sections with an animation of their own (swords for the mods, gems for cheers...)
 CREDIT_EFFECTS = ["mods", "vips", "raiders", "subs", "resubs", "gifts", "cheers", "streaks", "follows",
                   "first_chatters", "hype", "stats"]
+# the alerts that come straight from Twitch when the credits are filled from Twitch
+# (first-time chatters still come from MixItUp: Twitch doesn't say who's new)
+TWITCH_CREDIT_KINDS = {"follow", "sub", "resub", "gift", "bits", "raid", "streak", "gigantify"}
+# alerts that can play straight from Twitch instead of from MixItUp's requests
+SOURCE_EVENTS = ["shoutout", "raid", "follow", "sub", "gift", "bits", "streak", "modiversary", "gigantify", "hype"]
+SOURCE_KEY = {"resub": "sub", "gift_bomb": "gift", "gift": "gift"}
+# the MixItUp URLs behind each of them
+SOURCE_PATHS = {"/shoutout/": "shoutout", "/raid/": "raid", "/follow/": "follow", "/sub/": "sub", "/resub/": "sub",
+                "/gift/": "gift", "/giftbomb/": "gift", "/bits/": "bits", "/streak/": "streak",
+                "/modiversary/": "modiversary", "/gigantify/": "gigantify", "/hypetrain": "hype"}
+
+
+def from_twitch(kind):
+    """Does this alert play straight from Twitch?"""
+    return S["alert_sources"].get(SOURCE_KEY.get(kind, kind)) == "twitch"
 SCREENS = ("tv", "overlay")
 WIDGET_SCREENS = ("tiktok", "credits")      # pages that listen but have no alert queue
 # Where each kind of alert plays. Subs and resubs share "sub".
@@ -330,6 +349,13 @@ def _check_dict(key, val):
             if v != ROUTE_DEFAULTS[k]:
                 out[k] = v
         return out, None
+    if key == "alert_sources":
+        if not isinstance(val, dict):
+            return None, "alert_sources: must be an object"
+        bad = [k for k, v in val.items() if k in SOURCE_EVENTS and v not in ("twitch", "mixitup")]
+        if bad:
+            return None, f"alert_sources.{bad[0]}: twitch or mixitup"
+        return {k: "twitch" for k, v in val.items() if k in SOURCE_EVENTS and v == "twitch"}, None
     if key in ("credits_sections", "credits_effects"):
         if not isinstance(val, dict):
             return None, f"{key}: must be an object"
@@ -436,6 +462,9 @@ class Settings:
                 continue
             if key == "credits_background" and val not in CREDITS_BACKGROUNDS:
                 errors.append("credits_background: " + ", ".join(CREDITS_BACKGROUNDS))
+                continue
+            if key == "credits_source" and val not in ("alerts", "twitch"):
+                errors.append("credits_source: alerts or twitch")
                 continue
             if key == "credits_start" and val not in ("open", "play"):
                 errors.append("credits_start: open or play")
@@ -813,6 +842,8 @@ class TV:
         """Remember an alert for the end credits (not tests, not TikTok)."""
         if ev.get("test") or ev.get("platform") or not ev.get("user"):
             return
+        if S["credits_source"] == "twitch" and ev["type"] in TWITCH_CREDIT_KINDS:
+            return                       # Twitch sends these to the credits itself
 
         async def later():
             try:
@@ -989,7 +1020,7 @@ class TV:
             await self.broadcast(msg, screen)
 
     async def hype_update(self, action, level=None, progress=None, goal=None, percent=None, screen=None, test=False):
-        if not test:
+        if not test and S["credits_source"] != "twitch":
             session.hype(level)
         prev = self.hype
         if action == "end":
@@ -1229,6 +1260,103 @@ def later_push(key, make):
 
 
 PUSHING = {}
+
+
+PROFILES = {}       # login -> (time, profile): Twitch lookups for chat events, kept an hour
+
+
+async def profile_for(who):
+    """Name, picture and login for someone from a Twitch event."""
+    login = who.get("login") or ""
+    if login == "anonymous":
+        return {"login": "anonymous", "display_name": who.get("name") or "Anonymous", "avatar": ""}
+    hit = PROFILES.get(login)
+    if hit and time.time() - hit[0] < 3600:
+        profile = dict(hit[1])
+    else:
+        profile = await tv.build_profile({"user": login, "display": who.get("name"), "avatar": who.get("avatar")})
+        PROFILES[login] = (time.time(), dict(profile))
+        if len(PROFILES) > 5000:
+            PROFILES.clear()
+    if who.get("avatar"):
+        profile["avatar"] = who["avatar"]
+    return profile
+
+
+async def twitch_alert(kind, d):
+    """Play an alert straight from Twitch (instead of from MixItUp's request)."""
+    who = d.get("user") or {}
+    ev = {"user": who.get("login") or "someone", "display": who.get("name"), "avatar": who.get("avatar") or None,
+          "clip": False, "sound": None, "screen": None}
+    if kind == "hype":
+        # credits filled from Twitch get the level in twitch_event; from the alerts, hype_update records it
+        await tv.hype_update(d.get("action", "progress"), level=d.get("level"), progress=d.get("progress"),
+                             goal=d.get("goal"), test=S["credits_source"] == "twitch")
+        return
+    if kind in ("gift", "gift_bomb"):
+        recipient = (d.get("recipient") or {}).get("login") if kind == "gift" else None
+        await tv.add_gift(ev["user"], recipient, d.get("count") if kind == "gift_bomb" else None,
+                          ev["avatar"], ev["display"])
+        return
+    tier = TIERS.get(str(d.get("tier") or "").lower().replace("tier", "").replace(" ", ""))
+    if kind in ("shoutout", "raid"):
+        ev.update({"type": kind, "clip": None, "viewers": d.get("viewers") if kind == "raid" else None})
+        tv.dispatch(ev)
+        return
+    if kind == "follow":
+        ev["type"] = "follow"
+    elif kind in ("sub", "resub"):
+        ev.update({"type": kind, "tier": tier, "months": d.get("months"), "message": d.get("message") or ""})
+    elif kind == "bits":
+        ev.update({"type": "bits", "amount": d.get("amount"), "message": d.get("message") or ""})
+    elif kind == "streak":
+        ev.update({"type": "streak", "count": d.get("count"), "message": d.get("message") or ""})
+    elif kind == "modiversary":
+        ev.update({"type": "modiversary", "months": d.get("months") or None, "years": None})
+    elif kind == "gigantify":
+        ev.update({"type": "gigantify", "emote": d.get("emote_id") or d.get("emote_name") or "", "emote_name": d.get("emote_name", "")})
+    else:
+        return
+    tv.dispatch(ev, limit=True)
+
+
+async def twitch_event(kind, d):
+    """An event straight from Twitch (Connect Twitch): the alert (when it's
+    set to come from Twitch), and the credits."""
+    if from_twitch(kind) and kind in ("shoutout", "raid", "follow", "sub", "resub", "gift", "gift_bomb", "bits",
+                                      "streak", "modiversary", "gigantify", "hype"):
+        await twitch_alert(kind, d)
+    if kind == "online":
+        if S["credits_auto_reset"]:
+            session.reset()
+        return
+    if kind == "seen":
+        session.seen(await profile_for(d["user"]), d["role"])
+        return
+    if kind == "hype":
+        if S["credits_source"] == "twitch":
+            session.hype(d["level"])
+        return
+    if S["credits_source"] != "twitch" or kind not in TWITCH_CREDIT_KINDS:
+        return
+    payload = {"user": await profile_for(d["user"])}
+    if kind in ("sub", "resub"):
+        payload["tier"] = TIERS.get(str(d.get("tier") or "").lower().replace("tier", "").replace(" ", ""))
+        payload["months"] = d.get("months")
+    elif kind == "gift":
+        payload.update({"recipients": [await profile_for(d["recipient"])], "count": d.get("count", 1)})
+    elif kind == "bits":
+        payload["amount"] = d.get("amount")
+    elif kind == "raid":
+        payload["viewers"] = d.get("viewers")
+    elif kind == "streak":
+        payload["count"] = d.get("count")
+    elif kind == "gigantify":
+        payload["emote"] = {"url": EMOTE_CDN.format(id=d["emote_id"]) if d.get("emote_id") else "", "name": d.get("emote_name", "")}
+    session.record(kind, payload)
+
+
+twitch_live = TwitchLive(S, CONFIG / "twitch_login.json", lambda kind, d: twitch_event(kind, d))
 
 
 def hook_up():
@@ -1562,6 +1690,20 @@ async def tts_skip(request):
     return web.json_response({"ok": True})
 
 
+async def api_twitch_connect(request):
+    """Start Twitch's device login: returns the code to type at twitch.tv/activate."""
+    try:
+        login = await twitch_live.start_login()
+    except Exception as e:
+        return web.json_response({"ok": False, "result": str(e)[:200]})
+    return web.json_response({"ok": True, **login})
+
+
+async def api_twitch_disconnect(request):
+    await twitch_live.disconnect()
+    return web.json_response({"ok": True})
+
+
 async def api_tts_voices(request):
     try:
         return web.json_response({"ok": True, "voices": await speaker.voices()})
@@ -1625,6 +1767,10 @@ async def request_log(request, handler):
     tv.requests.appendleft(entry)
     # A value MixItUp left as text ("<emote ID or name>", "$emoteurl") is
     # treated as missing, so it never ends up on screen.
+    kind = next((k for prefix, k in SOURCE_PATHS.items() if request.path.startswith(prefix)), None)
+    if kind and S["alert_sources"].get(kind) == "twitch" and twitch_live.state == "live" and not flag(request, "test"):
+        entry["status"], entry["note"] = 200, "ignored: this alert plays straight from Twitch (Settings > Setup)"
+        return web.json_response({"ok": True, "skipped": "this alert plays straight from Twitch"})
     unfilled = [k for k, v in request.query.items() if PLACEHOLDER_RE.match(v)]
     if unfilled:
         request = request.clone(rel_url=request.rel_url.with_query(
@@ -1683,7 +1829,7 @@ async def api_state(request):
                    "overlays_connected": tv.count("overlay"), "queued_overlay": tv.screens["overlay"].queue.qsize(),
                    "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
                    "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee,
-                   "tiktok": tiktok.status(), "tts": speaker.status(),
+                   "tiktok": tiktok.status(), "tts": speaker.status(), "twitch_live": twitch_live.status(),
                    "widgets_connected": tv.count("tiktok"), "credits_connected": tv.count("credits"),
                    "tiktok_stats": tiktok_stats.snapshot(3), "credits_stats": session.snapshot()["stats"],
                    **logo_info()},
@@ -1698,6 +1844,7 @@ async def api_state(request):
         "size_events": SIZE_EVENTS,
         "credit_sections": CREDIT_SECTIONS,
         "credit_effects": CREDIT_EFFECTS,
+        "source_events": SOURCE_EVENTS,
         "credits_backgrounds": CREDITS_BACKGROUNDS,
         "size_defaults": SIZE_DEFAULTS,
         "overlay_positions": OVERLAY_POSITIONS,
@@ -1755,6 +1902,8 @@ async def api_settings(request):
     if after != before:
         await tv.broadcast({"type": "logo_src", **after})
     tiktok.reconfigure()
+    if {"twitch_client_id", "twitch_client_secret"} & set(body if isinstance(body, dict) else {}):
+        twitch_live.reconfigure(force=True)
     return web.json_response({"ok": True, "settings": S.public()})
 
 
@@ -1875,6 +2024,7 @@ async def on_startup(app):
     app["themes"] = asyncio.create_task(tv.theme_watch())
     tiktok.reconfigure()
     app["tts"] = asyncio.create_task(speaker.worker())
+    twitch_live.reconfigure()
     log.info("Vibe TV v%s on :%d (twitch api: %s, logo: %s, admin password: %s)",
              VERSION, PORT, tv.twitch.enabled, logo_url() or "none", "on" if ADMIN_PASSWORD else "off")
 
@@ -1885,6 +2035,7 @@ async def on_cleanup(app):
     app["themes"].cancel()
     app["tts"].cancel()
     await tiktok.stop()
+    await twitch_live.stop()
     tiktok.config = None
     await tv.session.close()
 
@@ -1937,6 +2088,8 @@ def make_app():
     app.router.add_post("/api/test/twitch", api_test_twitch)
     app.router.add_post("/api/test/tiktok", api_test_tiktok)
     app.router.add_get("/api/tts/voices", api_tts_voices)
+    app.router.add_post("/api/twitch/connect", api_twitch_connect)
+    app.router.add_post("/api/twitch/disconnect", api_twitch_disconnect)
     app.router.add_get("/api/tts/preview", api_tts_preview)
     app.router.add_get("/api/backup", api_backup)
     app.router.add_post("/api/restore", api_restore)

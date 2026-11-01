@@ -75,7 +75,25 @@ the names stay readable.
 | Hype train | A train crossing the screen |
 | This stream | Confetti cannons |
 
+## With Twitch connected
+
+**Settings > Setup > Connect Twitch** ([how](install.md#connect-your-twitch-account-optional))
+makes the credits look after themselves:
+
+- **Mods and VIPs** who chat are added by themselves, from their badges. No
+  Entrance Commands needed.
+- **A new list starts when you go live** (Settings > Credits > *Start a new
+  list when I go live*). No Stream Start request needed.
+- **Fill the credits from: Twitch directly** takes follows, subs, resubs,
+  gifted subs (with who got them), cheers, raids, watch streaks, gigantified
+  emotes and the hype train level straight from Twitch, so the credits don't
+  depend on MixItUp's events. Your alerts still play from MixItUp as before,
+  and nobody is counted twice. **First-time chatters** still come from
+  MixItUp's `/welcome`: Twitch's live events don't say who's new.
+
 ## Set it up in MixItUp
+
+Not needed for anything Connect Twitch already does (above).
 
 **A new list each stream.** In MixItUp's **Stream Start** event, add a Web
 Request action:
@@ -86,7 +104,7 @@ http://<server-ip>:8777/credits/reset
 
 (**Settings > Credits > Start a new list** does the same.)
 
-**Your mods.** Vibe TV doesn't see chat, so the mods tell it they're here:
+**Your mods.** Without Connect Twitch, Vibe TV doesn't see chat, so the mods tell it they're here:
 in MixItUp, open **Users**, pick a mod, and give them an **Entrance
 Command** (it runs the first time they chat each stream) with a Web Request
 action:
