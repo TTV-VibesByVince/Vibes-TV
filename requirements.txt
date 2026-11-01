@@ -8,4 +8,4 @@ yt-dlp
 TikTokLive>=7,<8
 # Optional text to speech with Microsoft Edge's voices (LGPL-3.0, unofficial,
 # no key needed). Only used when switched on in the settings.
-edge-tts>=7,<8
+edge-tts>=7.3.1,<8
