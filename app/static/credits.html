@@ -84,6 +84,8 @@
   .sec.big .p img.av { width: 18vh; height: 18vh; }
   .sec.mods .p img.av { box-shadow: 0 0 0 .45vh #00ad03, 0 0 3vh rgba(0,173,3,.6); }
   .sec.mods h2, .sec.vips h2 { color: #fff; }
+  .sec.vips .p img.av { box-shadow: 0 0 0 .45vh #e005b9, 0 0 3vh rgba(224,5,185,.65); }
+  .sec h2 i svg { width: 5.6vh; height: 5.6vh; display: block; filter: drop-shadow(0 0 1.4vh rgba(224,5,185,.7)); }
   .gift { display: flex; flex-direction: column; align-items: center; gap: 2vh; opacity: 0; transform: scale(.85); }
   .gift.in { animation: personIn .6s cubic-bezier(.2,1.5,.4,1) both; }
   .gift .to { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.6vh 2.4vh; max-width: 80vw; }
@@ -175,8 +177,10 @@ let cfg = { title: "Thanks for watching!", end: "See you next stream!", speed: 1
 let logo = { src: "", kind: "image" }, data = null, playing = false, playTimer = null;
 const stage = $("stage"), roll = $("roll");
 
+// Twitch's VIP badge is a pink gem
+const PINK_GEM = '<svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#e005b9" d="M9 4h14l7 8-14 17L2 12z"/><path fill="#fff" fill-opacity=".45" d="M9 4l3 8h8l3-8zM2 12h28l-14 17z"/><path fill="#000" fill-opacity=".18" d="M16 29l4-17h10z"/><path fill="none" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" d="M9 4h14l7 8-14 17L2 12z"/></svg>';
 const SECTION = {
-  mods: ["Thank you to the mods", "🛡️"], vips: ["Thank you to the VIPs", "💎"], raiders: ["Raided by", "🚨"],
+  mods: ["Thank you to the mods", "🛡️"], vips: ["Thank you to the VIPs", PINK_GEM], raiders: ["Raided by", "🚨"],
   subs: ["New subscribers", "⭐"], resubs: ["Resubscribed", "🌟"], gifts: ["Gifted subs", "🎁"], cheers: ["Cheered", "💎"],
   streaks: ["Watch streaks", "🔥"], follows: ["New followers", "💗"], first_chatters: ["First time in chat", "👋"],
   gigantify: ["Gigantified", "🤩"], hype: ["Hype train", "🚂"], stats: ["This stream", "📊"],
@@ -392,7 +396,12 @@ function effect(key) {
   else if (key === "cheers") burst(Math.round(70 * many), "rain", () => gemSprite(gemColor([1, 100, 1000, 5000, 10000][Math.floor(Math.random() * 5)])));
   else if (key === "gifts") burst(Math.round(40 * many), "rain", () => giftSprite());
   else if (key === "subs" || key === "resubs") burst(Math.round(70 * many), "pop", () => starSprite(Math.random() < .6 ? "#ffd34d" : "#ffffff"));
-  else if (key === "vips") burst(Math.round(50 * many), "pop", () => glowSprite(Math.random() < .5 ? "#ffffff" : "#ff6fa8"));
+  else if (key === "vips") {       // sparkles, then a shower of pink VIP gems
+    const pinks = ["#e005b9", "#ff3fd4", "#ff6fa8"];
+    burst(Math.round(50 * many), "pop", () => glowSprite(Math.random() < .5 ? "#ffffff" : "#ff6fa8"));
+    burst(Math.round(24 * many), "pop", () => gemSprite(pinks[Math.floor(Math.random() * pinks.length)]));
+    setTimeout(() => burst(Math.round(60 * many), "rain", () => gemSprite(pinks[Math.floor(Math.random() * pinks.length)])), 350);
+  }
   else if (key === "stats") burst(Math.round(120 * many), "cannons", () => confettiSprite());
 }
 

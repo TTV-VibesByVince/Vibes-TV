@@ -1020,7 +1020,7 @@ $("crSeen").textContent = location.origin + "/credits/seen/$username?role=mod&av
 const SECTION_LABELS = { mods: "Thank you to the mods", vips: "Thank you to the VIPs", raiders: "Raiders", subs: "New subs", resubs: "Resubs",
   gifts: "Gifted subs (who gifted, and to whom)", cheers: "Cheers (bits)", streaks: "Watch streaks", follows: "New followers",
   first_chatters: "First-time chatters", gigantify: "Gigantified emotes", hype: "Hype train level", stats: "Stream stats" };
-const EFFECT_NAMES = { mods: "swords", vips: "sparkles", raiders: "sirens", subs: "stars", resubs: "stars", gifts: "gift rain", cheers: "gem rain",
+const EFFECT_NAMES = { mods: "swords", vips: "sparkles + pink gems", raiders: "sirens", subs: "stars", resubs: "stars", gifts: "gift rain", cheers: "gem rain",
   streaks: "fire", follows: "hearts", first_chatters: "waves", hype: "a train", stats: "confetti" };
 function renderCredits() {
   const off = state.settings.credits_sections || {}, offFx = state.settings.credits_effects || {};

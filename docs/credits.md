@@ -64,7 +64,7 @@ the names stay readable.
 | List | Animation |
 | --- | --- |
 | Thank you to the mods | Two swords swing in and cross with a slash of light, like the mod badge |
-| Thank you to the VIPs | Sparkles |
+| Thank you to the VIPs | Sparkles, then a shower of pink gems, like the VIP badge (VIPs also get pink rings) |
 | Raided by | Police lights sweeping, and hazard tape across the top and bottom |
 | New subscribers / Resubscribed | A burst of stars |
 | Gifted subs | Gift boxes raining down |
