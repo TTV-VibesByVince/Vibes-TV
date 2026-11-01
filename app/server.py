@@ -165,6 +165,7 @@ SCHEMA = {
     "credits_effects":      (dict,  {}),          # section -> false to turn its animation off (all on by default)
     "credits_source":       (str,   "alerts"),    # alerts: from the alerts MixItUp sends | twitch: straight from Twitch (needs Connect Twitch)
     "credits_auto_reset":   (bool,  True),        # with Twitch connected: a new list when you go live
+    "alert_sources":        (dict,  {}),          # alert -> "twitch" to play it straight from Twitch (default: MixItUp)
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
 TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
@@ -259,6 +260,18 @@ CREDIT_EFFECTS = ["mods", "vips", "raiders", "subs", "resubs", "gifts", "cheers"
 # the alerts that come straight from Twitch when the credits are filled from Twitch
 # (first-time chatters still come from MixItUp: Twitch doesn't say who's new)
 TWITCH_CREDIT_KINDS = {"follow", "sub", "resub", "gift", "bits", "raid", "streak", "gigantify"}
+# alerts that can play straight from Twitch instead of from MixItUp's requests
+SOURCE_EVENTS = ["shoutout", "raid", "follow", "sub", "gift", "bits", "streak", "modiversary", "gigantify", "hype"]
+SOURCE_KEY = {"resub": "sub", "gift_bomb": "gift", "gift": "gift"}
+# the MixItUp URLs behind each of them
+SOURCE_PATHS = {"/shoutout/": "shoutout", "/raid/": "raid", "/follow/": "follow", "/sub/": "sub", "/resub/": "sub",
+                "/gift/": "gift", "/giftbomb/": "gift", "/bits/": "bits", "/streak/": "streak",
+                "/modiversary/": "modiversary", "/gigantify/": "gigantify", "/hypetrain": "hype"}
+
+
+def from_twitch(kind):
+    """Does this alert play straight from Twitch?"""
+    return S["alert_sources"].get(SOURCE_KEY.get(kind, kind)) == "twitch"
 SCREENS = ("tv", "overlay")
 WIDGET_SCREENS = ("tiktok", "credits")      # pages that listen but have no alert queue
 # Where each kind of alert plays. Subs and resubs share "sub".
@@ -336,6 +349,13 @@ def _check_dict(key, val):
             if v != ROUTE_DEFAULTS[k]:
                 out[k] = v
         return out, None
+    if key == "alert_sources":
+        if not isinstance(val, dict):
+            return None, "alert_sources: must be an object"
+        bad = [k for k, v in val.items() if k in SOURCE_EVENTS and v not in ("twitch", "mixitup")]
+        if bad:
+            return None, f"alert_sources.{bad[0]}: twitch or mixitup"
+        return {k: "twitch" for k, v in val.items() if k in SOURCE_EVENTS and v == "twitch"}, None
     if key in ("credits_sections", "credits_effects"):
         if not isinstance(val, dict):
             return None, f"{key}: must be an object"
@@ -1263,8 +1283,49 @@ async def profile_for(who):
     return profile
 
 
+async def twitch_alert(kind, d):
+    """Play an alert straight from Twitch (instead of from MixItUp's request)."""
+    who = d.get("user") or {}
+    ev = {"user": who.get("login") or "someone", "display": who.get("name"), "avatar": who.get("avatar") or None,
+          "clip": False, "sound": None, "screen": None}
+    if kind == "hype":
+        # credits filled from Twitch get the level in twitch_event; from the alerts, hype_update records it
+        await tv.hype_update(d.get("action", "progress"), level=d.get("level"), progress=d.get("progress"),
+                             goal=d.get("goal"), test=S["credits_source"] == "twitch")
+        return
+    if kind in ("gift", "gift_bomb"):
+        recipient = (d.get("recipient") or {}).get("login") if kind == "gift" else None
+        await tv.add_gift(ev["user"], recipient, d.get("count") if kind == "gift_bomb" else None,
+                          ev["avatar"], ev["display"])
+        return
+    tier = TIERS.get(str(d.get("tier") or "").lower().replace("tier", "").replace(" ", ""))
+    if kind in ("shoutout", "raid"):
+        ev.update({"type": kind, "clip": None, "viewers": d.get("viewers") if kind == "raid" else None})
+        tv.dispatch(ev)
+        return
+    if kind == "follow":
+        ev["type"] = "follow"
+    elif kind in ("sub", "resub"):
+        ev.update({"type": kind, "tier": tier, "months": d.get("months"), "message": d.get("message") or ""})
+    elif kind == "bits":
+        ev.update({"type": "bits", "amount": d.get("amount"), "message": d.get("message") or ""})
+    elif kind == "streak":
+        ev.update({"type": "streak", "count": d.get("count"), "message": d.get("message") or ""})
+    elif kind == "modiversary":
+        ev.update({"type": "modiversary", "months": d.get("months") or None, "years": None})
+    elif kind == "gigantify":
+        ev.update({"type": "gigantify", "emote": d.get("emote_id") or d.get("emote_name") or "", "emote_name": d.get("emote_name", "")})
+    else:
+        return
+    tv.dispatch(ev, limit=True)
+
+
 async def twitch_event(kind, d):
-    """An event straight from Twitch (Connect Twitch): into the credits."""
+    """An event straight from Twitch (Connect Twitch): the alert (when it's
+    set to come from Twitch), and the credits."""
+    if from_twitch(kind) and kind in ("shoutout", "raid", "follow", "sub", "resub", "gift", "gift_bomb", "bits",
+                                      "streak", "modiversary", "gigantify", "hype"):
+        await twitch_alert(kind, d)
     if kind == "online":
         if S["credits_auto_reset"]:
             session.reset()
@@ -1706,6 +1767,10 @@ async def request_log(request, handler):
     tv.requests.appendleft(entry)
     # A value MixItUp left as text ("<emote ID or name>", "$emoteurl") is
     # treated as missing, so it never ends up on screen.
+    kind = next((k for prefix, k in SOURCE_PATHS.items() if request.path.startswith(prefix)), None)
+    if kind and S["alert_sources"].get(kind) == "twitch" and twitch_live.state == "live" and not flag(request, "test"):
+        entry["status"], entry["note"] = 200, "ignored: this alert plays straight from Twitch (Settings > Setup)"
+        return web.json_response({"ok": True, "skipped": "this alert plays straight from Twitch"})
     unfilled = [k for k, v in request.query.items() if PLACEHOLDER_RE.match(v)]
     if unfilled:
         request = request.clone(rel_url=request.rel_url.with_query(
@@ -1779,6 +1844,7 @@ async def api_state(request):
         "size_events": SIZE_EVENTS,
         "credit_sections": CREDIT_SECTIONS,
         "credit_effects": CREDIT_EFFECTS,
+        "source_events": SOURCE_EVENTS,
         "credits_backgrounds": CREDITS_BACKGROUNDS,
         "size_defaults": SIZE_DEFAULTS,
         "overlay_positions": OVERLAY_POSITIONS,

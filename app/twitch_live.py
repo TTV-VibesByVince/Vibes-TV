@@ -28,7 +28,8 @@ AUTH_URL = "https://id.twitch.tv/oauth2"
 HELIX_URL = "https://api.twitch.tv/helix"
 EVENTSUB_URL = "wss://eventsub.wss.twitch.tv/ws"
 # What Vibe TV asks permission for (shown on Twitch's approval screen)
-SCOPES = ["user:read:chat", "moderator:read:followers", "bits:read", "channel:read:hype_train"]
+SCOPES = ["user:read:chat", "moderator:read:followers", "bits:read", "channel:read:hype_train",
+          "moderator:read:shoutouts"]
 RETRY = (5, 300)              # seconds to wait before reconnecting: first, longest
 
 
@@ -42,6 +43,7 @@ def subscriptions(user_id):
         ("channel.chat.notification", ["1"], chat),       # subs, resubs, gifts, raids, watch streaks
         ("channel.follow", ["2"], {"broadcaster_user_id": user_id, "moderator_user_id": user_id}),
         ("channel.bits.use", ["1"], me),                  # cheers and Power-ups (gigantified emotes)
+        ("channel.shoutout.create", ["1"], {"broadcaster_user_id": user_id, "moderator_user_id": user_id}),
         ("channel.hype_train.begin", ["2", "1"], me),
         ("channel.hype_train.progress", ["2", "1"], me),
         ("channel.hype_train.end", ["2", "1"], me),
@@ -57,6 +59,7 @@ def translate(sub_type, ev):
     """One EventSub notification as a list of (kind, data) for Vibe TV.
     Plain dicts in, plain dicts out: the tests feed this real-shaped payloads."""
     out = []
+    text = ((ev.get("message") or {}).get("text") or "").strip()
     if sub_type == "stream.online":
         if ev.get("type", "live") == "live":
             out.append(("online", {}))
@@ -80,34 +83,43 @@ def translate(sub_type, ev):
             out.append(("sub", {"user": who, "tier": "prime" if sub.get("is_prime") else sub.get("sub_tier")}))
         elif kind == "resub":
             resub = ev.get("resub") or {}
-            out.append(("resub", {"user": who, "months": resub.get("cumulative_months"),
+            out.append(("resub", {"user": who, "months": resub.get("cumulative_months"), "message": text,
                                   "tier": "prime" if resub.get("is_prime") else resub.get("sub_tier")}))
         elif kind == "sub_gift":
             g = ev.get("sub_gift") or {}
             out.append(("gift", {"user": who, "recipient": person(g.get("recipient_user_login"), g.get("recipient_user_name")),
-                                 "count": 1}))
+                                 "count": 1, "tier": g.get("sub_tier")}))
+        elif kind == "community_sub_gift":         # a gift bomb: the total first, each recipient as its own sub_gift
+            c = ev.get("community_sub_gift") or {}
+            out.append(("gift_bomb", {"user": who, "count": c.get("total") or 1, "tier": c.get("sub_tier")}))
         elif kind == "raid":
             r = ev.get("raid") or {}
             out.append(("raid", {"user": person(r.get("user_login"), r.get("user_name"), r.get("profile_image_url")),
                                  "viewers": r.get("viewer_count") or 0}))
         elif kind == "watch_streak":
             w = ev.get("watch_streak") or {}
-            out.append(("streak", {"user": who, "count": w.get("streak_count") or 0}))
-        # community_sub_gift: each recipient also arrives as its own sub_gift
+            out.append(("streak", {"user": who, "count": w.get("streak_count") or 0, "message": text}))
+        elif kind == "modiversary":
+            out.append(("modiversary", {"user": who, "months": (ev.get("modiversary") or {}).get("months") or 0}))
         # shared_chat_*: another channel's events in a shared chat
     elif sub_type == "channel.follow":
         out.append(("follow", {"user": person(ev.get("user_login"), ev.get("user_name"))}))
     elif sub_type == "channel.bits.use":
         who = person(ev.get("user_login"), ev.get("user_name"))
         if ev.get("type") == "cheer" and ev.get("bits"):
-            out.append(("bits", {"user": who, "amount": ev["bits"]}))
+            out.append(("bits", {"user": who, "amount": ev["bits"], "message": text}))
         power = ev.get("power_up") or {}
         if ev.get("type") == "power_up" and power.get("type") == "gigantify_an_emote":
             emote = power.get("emote") or {}
             out.append(("gigantify", {"user": who, "emote_id": emote.get("id"), "emote_name": emote.get("name") or ""}))
     elif sub_type.startswith("channel.hype_train."):
         if ev.get("level"):
-            out.append(("hype", {"level": ev["level"]}))
+            action = {"begin": "start", "progress": "progress", "end": "end"}.get(sub_type.rsplit(".", 1)[1], "progress")
+            out.append(("hype", {"level": ev["level"], "action": action,
+                                 "progress": ev.get("progress"), "goal": ev.get("goal")}))
+    elif sub_type == "channel.shoutout.create":     # you (or a mod) used Twitch's /shoutout
+        out.append(("shoutout", {"user": person(ev.get("to_broadcaster_user_login"), ev.get("to_broadcaster_user_name")),
+                                 "viewers": ev.get("viewer_count")}))
     return out
 
 

@@ -47,15 +47,18 @@ def test_chat_notifications():
     assert t("channel.chat.notification", notice("resub", resub={"cumulative_months": 14, "sub_tier": "1000"}))[0][1]["months"] == 14
     gift = t("channel.chat.notification", notice("sub_gift", "santa", sub_gift={"recipient_user_login": "elf", "recipient_user_name": "Elf"}))
     assert gift == [("gift", {"user": {"login": "santa", "name": "Santa", "avatar": ""},
-                              "recipient": {"login": "elf", "name": "Elf", "avatar": ""}, "count": 1})]
+                              "recipient": {"login": "elf", "name": "Elf", "avatar": ""}, "count": 1, "tier": None})]
     anon = notice("sub_gift", sub_gift={"recipient_user_login": "elf"}, chatter_is_anonymous=True)
     assert t("channel.chat.notification", anon)[0][1]["user"]["login"] == "anonymous"
-    assert t("channel.chat.notification", notice("community_sub_gift", community_sub_gift={"total": 5})) == []
+    assert t("channel.chat.notification", notice("community_sub_gift", "santa", community_sub_gift={"total": 5, "sub_tier": "1000"})) ==         [("gift_bomb", {"user": {"login": "santa", "name": "Santa", "avatar": ""}, "count": 5, "tier": "1000"})]
+    assert t("channel.chat.notification", notice("modiversary", "modone", modiversary={"months": 24}))[0] ==         ("modiversary", {"user": {"login": "modone", "name": "Modone", "avatar": ""}, "months": 24})
+    resub = notice("resub", resub={"cumulative_months": 3, "sub_tier": "1000"}, message={"text": "love it"})
+    assert t("channel.chat.notification", resub)[0][1]["message"] == "love it"
     raid = t("channel.chat.notification", notice("raid", raid={"user_login": "raider", "user_name": "Raider",
                                                                "viewer_count": 40, "profile_image_url": "https://example.com/r.png"}))
     assert raid == [("raid", {"user": {"login": "raider", "name": "Raider", "avatar": "https://example.com/r.png"}, "viewers": 40})]
     assert t("channel.chat.notification", notice("watch_streak", watch_streak={"streak_count": 9}))[0] == \
-        ("streak", {"user": {"login": "fan", "name": "Fan", "avatar": ""}, "count": 9})
+        ("streak", {"user": {"login": "fan", "name": "Fan", "avatar": ""}, "count": 9, "message": ""})
     assert t("channel.chat.notification", notice("shared_chat_resub")) == []
 
 
@@ -64,14 +67,18 @@ def test_follows_bits_hype_online():
     assert t("channel.follow", {**ME, "user_login": "newpal", "user_name": "NewPal"}) == \
         [("follow", {"user": {"login": "newpal", "name": "NewPal", "avatar": ""}})]
     cheer = {**ME, "user_login": "cheery", "user_name": "Cheery", "type": "cheer", "bits": 500}
-    assert t("channel.bits.use", cheer)[0] == ("bits", {"user": {"login": "cheery", "name": "Cheery", "avatar": ""}, "amount": 500})
+    assert t("channel.bits.use", {**cheer, "message": {"text": "Cheer500 go!"}})[0] ==         ("bits", {"user": {"login": "cheery", "name": "Cheery", "avatar": ""}, "amount": 500, "message": "Cheer500 go!"})
     giga = {**ME, "user_login": "emotefan", "user_name": "EmoteFan", "type": "power_up", "bits": 100,
             "power_up": {"type": "gigantify_an_emote", "emote": {"id": "25", "name": "VibeHype"}}}
     assert t("channel.bits.use", giga)[0][1] == {"user": {"login": "emotefan", "name": "EmoteFan", "avatar": ""},
                                                  "emote_id": "25", "emote_name": "VibeHype"}
     effect = {**ME, "user_login": "x", "type": "power_up", "power_up": {"type": "message_effect"}}
     assert t("channel.bits.use", effect) == []
-    assert t("channel.hype_train.progress", {**ME, "level": 3, "progress": 50, "goal": 100}) == [("hype", {"level": 3})]
+    assert t("channel.hype_train.progress", {**ME, "level": 3, "progress": 50, "goal": 100}) ==         [("hype", {"level": 3, "action": "progress", "progress": 50, "goal": 100})]
+    assert t("channel.hype_train.begin", {**ME, "level": 1, "progress": 5, "goal": 100})[0][1]["action"] == "start"
+    assert t("channel.hype_train.end", {**ME, "level": 4})[0][1]["action"] == "end"
+    so = {**ME, "to_broadcaster_user_login": "coolstreamer", "to_broadcaster_user_name": "CoolStreamer", "viewer_count": 12}
+    assert t("channel.shoutout.create", so) == [("shoutout", {"user": {"login": "coolstreamer", "name": "CoolStreamer", "avatar": ""}, "viewers": 12})]
     assert t("stream.online", {**ME, "type": "live"}) == [("online", {})]
     assert t("stream.online", {**ME, "type": "rerun"}) == []
 
@@ -204,7 +211,7 @@ async def test_connect_and_listen(client, srv, aiohttp_server, monkeypatch):
     status = srv.twitch_live.status()
     assert status["state"] == "live" and status["account"] == "vibesbyvince" and status["login"] is None
     assert ("channel.chat.message", "1") in seen["subs"] and ("channel.hype_train.begin", "1") in seen["subs"]
-    assert len(seen["subs"]) == 8
+    assert len(seen["subs"]) == 9 and ("channel.shoutout.create", "1") in seen["subs"]
     saved = json.loads((srv.CONFIG / "twitch_login.json").read_text("utf-8"))
     assert saved["user_id"] == "100" and saved["refresh_token"] == "r1"
     assert "twitch_login" not in json.dumps(await (await client.get("/api/backup")).json())   # never in backups
@@ -224,3 +231,100 @@ async def test_connect_and_listen(client, srv, aiohttp_server, monkeypatch):
 
     await client.post("/api/twitch/disconnect")
     assert not (srv.CONFIG / "twitch_login.json").exists() and srv.twitch_live.status()["account"] is None
+
+
+# ── alerts straight from Twitch ──────────────────────────────────────────
+
+def from_twitch(srv, *kinds):
+    srv.S.update({"alert_sources": {k: "twitch" for k in kinds}})
+
+
+async def test_alerts_play_from_twitch(client, srv, tv):
+    live = srv.twitch_live
+    await live.handle("channel.follow", {**ME, "user_login": "newpal", "user_name": "NewPal"})
+    assert await tv.next("follow", timeout=1) is None                   # default: alerts come from MixItUp
+    from_twitch(srv, "follow", "sub", "bits", "streak", "modiversary", "gigantify", "raid")
+    await live.handle("channel.follow", {**ME, "user_login": "newpal", "user_name": "NewPal"})
+    assert (await tv.next("follow"))["user"]["display_name"] == "NewPal"
+    await live.handle("channel.chat.notification", notice("sub", "goldsub", sub={"sub_tier": "3000"}))
+    assert (await tv.next("sub"))["tier_level"] == 3
+    await live.handle("channel.chat.notification", notice("resub", "loyal", resub={"cumulative_months": 14, "sub_tier": "1000"},
+                                                          message={"text": "love this stream"}))
+    resub = await tv.next("resub")
+    assert resub["months"] == 14 and resub["text"]["message"] == "love this stream"
+    await live.handle("channel.bits.use", {**ME, "user_login": "cheery", "user_name": "Cheery", "type": "cheer", "bits": 1500,
+                                           "message": {"text": "Cheer1500 go"}})
+    assert (await tv.next("bits"))["amount"] == 1500
+    await live.handle("channel.chat.notification", notice("watch_streak", "watcher", watch_streak={"streak_count": 12}))
+    assert (await tv.next("streak"))["count"] == 12
+    await live.handle("channel.chat.notification", notice("modiversary", "modone", modiversary={"months": 24}))
+    assert (await tv.next("modiversary"))["text"]["title"].startswith("2 YEARS")
+    await live.handle("channel.bits.use", {**ME, "user_login": "emotefan", "user_name": "EmoteFan", "type": "power_up",
+                                           "power_up": {"type": "gigantify_an_emote", "emote": {"id": "25", "name": "VibeHype"}}})
+    assert (await tv.next("gigantify"))["emote"]["url"].endswith("/25/default/dark/3.0")
+    await live.handle("channel.chat.notification", notice("raid", raid={"user_login": "raider", "user_name": "Raider",
+                                                                         "viewer_count": 40, "profile_image_url": "https://example.com/r.png"}))
+    raid = await tv.next("raid")
+    assert raid["viewers"] == 40 and raid["user"]["avatar"] == "https://example.com/r.png"
+
+
+async def test_gift_bombs_are_one_screen(client, srv, tv):
+    from_twitch(srv, "gift")
+    live = srv.twitch_live
+    await live.handle("channel.chat.notification", notice("community_sub_gift", "santa", community_sub_gift={"total": 3}))
+    for elf in ("elf1", "elf2", "elf3"):
+        await live.handle("channel.chat.notification", notice("sub_gift", "santa", sub_gift={"recipient_user_login": elf, "recipient_user_name": elf.title()}))
+    gift = await tv.next("gift", timeout=3)
+    assert gift["count"] == 3 and [r["login"] for r in gift["recipients"]] == ["elf1", "elf2", "elf3"]
+    assert await tv.next("gift", timeout=1) is None
+
+
+async def test_hype_train_and_shoutouts_from_twitch(client, srv, tv):
+    from_twitch(srv, "hype", "shoutout")
+    live = srv.twitch_live
+    await live.handle("channel.hype_train.begin", {**ME, "level": 1, "progress": 20, "goal": 100})
+    hype = await tv.next("hype")
+    assert hype["state"]["level"] == 1 and hype["state"]["percent"] == 20.0 and hype["banner"]["kind"] == "start"
+    await live.handle("channel.hype_train.progress", {**ME, "level": 2, "progress": 10, "goal": 100})
+    assert (await tv.next("hype"))["banner"]["kind"] == "levelup"
+    await live.handle("channel.hype_train.end", {**ME, "level": 2})
+    assert (await tv.next("hype"))["state"] is None
+    assert srv.session.data["hype_level"] == 2                            # and the credits know
+    await live.handle("channel.shoutout.create", {**ME, "to_broadcaster_user_login": "coolstreamer", "to_broadcaster_user_name": "CoolStreamer"})
+    assert (await tv.next("shoutout"))["user"]["display_name"] == "CoolStreamer"
+
+
+async def test_mixitup_is_ignored_only_while_connected(client, srv, tv):
+    from_twitch(srv, "follow", "sub")
+    await client.get("/follow/WhileOffline")                            # not connected: MixItUp still plays it
+    assert await tv.next("follow")
+    srv.twitch_live.state = "live"
+    r = await (await client.get("/follow/FromMixItUp")).json()
+    assert r["skipped"] and await tv.next("follow", timeout=1) is None
+    assert "plays straight from Twitch" in srv.tv.requests[0]["note"]
+    await client.get("/resub/Loyal?months=3")                           # resubs follow subs
+    assert await tv.next("resub", timeout=1) is None
+    await client.get("/follow/TestButton?test=1")                       # test buttons always play
+    assert await tv.next("follow")
+    await client.get("/bits/Cheery?amount=100")                         # still from MixItUp
+    assert await tv.next("bits")
+
+
+async def test_credits_count_everyone_once(client, srv, tv):
+    from_twitch(srv, "follow")
+    srv.twitch_live.state = "live"
+    for source in ("alerts", "twitch"):
+        srv.session.reset()
+        srv.S.update({"credits_source": source})
+        await srv.twitch_live.handle("channel.follow", {**ME, "user_login": "newpal", "user_name": "NewPal"})
+        await client.get("/follow/NewPal")                              # MixItUp too: ignored
+        await asyncio.sleep(0.3)
+        assert [p["login"] for p in srv.session.data["people"]["follows"]] == ["newpal"], source
+
+
+async def test_alert_sources_setting(client, srv):
+    assert (await client.post("/api/settings", json={"alert_sources": {"follow": "youtube"}})).status == 400
+    r = await client.post("/api/settings", json={"alert_sources": {"follow": "twitch", "sub": "mixitup", "welcome": "twitch"}})
+    assert r.status == 200 and srv.S["alert_sources"] == {"follow": "twitch"}       # first-time chatters can't
+    state = await (await client.get("/api/state")).json()
+    assert "welcome" not in state["source_events"] and "hype" in state["source_events"]
