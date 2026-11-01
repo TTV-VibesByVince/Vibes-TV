@@ -4,6 +4,16 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 1.95 (2026-11-02)
+
+- **Credits: show your logo at the end, or not** (Settings > Credits > *Show
+  my logo at the end*). Off: the end card is just the last line.
+- **Credits speed is a slider** (0.5× to 3×) that says what it's set to, so
+  speeding them up a little is one drag. The preview shows it before you
+  save.
+- Docs: why the credits play when OBS starts (*When the source appears*),
+  and the setting that keeps them waiting until `/credits/play`.
+
 ## 1.9 (2026-11-01)
 
 - **Connect Twitch** (Settings > Setup, optional): log in once with a code
