@@ -57,6 +57,29 @@ The TikTok gift card has its own text, colour and routing on the settings
 page (**Text & colours** and **Stream overlay > Where each alert plays**).
 Follows and subscriptions use the follow and sub settings.
 
+## Widgets for OBS
+
+Four see-through widgets, each its own Browser Source, with profile
+pictures. They update live and start over when a new TikTok live begins
+(or with **Settings > TikTok > Reset counts**, or `/tiktok/reset`).
+
+| Address | Widget | OBS source size |
+| --- | --- | --- |
+| `/tiktok/likes` | **Like counter**: the live's total likes rolling up, how many are watching, hearts flying on big bursts, and an optional **like goal** bar with a celebration when it's reached | about 360 x 240 |
+| `/tiktok/likers` | **Top likers**: who tapped the most, with their pictures; rows slide into place when the ranking changes, and a "NEW #1!" pops when someone takes the lead | about 420 x 560 |
+| `/tiktok/gifters` | **Top gifters**: who gifted the most coins this live (every gift counts, even ones too small for an alert) | about 420 x 560 |
+| `/tiktok/combined` | All three in one | about 420 x 1200, or 1300 x 600 with `layout=row` |
+
+Settings > **TikTok > TikTok widgets**: how many people on each list (1 to
+10), stacked or side by side, size, panel opacity, the like goal, and
+whether to hide them while you're not live. Any widget's URL can override
+those for that one source: `?count=3`, `&layout=row`, `&scale=1.2`,
+`&opacity=0.6`, `&goal=5000`, `&hide=0`. Add `?sample=1` to see one with
+made-up names.
+
+Leave **Shutdown source when not visible** off in OBS, so the numbers stay
+current.
+
 ## Test it
 
 The **Follow**, **Subscription**, **Small gift** and **Big gift** buttons

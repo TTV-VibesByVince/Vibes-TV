@@ -26,6 +26,10 @@ server's address.
 | A chat command | `/message?text=$allargs&from=$username` |
 | A chat command (read aloud) | `/tts?text=$allargs&from=$username` |
 | | `/tts/skip`: stop what's being read aloud |
+| Stream Start | `/credits/reset`: a new list for the end credits |
+| Each mod's Entrance Command | `/credits/seen/$username?role=mod&avatar=$useravatar` (or `role=vip`) |
+| | `/credits/play`: roll the credits again on every open credits page |
+| | `/tiktok/reset`: start the TikTok like and gifter counts over |
 | | `/logo`: clear the queues and the hype bar: the TV goes back to the logo, the overlay goes empty. `/logo?screen=tv` or `/logo?screen=overlay` clears just one |
 | | `/reload`: reload every TV and overlay page |
 | | `/status`: JSON status |

@@ -47,9 +47,16 @@ def srv(monkeypatch):
     monkeypatch.setattr(server, "tv", server.TV())
     monkeypatch.setattr(server, "speaker", server.Speaker(
         server.S, server.tts_play, server.CACHE / "tts", synth=fake_synth, voices=fake_voices))
+    for name in ("session.json", "tiktok_stats.json"):
+        (server.CONFIG / name).unlink(missing_ok=True)
+    monkeypatch.setattr(server, "session", server.Session(server.CONFIG / "session.json"))
+    monkeypatch.setattr(server, "tiktok_stats", server.TikTokStats(server.CONFIG / "tiktok_stats.json"))
+    monkeypatch.setattr(server, "PUSHING", {})
+    server.hook_up()
     monkeypatch.setattr(server, "tiktok", server.TikTokWatcher(
         server.S, lambda ev: server.tv.dispatch(ev, limit=True),
-        chat=lambda who, text: server.speaker.say(text, who["display"], source="tiktok")))
+        chat=lambda who, text: server.speaker.say(text, who["display"], source="tiktok"),
+        stats=server.tiktok_stats))
     monkeypatch.setattr(server, "GIFT_WINDOW", 0.4)
     monkeypatch.setattr(server, "ADMIN_PASSWORD", "")
     for d in (server.MEDIA, server.CACHE, server.CONFIG):

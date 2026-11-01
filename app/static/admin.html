@@ -138,6 +138,26 @@
   .ev label.f > span { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
   .ev input[type=text] { padding: 8px 10px; font-size: 13px; }
 
+  [hidden] { display: none !important; }
+  /* tabs */
+  .tabs { flex-basis: 100%; display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 -4px; }
+  .tabs button { padding: 7px 16px; border-radius: 99px; background: transparent; border-color: transparent; color: var(--muted); }
+  .tabs button:hover { color: var(--text); border-color: var(--line); }
+  .tabs button.on { background: var(--card2); border-color: var(--accent); color: var(--text); }
+  main > section[hidden] { display: none; }
+  .addr { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; margin-top: 12px; }
+  .addr b { grid-column: 1 / -1; font-size: 13px; margin-top: 6px; }
+  .addr b span { font-weight: 400; color: var(--muted); }
+  .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 0 26px; margin-top: 10px; }
+  .checks label { display: flex; align-items: center; gap: 9px; font-size: 14px; cursor: pointer; }
+  .checks .csec { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .checks .cfx { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .checks input { width: 17px; height: 17px; accent-color: var(--accent); }
+  .counts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .counts span { padding: 6px 12px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line); font-size: 13px; }
+  .counts b { font-size: 15px; }
+  pre.code { margin-top: 6px; padding: 9px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); white-space: pre-wrap; word-break: break-all; }
+
   @media (max-width: 860px) {
     .sched-row { grid-template-columns: 1fr 1fr; }
     main { grid-template-columns: minmax(0, 1fr); padding: 16px; }
@@ -158,14 +178,21 @@
     <span class="chip" id="cTw"><i></i><span>Twitch API</span></span>
     <a class="btn" href="/tv" target="_blank">Open TV page</a>
   </div>
+  <nav class="tabs" id="tabs" aria-label="Settings sections">
+    <button data-tab="alerts">Alerts</button><button data-tab="overlay">Stream overlay</button><button data-tab="tiktok">TikTok</button>
+    <button data-tab="credits">Credits</button><button data-tab="setup">Setup</button>
+  </nav>
 </header>
 
 <main>
-  <section>
-    <h2>Live preview <span class="seg" id="pvSeg"><button class="on" data-pv="tv">TV</button><button data-pv="overlay">Stream overlay</button></span></h2>
+  <section data-tab="alerts overlay tiktok credits" id="pvSection">
+    <h2>Live preview <span class="seg" id="pvSeg"><button class="on" data-pv="tv">TV</button><button data-pv="overlay">Stream overlay</button><button data-pv="tiktok">TikTok</button><button data-pv="credits">Credits</button></span></h2>
     <p class="hint" id="pvHint">What the TV shows right now. Test buttons play on every connected TV.</p>
     <div class="preview" id="pv"><iframe id="pvframe" src="/tv?preview=1" title="TV preview"></iframe></div>
-    <div class="tests">
+    <div class="row" id="pvReplayRow" hidden style="margin-top:10px"><button onclick="frame.contentWindow.postMessage({ type: 'credits_replay' }, location.origin)">Replay preview</button>
+      <span class="hint">Only here: the credits in OBS aren't touched.</span></div>
+    <label class="switch" id="pvSampleRow" hidden><span>Show sample data<br><span class="hint">Made-up names, so you can see it before your stream.</span></span><input type="checkbox" id="pvSample" checked></label>
+    <div class="tests" id="tests">
       <label class="f" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="" placeholder="Your channel name (blank = twitch)" maxlength="25"></label>
       <label class="f" style="margin-top:0"><span>Send tests to</span><select id="tScreen" title="Where test alerts play">
         <option value="">Each alert's setting</option><option value="tv">TV only</option><option value="overlay">Stream overlay only</option><option value="both">TV and overlay</option></select></label>
@@ -188,7 +215,7 @@
     <div class="result" id="tRes"></div>
   </section>
 
-  <section>
+  <section data-tab="alerts">
     <h2>Logo</h2>
     <p class="hint">Loops on the TV between events. Videos (mp4, webm, mov) or images (png, jpg, gif, webp).</p>
     <div class="drop" id="drop">Drop a file here or <b style="color:var(--accent2)">browse</b><input type="file" id="file" accept="video/mp4,video/webm,video/quicktime,.mov,.m4v,image/*" hidden></div>
@@ -201,7 +228,7 @@
     <div class="media" id="media"></div>
   </section>
 
-  <section>
+  <section data-tab="alerts">
     <h2>Timing</h2>
     <p class="hint">How long each card stays up. Clips play after the card. Tier 2 subs stay 2 seconds longer, Tier 3 subs 4.</p>
     <div class="grid2">
@@ -229,7 +256,7 @@
     <label class="switch"><span>Clip sound on<br><span class="hint">TV browsers may still start muted until the page is clicked once.</span></span><input type="checkbox" data-k="clip_sound"></label>
   </section>
 
-  <section>
+  <section data-tab="setup">
     <h2>Twitch API</h2>
     <p class="hint">Optional. Adds real display names, avatars, last game and clips. Create an app at
       <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv/console</a> (any redirect URL, e.g. http://localhost).</p>
@@ -240,16 +267,20 @@
     <div class="result" id="twRes"></div>
   </section>
 
-  <section class="wide">
-    <h2>Stream overlay</h2>
-    <p class="hint">The same alerts on your stream, as small see-through cards in a corner. No logo, no background: it's empty between alerts.
-      It has its own queue, so it never waits for a TV clip.</p>
+  <section data-tab="overlay">
+    <h2>Add it to OBS</h2>
+    <p class="hint">The same alerts on your stream: compact cards in a corner, bigger ones in the centre, or full screen like the TV.
+      No logo, no background: it's empty between alerts. It has its own queue, so it never waits for a TV clip.</p>
     <label class="f"><span>Overlay address</span><div class="row"><input type="text" class="mono" id="ovUrl" readonly><button onclick="copy($('ovUrl').value)">Copy</button><a class="btn" id="ovOpen" target="_blank">Open</a></div></label>
     <ul class="tips">
       <li>In OBS, add a <b>Browser</b> source with this address, <b>Width 1920</b> and <b>Height 1080</b>. No custom CSS needed: the page is already transparent.</li>
       <li>Turn <b>Shutdown source when not visible</b> off, so it stays connected when you switch scenes.</li>
       <li>Want the alert sounds on stream? Tick <b>Control audio via OBS</b>. Clips are off on the overlay by default so their sound doesn't play twice.</li>
     </ul>
+  </section>
+
+  <section class="wide" data-tab="overlay">
+    <h2>Stream overlay</h2>
     <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(200px, 1fr))">
       <label class="f"><span>Position</span><select data-k="overlay_position">
         <option value="top-left">Top left</option><option value="top-right">Top right</option>
@@ -268,7 +299,37 @@
     <div class="routes" id="routes"></div>
   </section>
 
-  <section class="wide">
+  <section data-tab="tiktok">
+    <h2>TikTok widgets for OBS</h2>
+    <p class="hint">Four see-through widgets with profile pictures, each its own Browser Source. They update live while you're on TikTok LIVE
+      (set it up below). Move and crop them in OBS.</p>
+    <div class="addr" id="ttAddr"></div>
+    <ul class="tips">
+      <li>Add a URL's <span class="mono">?count=3</span>, <span class="mono">&amp;layout=row</span>, <span class="mono">&amp;scale=1.2</span>,
+        <span class="mono">&amp;goal=5000</span> or <span class="mono">&amp;hide=0</span> to change just that source.</li>
+      <li>Leave <b>Shutdown source when not visible</b> off, so the numbers stay current.</li>
+    </ul>
+  </section>
+
+  <section class="wide" data-tab="tiktok">
+    <h2>TikTok widgets <span class="chip" id="wChip"><i></i><span>0 open</span></span></h2>
+    <p class="hint">Counts start over when a new TikTok live begins. <b>Like counter</b>: total likes, with an optional goal bar.
+      <b>Top likers</b> and <b>Top gifters</b> (by coins): the people who liked or gifted the most this live.</p>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(200px, 1fr))">
+      <label class="f"><span>People on each list <span class="hint">(1 to 10)</span></span><input type="number" data-k="tiktok_widget_count" min="1" max="10" step="1"></label>
+      <label class="f"><span>Layout</span><select data-k="tiktok_widget_layout"><option value="column">Stacked (column)</option><option value="row">Side by side (row)</option></select></label>
+      <label class="f"><span>Size <span class="hint">(0.5 to 2)</span></span><input type="number" data-k="tiktok_widget_scale" min="0.5" max="2" step="0.05"></label>
+      <label class="f"><span>Panel opacity <span class="hint">(0.2 to 1)</span></span><input type="number" data-k="tiktok_widget_opacity" min="0.2" max="1" step="0.05"></label>
+      <label class="f"><span>Like goal <span class="hint">(0 = no goal bar)</span></span><input type="number" data-k="tiktok_like_goal" min="0" step="1000"></label>
+    </div>
+    <label class="switch"><span>Hide the widgets while I'm not live on TikTok<br><span class="hint">They fade in when you go live. The preview here always shows them.</span></span><input type="checkbox" data-k="tiktok_widget_hide_offline"></label>
+    <div class="counts" id="ttCounts"></div>
+    <div class="row" style="margin-top:12px"><span class="hint" style="flex:none">Test (adds to the real counts):</span>
+      <button onclick="testTikTok('likes')">Add likes</button><button onclick="testTikTok('gift', 'small')">Small gift</button><button onclick="testTikTok('gift', 'big')">Big gift</button>
+      <button class="danger" onclick="resetTikTok()">Reset counts</button></div>
+  </section>
+
+  <section class="wide" data-tab="tiktok">
     <h2>TikTok LIVE <span class="chip" id="ttChip"><i></i><span>Off</span></span></h2>
     <p class="hint">Optional. Shows follows, subscriptions and gifts from your own TikTok LIVE, with the same cards, queues and routing.
       It uses <a href="https://github.com/isaackogan/TikTokLive" target="_blank" rel="noopener">TikTokLive</a>, an unofficial open source library
@@ -285,7 +346,7 @@
       <button onclick="testTikTok('gift', 'small')">Small gift</button><button onclick="testTikTok('gift', 'big')">Big gift</button></div>
   </section>
 
-  <section class="wide">
+  <section class="wide" data-tab="tiktok">
     <h2>Text to speech <span class="chip" id="ttsChip"><i></i><span>Off</span></span></h2>
     <p class="hint">Reads TikTok LIVE chat aloud (and anything MixItUp sends to <span class="mono">/tts</span>), one message at a time, in a Microsoft Edge
       voice. It plays on the stream overlay by default (in OBS, tick <b>Control audio via OBS</b> on the Browser Source). Uses
@@ -310,7 +371,50 @@
     <p class="hint" style="margin-top:6px">Save first. Plays where <b>Where each alert plays &gt; Text to speech</b> says (the overlay by default), and follows <b>Send tests to</b>.</p>
   </section>
 
-  <section class="wide">
+  <section data-tab="credits">
+    <h2>Add the credits to OBS</h2>
+    <p class="hint">Movie-style end credits with everyone from this stream and their pictures, then your logo. Put them in an "Ending" scene.</p>
+    <label class="f"><span>Credits address</span><div class="row"><input type="text" class="mono" id="crUrl" readonly><button onclick="copy($('crUrl').value)">Copy</button><a class="btn" href="/credits" target="_blank">Open</a></div></label>
+    <ul class="tips">
+      <li>A <b>Browser</b> source, <b>1920 x 1080</b>. Tick <b>Refresh browser when scene becomes active</b>, so they start from the top each time you switch to the scene.</li>
+      <li>Or restart them from a Stream Deck button or MixItUp with <span class="mono">/credits/play</span>.</li>
+    </ul>
+    <div class="row" style="margin-top:12px"><button onclick="send('/credits/play')">Play the credits now</button><button class="danger" onclick="resetCredits()">Start a new list</button></div>
+  </section>
+
+  <section class="wide" data-tab="credits">
+    <h2>Credits <span class="chip" id="crChip"><i></i><span>0 open</span></span></h2>
+    <p class="hint">Everyone from your alerts is remembered for the credits automatically, one entry per person per list, with their picture. Test alerts from this page aren't.</p>
+    <div class="counts" id="crCounts"></div>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(240px, 1fr))">
+      <label class="f"><span>Title</span><input type="text" data-k="credits_title" maxlength="80"></label>
+      <label class="f"><span>Last line, under your logo</span><input type="text" data-k="credits_end" maxlength="80"></label>
+      <label class="f"><span>Speed <span class="hint">(0.3 to 3, 1 = normal)</span></span><input type="number" data-k="credits_speed" min="0.3" max="3" step="0.1"></label>
+      <label class="f"><span>Background</span><select data-k="credits_background">
+        <option value="dark">Dark, with theme particles</option><option value="starfield">Starfield (flying through stars)</option>
+        <option value="neon">Neon grid (synthwave sun)</option><option value="aurora">Aurora (glowing colour waves)</option>
+        <option value="logo">Your logo, blurred (like the TV)</option><option value="clear">See-through (over your stream)</option></select></label>
+      <label class="f"><span>When they start</span><select data-k="credits_start">
+        <option value="open">When the source appears (or the scene is switched to)</option>
+        <option value="play">Only when /credits/play is called</option></select></label>
+      <label class="f"><span>When they finish</span><select data-k="credits_finish">
+        <option value="fade">Fade away, so your stream is back</option><option value="hold">Stay on the end card</option>
+        <option value="loop">Start again (loop)</option></select></label>
+    </div>
+    <p class="hint" style="margin-top:8px">To keep them on top of your main scene all stream: <b>Only when /credits/play is called</b> + <b>Fade away</b>.
+      They stay invisible until you play them (a Stream Deck button or a MixItUp command), take over the screen, then fade back out.</p>
+    <h3 class="sub">What's in the credits</h3>
+    <p class="hint">Lists with nobody in them this stream are left out by themselves. <b>Animation</b>: an effect as the section rolls in
+      (swords for the mods, sirens for raiders, gems for cheers, a train for the hype train…).</p>
+    <div class="checks" id="crSections"></div>
+    <h3 class="sub">Set it up in MixItUp</h3>
+    <p class="hint"><b>Stream Start</b> event: a Web Request to start a new list each stream.</p>
+    <pre class="mono code" id="crReset"></pre>
+    <p class="hint" style="margin-top:10px"><b>Mods</b>: give each mod an <b>Entrance Command</b> (Users &gt; the mod &gt; Entrance Command) with this Web Request. It runs the first time they chat each stream. Use <span class="mono">role=vip</span> for VIPs.</p>
+    <pre class="mono code" id="crSeen"></pre>
+  </section>
+
+  <section class="wide" data-tab="setup">
     <h2>Lights</h2>
     <p class="hint">Vibe TV calls these when a card starts and ends. <span class="mono">{hex}</span> becomes the colour picked from the raider's avatar.
       For <a href="https://github.com/TTV-VibesByVince/Govee-Lights-Controller" target="_blank" rel="noopener">Govee Lights Controller</a> (V1.3+), turn on <b>Settings &gt; Accept requests from my network</b> on the PC, then use its address, e.g.
@@ -325,7 +429,7 @@
     </div>
   </section>
 
-  <section class="wide">
+  <section class="wide" data-tab="alerts">
     <h2>Theme <span class="chip" id="themeNow" style="font-weight:600"></span></h2>
     <p class="hint">Changes the confetti, the floating shapes on the follow screen (hearts, bats, snowflakes, clovers), the raid's warp colours and the theme colour.
       Clicking a theme switches every TV right away.</p>
@@ -337,7 +441,7 @@
       <button onclick="addSched('halloween','10-01','10-31');addSched('holidays','12-01','01-01');addSched('valentine','02-07','02-14');addSched('stpatricks','03-14','03-17')">Add the holiday presets</button></div>
   </section>
 
-  <section class="wide">
+  <section class="wide" data-tab="alerts">
     <h2>Text &amp; colours</h2>
     <p class="hint">Change the words on each screen. Leave a box empty to use the default (shown in grey).
       <span class="mono">{name}</span>, <span class="mono">{months}</span>, <span class="mono">{amount}</span> and the like are filled in;
@@ -347,7 +451,7 @@
     <div class="evlist" id="evlist"></div>
   </section>
 
-  <section class="wide">
+  <section class="wide" data-tab="setup">
     <h2>Backup</h2>
     <p class="hint">All your settings in one file: timings, text, colours, theme and schedule, light URLs and Twitch keys. Logo files aren't included;
       they're in the <span class="mono">media</span> folder.</p>
@@ -361,14 +465,14 @@
     <div class="result" id="bkRes"></div>
   </section>
 
-  <section class="wide">
+  <section class="wide" data-tab="setup">
     <h2>Last requests received</h2>
     <p class="hint">The last event URLs that reached Vibe TV, newest first, exactly as they arrived. Use it to check MixItUp filled in its variables:
       an empty <span class="mono">tier=</span> or a leftover <span class="mono">$variable</span> means that identifier didn't exist for that event.</p>
     <table class="urls reqs" id="reqs"></table>
   </section>
 
-  <section class="wide">
+  <section class="wide" data-tab="setup">
     <h2>MixItUp URLs</h2>
     <p class="hint">Use these in MixItUp's Web Request action. They point at this server's address.</p>
     <table class="urls" id="urls"></table>
@@ -408,7 +512,7 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderReqs();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderReqs();
   loadVoices(s.tts_voice);
 }
 
@@ -635,6 +739,15 @@ function renderStatus() {
   const tw = $("cTw"); tw.className = "chip " + (st.twitch_api ? "ok" : "");
   tw.lastChild.textContent = st.twitch_api ? "Twitch API on" : "Twitch API off";
   if (st.last_lights) $("lightRes").textContent = st.last_lights;
+  const wn = st.widgets_connected || 0, cn = st.credits_connected || 0;
+  $("wChip").className = "chip " + (wn ? "ok" : ""); $("wChip").lastChild.textContent = wn === 1 ? "1 open" : `${wn} open`;
+  $("crChip").className = "chip " + (cn ? "ok" : ""); $("crChip").lastChild.textContent = cn === 1 ? "1 open" : `${cn} open`;
+  const tst = st.tiktok_stats || {}, top = (l, f) => l && l[0] ? `${esc(l[0].name)} (${(l[0][f] || 0).toLocaleString()})` : "nobody yet";
+  $("ttCounts").innerHTML = `<span>Likes <b>${(tst.likes || 0).toLocaleString()}</b></span><span>Top liker <b>${top(tst.likers, "likes")}</b></span>`
+    + `<span>Top gifter <b>${top(tst.gifters, "coins")}</b></span>` + (tst.viewers ? `<span>Watching <b>${tst.viewers.toLocaleString()}</b></span>` : "");
+  const cs = st.credits_stats || {};
+  $("crCounts").innerHTML = [["follows", "new followers"], ["subs", "subs"], ["gifted", "gifted subs"], ["raids", "raids"], ["bits", "bits"], ["first_chatters", "first-time chatters"]]
+    .map(([k, l]) => `<span><b>${(cs[k] || 0).toLocaleString()}</b> ${l}</span>`).join("") + '<span class="hint">this stream so far</span>';
   const ts = st.tts || {}, tchip = $("ttsChip");
   tchip.className = "chip " + (ts.error ? "bad" : ts.enabled ? "ok" : "");
   tchip.lastChild.textContent = !ts.enabled ? "Off" : ts.speaking ? "Reading" : "On";
@@ -705,7 +818,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes() };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects() };
 }
 
 async function save() {
@@ -760,6 +873,9 @@ async function send(path) {
 function call(path) {
   const s = $("tScreen").value;
   if (s && path !== "/reload") path += (path.includes("?") ? "&" : "?") + "screen=" + s;
+  // test alerts from this page aren't remembered for the credits
+  if (/^\/(shoutout|raid|follow|gift|giftbomb|sub|resub|bits|streak|modiversary|gigantify|welcome|hypetrain)\b/.test(path))
+    path += (path.includes("?") ? "&" : "?") + "test=1";
   return send(path);
 }
 function clearScreens() {
@@ -854,17 +970,97 @@ const pv = $("pv"), frame = $("pvframe");
 new ResizeObserver(() => { frame.style.transform = `scale(${pv.clientWidth / 1920})`; }).observe(pv);
 
 // preview switch: the TV, or the stream overlay over a stand-in game scene
-const PV_HINT = { tv: "What the TV shows right now.", overlay: "The stream overlay, over a stand-in game scene so you can see what's see-through." };
+const PV_HINT = {
+  tv: "What the TV shows right now. Test alerts go where \"Send tests to\" says.",
+  overlay: "The stream overlay, over a stand-in game scene so you can see what's see-through. Test alerts go where \"Send tests to\" says.",
+  tiktok: "The combined TikTok widget, over a stand-in game scene.",
+  credits: "The end credits. They restart when you change a setting.",
+};
+const PV_SRC = { tv: "/tv?", overlay: "/overlay?", tiktok: "/tiktok/combined?count=3&scale=1.5&", credits: "/credits?" };
+let pvNow = "tv";
 function showPreview(which) {
+  pvNow = which;
   $("pvSeg").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.pv === which));
-  pv.classList.toggle("ov", which === "overlay");
-  frame.title = which === "tv" ? "TV preview" : "Stream overlay preview";
-  frame.src = (which === "tv" ? "/tv" : "/overlay") + "?preview=1";
-  $("pvHint").textContent = PV_HINT[which] + " Test alerts go where \"Send tests to\" says.";
-  try { localStorage.setItem("vibetv.pv", which); } catch (e) {}
+  pv.classList.toggle("ov", which === "overlay" || which === "tiktok");
+  frame.title = which + " preview";
+  const sample = (which === "tiktok" || which === "credits") && $("pvSample").checked ? "&sample=1" : "";
+  frame.src = PV_SRC[which] + "preview=1" + sample;
+  $("pvHint").textContent = PV_HINT[which];
+  $("pvSampleRow").hidden = !(which === "tiktok" || which === "credits");
+  $("pvReplayRow").hidden = which !== "credits";
+  $("tests").hidden = !(which === "tv" || which === "overlay");
 }
 $("pvSeg").querySelectorAll("button").forEach(b => b.onclick = () => showPreview(b.dataset.pv));
-try { if (localStorage.getItem("vibetv.pv") === "overlay") showPreview("overlay"); } catch (e) {}
+$("pvSample").addEventListener("change", () => showPreview(pvNow));
+
+/* ── tabs ───────────────────────────────────────────────────────────── */
+const TAB_PREVIEW = { alerts: "tv", overlay: "overlay", tiktok: "tiktok", credits: "credits" };
+function showTab(tab) {
+  if (!TAB_PREVIEW[tab] && tab !== "setup") tab = "alerts";
+  $("tabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+  document.querySelectorAll("main > section[data-tab]").forEach(sec => { sec.hidden = !sec.dataset.tab.split(" ").includes(tab); });
+  if (TAB_PREVIEW[tab] && TAB_PREVIEW[tab] !== pvNow) showPreview(TAB_PREVIEW[tab]);
+  if (location.hash !== "#" + tab) history.replaceState(null, "", "#" + tab);
+  try { localStorage.setItem("vibetv.tab", tab); } catch (e) {}
+}
+$("tabs").querySelectorAll("button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+let firstTab = location.hash.slice(1);
+try { firstTab = firstTab || localStorage.getItem("vibetv.tab") || "alerts"; } catch (e) { firstTab = firstTab || "alerts"; }
+showTab(firstTab);
+
+/* ── TikTok widgets and credits ─────────────────────────────────────── */
+const WIDGETS = [["likes", "Like counter", "about 360 x 240"], ["likers", "Top likers", "about 420 x 560"],
+  ["gifters", "Top gifters", "about 420 x 560"], ["combined", "All in one", "about 420 x 1200, or 1300 x 600 with layout=row"]];
+$("ttAddr").innerHTML = WIDGETS.map(([k, name, size]) => `<b>${name} <span>· OBS source ${size}</span></b>
+  <input type="text" class="mono" readonly value="${location.origin}/tiktok/${k}"><div class="row"><button onclick="copy('${location.origin}/tiktok/${k}')">Copy</button><a class="btn" href="/tiktok/${k}?sample=1" target="_blank" title="Open with sample data">Open</a></div>`).join("");
+$("crUrl").value = location.origin + "/credits";
+$("crReset").textContent = location.origin + "/credits/reset";
+$("crSeen").textContent = location.origin + "/credits/seen/$username?role=mod&avatar=$useravatar";
+const SECTION_LABELS = { mods: "Thank you to the mods", vips: "Thank you to the VIPs", raiders: "Raiders", subs: "New subs", resubs: "Resubs",
+  gifts: "Gifted subs (who gifted, and to whom)", cheers: "Cheers (bits)", streaks: "Watch streaks", follows: "New followers",
+  first_chatters: "First-time chatters", gigantify: "Gigantified emotes", hype: "Hype train level", stats: "Stream stats" };
+const EFFECT_NAMES = { mods: "swords", vips: "sparkles + pink gems", raiders: "sirens", subs: "stars", resubs: "stars", gifts: "gift rain", cheers: "gem rain",
+  streaks: "fire", follows: "hearts", first_chatters: "waves", hype: "a train", stats: "confetti" };
+function renderCredits() {
+  const off = state.settings.credits_sections || {}, offFx = state.settings.credits_effects || {};
+  $("crSections").innerHTML = state.credit_sections.map(k => `<div class="csec"><label><input type="checkbox" data-csec="${k}"${off[k] === false ? "" : " checked"}> ${esc(SECTION_LABELS[k] || k)}</label>${
+    state.credit_effects.includes(k) ? `<label class="cfx" title="An animation as this section rolls in"><input type="checkbox" data-cfx="${k}"${offFx[k] === false ? "" : " checked"}> ${esc(EFFECT_NAMES[k] || "animation")}</label>` : ""}</div>`).join("");
+  $("crSections").querySelectorAll("input").forEach(el => el.addEventListener("change", () => { markDirty(); previewCredits(); }));
+}
+function collectCredits() {
+  const out = {};
+  document.querySelectorAll("[data-csec]").forEach(el => { out[el.dataset.csec] = el.checked; });
+  return out;
+}
+function collectEffects() {
+  const out = {};
+  document.querySelectorAll("[data-cfx]").forEach(el => { out[el.dataset.cfx] = el.checked; });
+  return out;
+}
+// the preview follows the Credits settings before they're saved
+let creditsPreviewTimer = null;
+function previewCredits() {
+  if (pvNow !== "credits") return;
+  clearTimeout(creditsPreviewTimer);
+  creditsPreviewTimer = setTimeout(() => {
+    const v = k => document.querySelector(`[data-k="${k}"]`).value;
+    const shown = [...document.querySelectorAll("[data-csec]")].filter(el => el.checked).map(el => el.dataset.csec);
+    const fx = [...document.querySelectorAll("[data-cfx]")].filter(el => el.checked).map(el => el.dataset.cfx);
+    frame.contentWindow.postMessage({ type: "credits_cfg", credits: { title: v("credits_title"), end: v("credits_end"),
+      speed: parseFloat(v("credits_speed")) || 1, background: v("credits_background"), start: v("credits_start"), finish: v("credits_finish"),
+      sections: shown, effects: fx } }, location.origin);
+  }, 500);
+}
+document.querySelectorAll('[data-k^="credits_"]').forEach(el => el.addEventListener("input", previewCredits));
+async function resetCredits() {
+  if (!confirm("Start a new list for the credits? Everyone remembered from this stream is cleared.")) return;
+  await send("/credits/reset");
+}
+async function resetTikTok() {
+  if (!confirm("Reset the TikTok counts (likes, top likers, top gifters) to zero?")) return;
+  await send("/tiktok/reset");
+}
 $("ovUrl").value = location.origin + "/overlay";
 $("ovOpen").href = "/overlay";
 

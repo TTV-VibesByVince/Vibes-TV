@@ -4,6 +4,33 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 1.8 (2026-10-29)
+
+- **End credits** (`/credits`): movie-style credits for an "Ending" scene in
+  OBS. Thank you to the mods (and VIPs), raiders, new subs, resubs, gifted
+  subs (who gifted, and to whom), cheers, watch streaks, new followers,
+  first-time chatters, gigantified emotes, the hype train level and a stats
+  card, with everyone's profile pictures, then your logo. Section titles
+  slam in, pictures pop in as they roll up, theme particles drift behind.
+  Everyone is remembered automatically from your alerts (test alerts
+  aren't). MixItUp's Stream Start calls `/credits/reset`; each mod's
+  Entrance Command calls `/credits/seen/$username?role=mod`. `/credits/play`
+  rolls them again. Six backgrounds (dark, starfield, neon grid, aurora,
+  your logo, see-through), an animation per list (swords for the mods,
+  sirens for raiders, gems for cheers, a train for the hype train…), and
+  they can start only on `/credits/play` and fade away at the end, so they
+  can sit invisibly on top of your main scene. Twitch only. The settings
+  preview follows changes before you save.
+- **TikTok widgets**, each its own OBS source with profile pictures:
+  `/tiktok/likes` (like counter with an optional goal), `/tiktok/likers`
+  (top likers), `/tiktok/gifters` (top gifters by coins) and
+  `/tiktok/combined`. They update live and start over with each new TikTok
+  live. Count, layout, size, opacity, goal and "hide while not live" are
+  settings, and any widget's URL can override them.
+- **Settings page tabs**: Alerts, Stream overlay, TikTok, Credits and Setup.
+  The live preview can show the TikTok widgets and the credits, with sample
+  names.
+
 ## 1.7 (2026-10-25)
 
 - **Alert sizes on the stream overlay**: for each alert type, **Compact** (a
