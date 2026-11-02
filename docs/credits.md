@@ -30,6 +30,12 @@ on the end card* (or *Start again* to loop).
 
 `/credits/play` starts them again on every open credits page, either way.
 
+**Why did they play when I opened OBS?** With *When the source appears*, the
+credits roll whenever the Browser source loads, and OBS loads every source
+when it starts. If they sit in your main scene, set **When they start** to
+*Only when /credits/play is called* (and **When they finish** to *Fade
+away*): then they wait, invisible, until you play them.
+
 ## Who's in them
 
 Everyone from your alerts is remembered automatically, once per list, with
@@ -123,13 +129,14 @@ Settings > **Credits**:
 | Setting | What it does |
 | --- | --- |
 | Title | The big line at the top. "Thanks for watching!" by default. |
-| Last line | Under your logo at the end. "See you next stream!" by default. |
-| Speed | 0.3 (slow) to 3 (fast); 1 is about a twelfth of the screen a second. |
+| Last line | The very last line, under your logo. "See you next stream!" by default. |
+| Show my logo at the end | On by default. Off: the end card is just the last line. |
+| Speed | A slider from 0.5× to 3×; 1× (normal) is about a twelfth of the screen a second. Try 1.3× or 1.5× if they feel slow. The preview shows it before you save. |
 | Background | **Dark** (your theme's particles drifting up), **Starfield** (flying through stars), **Neon grid** (a synthwave sun over a moving grid), **Aurora** (glowing colour waves), **Your logo** (blurred and darkened, like the TV) or **See-through** (over your stream). |
 | When they start | **When the source appears** (or the scene is switched to), or **Only when /credits/play is called**. |
 | When they finish | **Fade away** (back to see-through: your stream is back), **Stay on the end card**, or **Start again** (loop). |
 
-The end card shows your logo (from the Logo section) for 7 seconds before
+The end card shows your logo (from the Logo section, unless switched off) for 7 seconds before
 the credits fade away or loop (or for good, with *Stay on the end card*).
 The credits use your theme's colour and particles, so they turn spooky in
 October with the Halloween theme.

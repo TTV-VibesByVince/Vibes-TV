@@ -181,3 +181,14 @@ async def test_old_settings_load_with_defaults(srv, tmp_path):
     old = srv.Settings(path)
     assert old["credits_sections"] == {} and old["credits_background"] == "dark"
     assert old["tiktok_widget_count"] == 5.0 and old["tiktok_widget_hide_offline"] is True
+
+
+async def test_logo_on_the_end_card_is_optional(client, srv, tmp_path):
+    assert srv.credits_info()["logo"] is True                           # on by default, as before
+    r = await client.post("/api/settings", json={"credits_show_logo": False, "credits_speed": 1.4})
+    assert r.status == 200
+    info = srv.credits_info()
+    assert info["logo"] is False and info["speed"] == 1.4
+    path = tmp_path / "settings.json"
+    path.write_text('{"credits_speed": 1.2}', "utf-8")                  # a 1.9 settings file
+    assert srv.Settings(path)["credits_show_logo"] is True
