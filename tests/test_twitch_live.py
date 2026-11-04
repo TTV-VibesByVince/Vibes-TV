@@ -37,6 +37,8 @@ def test_chat_badges():
     assert tl.translate("channel.chat.message", chat("vibesbyvince", "broadcaster", "moderator")) == []   # not you
     shared = chat("othermod", "moderator", source_broadcaster_user_id="999")
     assert tl.translate("channel.chat.message", shared) == []                                             # another channel's chat
+    lead = tl.translate("channel.chat.message", chat("headmod", "lead_moderator", "subscriber"))      # a lead mod's own badge
+    assert lead == [("seen", {"user": {"login": "headmod", "name": "Headmod", "avatar": ""}, "role": "mod"})]
 
 
 def test_chat_notifications():

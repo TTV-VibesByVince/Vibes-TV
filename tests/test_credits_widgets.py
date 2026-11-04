@@ -192,3 +192,22 @@ async def test_logo_on_the_end_card_is_optional(client, srv, tmp_path):
     path = tmp_path / "settings.json"
     path.write_text('{"credits_speed": 1.2}', "utf-8")                  # a 1.9 settings file
     assert srv.Settings(path)["credits_show_logo"] is True
+
+
+async def test_bots_are_left_out_of_the_credits(client, srv):
+    assert "streamelements" in srv.S["credits_ignore"]                  # the well-known bots, by default
+    await client.get("/credits/seen/StreamElements?role=mod")
+    await srv.twitch_live.handle("channel.chat.message", {
+        "broadcaster_user_id": "1", "broadcaster_user_login": "vibesbyvince", "chatter_user_login": "nightbot",
+        "chatter_user_name": "Nightbot", "badges": [{"set_id": "moderator"}], "message": {"text": "hi"}})
+    await client.get("/credits/seen/ModOne?role=mod")
+    await client.get("/credits/seen/MyBot?role=mod")
+    assert [p["login"] for p in srv.session.snapshot()["people"]["mods"]] == ["modone", "mybot"]
+    r = await client.post("/api/settings", json={"credits_ignore": "streamelements\n@MyBot, nightbot"})
+    assert r.status == 200
+    assert [p["login"] for p in srv.session.snapshot()["people"]["mods"]] == ["modone"]   # hidden once it's on the list
+    await client.get("/credits/seen/MyBot?role=vip")
+    assert srv.session.snapshot()["people"]["vips"] == []
+    await client.post("/api/settings", json={"credits_ignore": ""})      # an empty list leaves no one out
+    await client.get("/credits/seen/StreamElements?role=mod")
+    assert "streamelements" in [p["login"] for p in srv.session.snapshot()["people"]["mods"]]
