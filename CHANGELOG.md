@@ -4,6 +4,16 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 1.96 (2026-11-03)
+
+- **Credits: lead mods count as mods.** Twitch gives a lead moderator their
+  own badge instead of the mod badge, so with Connect Twitch they were left
+  out of the credits. They're now in the mods section with everyone else.
+- **Credits: leave bots out** (Settings > Credits > *Never put these in the
+  credits*). Chat bots like StreamElements have a mod badge, so they showed
+  up as mods. The well-known bots are on the list already; add your own.
+  It covers every section and MixItUp's `/credits/seen` too.
+
 ## 1.95 (2026-11-02)
 
 - **Credits: show your logo at the end, or not** (Settings > Credits > *Show

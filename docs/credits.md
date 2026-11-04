@@ -86,8 +86,9 @@ the names stay readable.
 **Settings > Setup > Connect Twitch** ([how](install.md#connect-your-twitch-account-optional))
 makes the credits look after themselves:
 
-- **Mods and VIPs** who chat are added by themselves, from their badges. No
-  Entrance Commands needed.
+- **Mods and VIPs** who chat are added by themselves, from their badges
+  (your lead mod too, with the mods). No Entrance Commands needed. Bots with
+  a mod badge are left out: see *Never put these in the credits* below.
 - **A new list starts when you go live** (Settings > Credits > *Start a new
   list when I go live*). No Stream Start request needed.
 - **Fill the credits from: Twitch directly** takes follows, subs, resubs,
@@ -135,6 +136,7 @@ Settings > **Credits**:
 | Background | **Dark** (your theme's particles drifting up), **Starfield** (flying through stars), **Neon grid** (a synthwave sun over a moving grid), **Aurora** (glowing colour waves), **Your logo** (blurred and darkened, like the TV) or **See-through** (over your stream). |
 | When they start | **When the source appears** (or the scene is switched to), or **Only when /credits/play is called**. |
 | When they finish | **Fade away** (back to see-through: your stream is back), **Stay on the end card**, or **Start again** (loop). |
+| Never put these in the credits | Names left out of every section, comma or one per line. Starts with the well-known chat bots, which Twitch shows as mods: StreamElements, Nightbot, Streamlabs, Moobot, Fossabot, Wizebot and Sery_Bot. Add your own bot accounts; take a name off to let them back in. Saving it also hides anyone already in this stream's list. |
 
 The end card shows your logo (from the Logo section, unless switched off) for 7 seconds before
 the credits fade away or loop (or for good, with *Stay on the end card*).
