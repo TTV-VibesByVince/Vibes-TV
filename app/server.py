@@ -53,7 +53,7 @@ from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "1.95"
+VERSION = "1.96"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -90,6 +90,16 @@ def _env_num(name, default):
 # ── Settings ─────────────────────────────────────────────────────────────
 # Environment variables give the starting values (so an existing compose file
 # keeps working); anything saved on the /admin page wins after that.
+
+# chat bots that have a mod badge but aren't mods: left out of the credits
+# unless taken off the list in Settings > Credits
+KNOWN_BOTS = ["streamelements", "nightbot", "streamlabs", "moobot", "fossabot", "wizebot", "sery_bot"]
+
+
+def credits_ignored(raw):
+    """The names in Settings > Credits > Never put these in the credits."""
+    return {w.lstrip("@").lower() for w in re.split(r"[,\s]+", raw or "") if w.lstrip("@")}
+
 
 SCHEMA = {
     # key: (type, default)
@@ -166,6 +176,7 @@ SCHEMA = {
     "credits_effects":      (dict,  {}),          # section -> false to turn its animation off (all on by default)
     "credits_source":       (str,   "alerts"),    # alerts: from the alerts MixItUp sends | twitch: straight from Twitch (needs Connect Twitch)
     "credits_auto_reset":   (bool,  True),        # with Twitch connected: a new list when you go live
+    "credits_ignore":       (str,   ", ".join(KNOWN_BOTS)),   # never in the credits (bots); comma or line separated
     "alert_sources":        (dict,  {}),          # alert -> "twitch" to play it straight from Twitch (default: MixItUp)
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
@@ -472,6 +483,9 @@ class Settings:
                 continue
             if key == "credits_finish" and val not in ("fade", "hold", "loop"):
                 errors.append("credits_finish: fade, hold or loop")
+                continue
+            if key == "credits_ignore" and len(val) > 4000:
+                errors.append("credits_ignore: too long")
                 continue
             if key in ("credits_title", "credits_end") and len(val) > 80:
                 errors.append(f"{key}: 80 characters at most")
@@ -1363,6 +1377,7 @@ twitch_live = TwitchLive(S, CONFIG / "twitch_login.json", lambda kind, d: twitch
 def hook_up():
     """Push changes to the open credits and TikTok widget pages."""
     session.on_change = lambda: later_push("credits", lambda: {"type": "credits_data", "data": session.snapshot()})
+    session.ignored = lambda: credits_ignored(S["credits_ignore"])
     tiktok_stats.on_change = lambda: later_push("tiktok", lambda: {"type": "tiktok_stats", **tiktok_stats.snapshot()})
 
 
@@ -1903,6 +1918,8 @@ async def api_settings(request):
     if after != before:
         await tv.broadcast({"type": "logo_src", **after})
     tiktok.reconfigure()
+    if "credits_ignore" in (body if isinstance(body, dict) else {}) and session.on_change:
+        session.on_change()                     # open credits pages drop anyone just put on the list
     if {"twitch_client_id", "twitch_client_secret"} & set(body if isinstance(body, dict) else {}):
         twitch_live.reconfigure(force=True)
     return web.json_response({"ok": True, "settings": S.public()})

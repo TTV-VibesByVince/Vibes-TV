@@ -27,6 +27,7 @@ class Session:
         self.path = Path(path)
         self.data = self.empty()
         self.on_change = None           # called after every change (the server refreshes open credits pages)
+        self.ignored = set              # -> logins never put in the credits (bots); the server sets it
         try:
             if self.path.exists():
                 loaded = json.loads(self.path.read_text("utf-8"))
@@ -60,7 +61,7 @@ class Session:
     def _person(self, section, user):
         """The entry for this person in this section (made if new), or None if the section is full."""
         login = (user.get("login") or user.get("display_name") or "").lower()
-        if not login:
+        if not login or login in self.ignored():
             return None
         people = self.data["people"][section]
         for p in people:
@@ -139,7 +140,10 @@ class Session:
 
     # ── what the credits page gets ──
     def snapshot(self):
-        people = self.data["people"]
+        skip = self.ignored()           # also hides anyone added before they went on the list
+        people = {s: [dict(p, to=[r for r in p["to"] if r["login"] not in skip]) if "to" in p else p
+                      for p in ps if p["login"] not in skip]
+                  for s, ps in self.data["people"].items()}
         stats = {
             "follows": len(people["follows"]),
             "subs": len(people["subs"]) + len(people["resubs"]),
