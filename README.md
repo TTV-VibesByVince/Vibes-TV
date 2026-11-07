@@ -102,6 +102,8 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **End credits and TikTok widgets.** Movie-style [end credits](docs/credits.md) for an "Ending" scene: everyone who followed, subbed, gifted (and who they gifted to), raided, cheered or chatted for the first time this stream, a thank-you to your mods (with swords), with their pictures, then your logo. Six backgrounds, an animation per list, and they can sit invisibly on top of your stream until you play them. Four [TikTok widgets](docs/tiktok.md#widgets-for-obs), each its own OBS source: a like counter with an optional goal, top likers, top gifters, or all three in one, with profile pictures.
 
+**Be right back.** Step away and leave chat something to do: a [BRB screen](docs/brb.md) with a countdown, on stream and on the TV, while chat plays in Twitch chat. Guess when you'll be back, paint a picture together pixel by pixel, trivia about you, a typing race and this-or-that polls (Coke or Pepsi?), with chat voting for the next game. When you're back it shows who guessed closest, the painting and what chat decided. Start it from the settings page, a Stream Deck, MixItUp or `!brb` in chat.
+
 **On stream too.** A transparent [stream overlay](docs/overlay.md) for OBS shows the same alerts, with its own queue, so it never waits for a TV clip. For each alert type, choose where it plays (TV, overlay or both) and how big it is on stream: a compact card in your corner, a bigger card in the centre, or the TV's full-screen animation over your game with the stream darkened behind it (raids, by default). Optional [TikTok LIVE](docs/tiktok.md) alerts: follows, subscriptions and gifts (combos shown once, with the total). Optional [text to speech](docs/tts.md) reads TikTok chat (or a MixItUp `!tts` command) aloud in a Microsoft Edge voice, one message at a time, with filters against trolls.
 
 **Clips and lights.** After a shoutout or raid it can play one of that streamer's most-viewed Twitch clips, buffered while their card is on screen. Your room lights can follow each event's colour (for example with [Govee Lights Controller](https://github.com/TTV-VibesByVince/Govee-Lights-Controller)) and go back to normal afterwards.
@@ -110,7 +112,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Under the hood.** One small Python server (aiohttp) and three web pages (TV, overlay, settings), no database. The image is built by GitHub for Intel/AMD and ARM, and rebuilt weekly with the newest yt-dlp. Fonts are bundled, so the TV page works without internet. Lite mode keeps animations smooth on TV sticks and smart TVs. Optional password for the settings page.
 
-## Status: 1.96
+## Status: 2.0
 
 > [!IMPORTANT]
 > Vibe TV is young. It works and it's tested, but it is a hobby project made for one channel first, so expect rough edges. The [changelog](CHANGELOG.md) lists what changed in each version.
@@ -172,6 +174,7 @@ Still stuck? [Open an issue](https://github.com/TTV-VibesByVince/Vibes-TV/issues
 | [Stream overlay](docs/overlay.md) | The alerts on your stream: OBS setup, position, size, routing |
 | [TikTok LIVE](docs/tiktok.md) | TikTok follows, subscriptions and gifts (optional) |
 | [End credits](docs/credits.md) | Credits for the end of your stream, with everyone's pictures |
+| [Be right back](docs/brb.md) | A BRB screen with a countdown and games for chat while you're away |
 | [Text to speech](docs/tts.md) | TikTok chat and `/tts` read aloud with Edge voices (optional) |
 | [Lights](docs/lights.md) | Room lights that follow each event |
 | [Make it yours](docs/customize.md) | Text, colours, themes, schedule, backup |

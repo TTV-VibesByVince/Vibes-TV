@@ -8,6 +8,7 @@
 | [Stream overlay](overlay.md) | The same alerts as an OBS Browser Source: transparent, compact, with its own queue |
 | [TikTok LIVE](tiktok.md) | Optional: TikTok follows, subscriptions and gifts as alerts |
 | [End credits](credits.md) | Movie-style credits with everyone from this stream and their pictures |
+| [Be right back](brb.md) | A BRB screen with a countdown, and games chat plays while you're away |
 | [Text to speech](tts.md) | Optional: TikTok chat and `/tts` read aloud with Microsoft Edge voices |
 | [Lights](lights.md) | Syncing room lights to each event, with Govee Lights Controller |
 | [Make it yours](customize.md) | Editable text, colours, themes and the date schedule, backup and restore |

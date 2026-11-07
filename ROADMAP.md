@@ -15,8 +15,8 @@ to vote for one or suggest your own.
 
 ## Later
 
-- **Scenes**: several logos on rotation, and `starting soon`, `be right
-  back` and `ending` screens switched by URL.
+- **Scenes**: several logos on rotation, and `starting soon` and `ending`
+  screens switched by URL.
 - **Channel point redemptions**: a picture or video per reward.
 - **Clip improvements**: don't repeat a streamer's last clip, prefer recent
   ones, and a `!clip <link>` command for chat.
@@ -31,6 +31,8 @@ to vote for one or suggest your own.
 
 ## Done
 
+- **Be right back** (2.0): a BRB screen with a countdown and games for chat
+  while you're away. See [Be right back](docs/brb.md).
 - **Transparent overlay mode** (1.5): the same alerts as an OBS Browser
   Source at `/overlay`, with its own queue and a TV / overlay / both choice
   per alert type. See [Stream overlay](docs/overlay.md).

@@ -4,6 +4,26 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 2.0 (2026-11-07)
+
+- **Be right back** (new Settings tab, and `/brb` for OBS): a BRB screen with
+  a countdown ("Back in 9:42", then "Back soon"), on stream and on the TV,
+  while chat plays games in Twitch chat. Needs Connect Twitch.
+  - **Guess when I'm back** runs the whole time: `!guess 8:42`, one each.
+  - **Chat paints a picture**: `!paint C4 pink` on a 26 x 15 canvas.
+  - **Trivia about you**, from your own questions and answers.
+  - **Typing race**: the first three to type the sentence exactly.
+  - **This or that**: 45 starter polls (Coke or Pepsi? Ranch or ketchup?).
+  - Chat votes for the next game (or they take turns, or one repeats).
+    10 questions a game, shuffled, with no repeats until all have been asked.
+  - When you're back: who guessed closest, the painting, the trivia champ,
+    the fastest typist, and what chat decided in each poll.
+  - Start and end it from the settings page, a Stream Deck or MixItUp
+    (`/brb/start`, `/brb/back`), or `!brb` and `!back` in chat (you and your
+    mods).
+- **Credits: chat's painting** from Be right back rolls in the end credits
+  (Settings > Credits > *Chat's painting*).
+
 ## 1.96 (2026-11-03)
 
 - **Credits: lead mods count as mods.** Twitch gives a lead moderator their
