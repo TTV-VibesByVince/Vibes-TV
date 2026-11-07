@@ -68,6 +68,10 @@ def translate(sub_type, ev):
         who = person(ev.get("chatter_user_login"), ev.get("chatter_user_name"))
         if ev.get("source_broadcaster_user_id") and ev.get("source_broadcaster_user_id") != ev.get("broadcaster_user_id"):
             return out                          # shared chat: someone else's chat
+        if who["login"] and text:
+            you = who["login"] == (ev.get("broadcaster_user_login") or "").lower()
+            out.append(("chat", {"user": who, "text": text,
+                                 "mod": you or bool(badges & {"broadcaster", "moderator", "lead_moderator"})}))
         if who["login"] and who["login"] != (ev.get("broadcaster_user_login") or "").lower():
             if badges & {"moderator", "lead_moderator"}:     # a lead mod has their own badge instead
                 out.append(("seen", {"user": who, "role": "mod"}))

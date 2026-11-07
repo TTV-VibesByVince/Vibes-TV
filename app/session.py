@@ -16,8 +16,8 @@ log = logging.getLogger("vibetv.session")
 
 # The credits sections, in the order they roll.
 SECTIONS = ["mods", "vips", "raiders", "subs", "resubs", "gifts", "cheers", "streaks",
-            "follows", "first_chatters", "gigantify", "hype", "stats"]
-PEOPLE_SECTIONS = [s for s in SECTIONS if s not in ("hype", "stats")]
+            "follows", "first_chatters", "gigantify", "hype", "painting", "stats"]
+PEOPLE_SECTIONS = [s for s in SECTIONS if s not in ("hype", "painting", "stats")]
 MAX_PER_SECTION = 300
 MAX_RECIPIENTS = 60
 
@@ -133,6 +133,11 @@ class Session:
         if p is not None:
             self.changed()
 
+    def painting(self, picture):
+        """What chat painted during Be right back (the latest one this stream)."""
+        self.data["painting"] = picture
+        self.changed()
+
     def hype(self, level):
         if level and level > self.data.get("hype_level", 0):
             self.data["hype_level"] = level
@@ -154,4 +159,4 @@ class Session:
             "first_chatters": len(people["first_chatters"]),
         }
         return {"started": self.data["started"], "people": people,
-                "hype_level": self.data.get("hype_level", 0), "stats": stats}
+                "hype_level": self.data.get("hype_level", 0), "painting": self.data.get("painting"), "stats": stats}

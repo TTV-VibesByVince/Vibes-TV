@@ -180,17 +180,21 @@
   </div>
   <nav class="tabs" id="tabs" aria-label="Settings sections">
     <button data-tab="alerts">Alerts</button><button data-tab="overlay">Stream overlay</button><button data-tab="tiktok">TikTok</button>
-    <button data-tab="credits">Credits</button><button data-tab="setup">Setup</button>
+    <button data-tab="credits">Credits</button><button data-tab="brb">Be right back</button><button data-tab="setup">Setup</button>
   </nav>
 </header>
 
 <main>
-  <section data-tab="alerts overlay tiktok credits" id="pvSection">
-    <h2>Live preview <span class="seg" id="pvSeg"><button class="on" data-pv="tv">TV</button><button data-pv="overlay">Stream overlay</button><button data-pv="tiktok">TikTok</button><button data-pv="credits">Credits</button></span></h2>
+  <section data-tab="alerts overlay tiktok credits brb" id="pvSection">
+    <h2>Live preview <span class="seg" id="pvSeg"><button class="on" data-pv="tv">TV</button><button data-pv="overlay">Stream overlay</button><button data-pv="tiktok">TikTok</button><button data-pv="credits">Credits</button><button data-pv="brb">BRB</button></span></h2>
     <p class="hint" id="pvHint">What the TV shows right now. Test buttons play on every connected TV.</p>
     <div class="preview" id="pv"><iframe id="pvframe" src="/tv?preview=1" title="TV preview"></iframe></div>
     <div class="row" id="pvReplayRow" hidden style="margin-top:10px"><button onclick="frame.contentWindow.postMessage({ type: 'credits_replay' }, location.origin)">Replay preview</button>
       <span class="hint">Only here: the credits in OBS aren't touched.</span></div>
+    <label class="f" id="pvBrbRow" hidden style="margin-top:12px"><span>Show</span><select id="pvBrb">
+      <option value="">What's on the screen right now</option><option value="vote">Sample: chat picks a game</option><option value="guess">Sample: guess when I'm back</option>
+      <option value="paint">Sample: chat paints</option><option value="trivia">Sample: trivia</option><option value="typing">Sample: typing race</option>
+      <option value="polls">Sample: this or that</option><option value="back">Sample: welcome back</option></select></label>
     <label class="switch" id="pvSampleRow" hidden><span>Show sample data<br><span class="hint">Made-up names, so you can see it before your stream.</span></span><input type="checkbox" id="pvSample" checked></label>
     <div class="tests" id="tests">
       <label class="f" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="" placeholder="Your channel name (blank = twitch)" maxlength="25"></label>
@@ -254,6 +258,55 @@
     <p class="hint" style="margin-top:6px">One TV can override it: add <span class="mono">?mode=lite</span> or <span class="mono">?mode=full</span> to its address.</p>
     <label class="switch"><span>TV: play a clip after shoutouts and raids<br><span class="hint">On the TV only; the stream overlay has its own switch under <b>Stream overlay</b>. A URL's <span class="mono">&amp;clip=0</span> skips clips everywhere, <span class="mono">&amp;clip=1</span> forces one on the TV. Needs Twitch API keys.</span></span><input type="checkbox" data-k="clips"></label>
     <label class="switch"><span>Clip sound on<br><span class="hint">TV browsers may still start muted until the page is clicked once.</span></span><input type="checkbox" data-k="clip_sound"></label>
+  </section>
+
+  <section data-tab="brb">
+    <h2>Be right back <span class="chip" id="brbChip"><i></i><span>Not running</span></span></h2>
+    <p class="hint">Games for chat while you step away, with a countdown. Chat plays by typing in Twitch chat, so it needs <b>Connect Twitch</b> (Setup).</p>
+    <div class="row" style="margin-top:14px;flex-wrap:wrap">
+      <button class="primary" onclick="brbStart()">Start BRB</button>
+      <input type="number" id="brbMins" min="1" max="120" style="width:80px;flex:none" title="Minutes"><span class="hint" style="flex:none">min</span>
+      <button onclick="send('/brb/back')">I'm back</button>
+      <button onclick="send('/brb/stop')" title="Hide it straight away, without the welcome-back screen">Hide now</button>
+    </div>
+    <label class="f"><span>OBS address <span class="hint">(a Browser source, 1920 x 1080, in your BRB scene)</span></span><div class="row"><input type="text" class="mono" id="brbUrl" readonly><button onclick="copy($('brbUrl').value)">Copy</button><a class="btn" href="/brb?sample=vote" target="_blank">Open</a></div></label>
+    <ul class="tips">
+      <li><b>Stream Deck or MixItUp</b>: <span class="mono">/brb/start</span> (or <span class="mono">/brb/start?minutes=5</span>) when you leave, <span class="mono">/brb/back</span> when you're back.</li>
+      <li><b>In chat</b>: you and your mods can type <span class="mono">!brb</span> (or <span class="mono">!brb 5</span>) and <span class="mono">!back</span>.</li>
+      <li>When the countdown runs out it says <b>Back soon</b> until you're back. Then the screen shows what chat got up to.</li>
+    </ul>
+  </section>
+
+  <section class="wide" data-tab="brb">
+    <h2>Games</h2>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(260px, 1fr))">
+      <label class="f"><span>How the next game is picked</span><select data-k="brb_mode">
+        <option value="vote">Chat votes (20 seconds between games)</option><option value="turns">Take turns, in this order</option><option value="one">Just one: the first ticked game</option></select></label>
+      <label class="f"><span>Back in (minutes) <span class="hint">unless you say otherwise</span></span><input type="number" data-k="brb_minutes" min="1" max="120" step="1"></label>
+      <label class="f"><span>Your name on the screen <span class="hint">blank = your Twitch name</span></span><input type="text" data-k="brb_name" maxlength="40" id="brbName"></label>
+      <label class="f"><span>Painting lasts (minutes)</span><input type="number" data-k="brb_paint_minutes" min="1" max="10" step="1"></label>
+      <label class="f"><span>Each this-or-that (seconds)</span><input type="number" data-k="brb_poll_seconds" min="15" max="60" step="1"></label>
+      <label class="f"><span>"Welcome back" stays up (seconds)</span><input type="number" data-k="brb_recap_seconds" min="10" max="300" step="5"></label>
+    </div>
+    <div class="checks" id="brbGames"></div>
+    <label class="switch" style="margin-top:12px"><span>Show it on the TV too<br><span class="hint">Alerts still play over it. Off: only in OBS at the address above.</span></span><input type="checkbox" data-k="brb_tv"></label>
+    <p class="hint" style="margin-top:8px">Trivia and this or that ask 10 questions a game, the typing race 8 sentences, shuffled, and nothing repeats until every question has been asked. Chat's painting also goes in the end credits (Credits › <i>Chat's painting</i>).</p>
+  </section>
+
+  <section class="wide" data-tab="brb">
+    <h2>Questions</h2>
+    <p class="hint">One per line. Edit, add or delete any of them, then Save.</p>
+    <label class="f"><span>Trivia about you <span class="hint" id="brbTriviaCount"></span></span>
+      <span class="hint" style="display:block;font-weight:400;margin-bottom:6px"><span class="mono">Question = answer, other answer | what the screen shows</span>. A message with any of the answers in it counts (capitals and punctuation don't matter). Questions with nothing after <span class="mono">=</span> aren't asked. <span class="mono">{name}</span> is your name.</span>
+      <textarea data-k="brb_trivia" rows="10" spellcheck="false" class="mono"></textarea></label>
+    <div class="row"><button onclick="brbDefault('brb_trivia')">Add back any starter questions I deleted</button></div>
+    <label class="f"><span>This or that <span class="hint" id="brbPollsCount"></span></span>
+      <span class="hint" style="display:block;font-weight:400;margin-bottom:6px"><span class="mono">Coke | Pepsi</span>, or with a question: <span class="mono">Pineapple on pizza: Yes | No</span></span>
+      <textarea data-k="brb_polls" rows="8" spellcheck="false" class="mono"></textarea></label>
+    <div class="row"><button onclick="brbDefault('brb_polls')">Add back any starter questions I deleted</button></div>
+    <label class="f"><span>Typing race <span class="hint" id="brbTypingCount"></span></span>
+      <textarea data-k="brb_typing" rows="6" spellcheck="false" class="mono"></textarea></label>
+    <div class="row"><button onclick="brbDefault('brb_typing')">Add back any starter sentences I deleted</button></div>
   </section>
 
   <section data-tab="setup">
@@ -546,7 +599,7 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel(); renderBrb();
   loadVoices(s.tts_voice);
 }
 
@@ -853,7 +906,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources() };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames() };
 }
 
 async function save() {
@@ -1026,6 +1079,7 @@ async function refresh(withMedia) {
     state.status = s.status; state.media = s.media; state.requests = s.requests;
     renderReqs();
     renderStatus();
+    brbStatus();
     if (withMedia) renderMedia();
   } catch (e) { /* server restarting */ }
 }
@@ -1059,8 +1113,9 @@ const PV_HINT = {
   overlay: "The stream overlay, over a stand-in game scene so you can see what's see-through. Test alerts go where \"Send tests to\" says.",
   tiktok: "The combined TikTok widget, over a stand-in game scene.",
   credits: "The end credits. They restart when you change a setting.",
+  brb: "The Be right back screen: what's on it now, or a sample of each game.",
 };
-const PV_SRC = { tv: "/tv?", overlay: "/overlay?", tiktok: "/tiktok/combined?count=3&scale=1.5&", credits: "/credits?" };
+const PV_SRC = { tv: "/tv?", overlay: "/overlay?", tiktok: "/tiktok/combined?count=3&scale=1.5&", credits: "/credits?", brb: "/brb?" };
 let pvNow = "tv";
 function showPreview(which) {
   pvNow = which;
@@ -1068,7 +1123,9 @@ function showPreview(which) {
   pv.classList.toggle("ov", which === "overlay" || which === "tiktok");
   frame.title = which + " preview";
   const sample = (which === "tiktok" || which === "credits") && $("pvSample").checked ? "&sample=1" : "";
-  frame.src = PV_SRC[which] + "preview=1" + sample;
+  const brbView = which === "brb" && $("pvBrb").value ? "&sample=" + $("pvBrb").value : "";
+  frame.src = PV_SRC[which] + "preview=1" + sample + brbView;
+  $("pvBrbRow").hidden = which !== "brb";
   $("pvHint").textContent = PV_HINT[which];
   $("pvSampleRow").hidden = !(which === "tiktok" || which === "credits");
   $("pvReplayRow").hidden = which !== "credits";
@@ -1076,9 +1133,10 @@ function showPreview(which) {
 }
 $("pvSeg").querySelectorAll("button").forEach(b => b.onclick = () => showPreview(b.dataset.pv));
 $("pvSample").addEventListener("change", () => showPreview(pvNow));
+$("pvBrb").addEventListener("change", () => showPreview("brb"));
 
 /* ── tabs ───────────────────────────────────────────────────────────── */
-const TAB_PREVIEW = { alerts: "tv", overlay: "overlay", tiktok: "tiktok", credits: "credits" };
+const TAB_PREVIEW = { alerts: "tv", overlay: "overlay", tiktok: "tiktok", credits: "credits", brb: "brb" };
 function showTab(tab) {
   if (!TAB_PREVIEW[tab] && tab !== "setup") tab = "alerts";
   $("tabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
@@ -1101,7 +1159,7 @@ $("ttAddr").innerHTML = WIDGETS.map(([k, name, size]) => `<b>${name} <span>· OB
 $("crUrl").value = location.origin + "/credits";
 $("crReset").textContent = location.origin + "/credits/reset";
 $("crSeen").textContent = location.origin + "/credits/seen/$username?role=mod&avatar=$useravatar";
-const SECTION_LABELS = { mods: "Thank you to the mods", vips: "Thank you to the VIPs", raiders: "Raiders", subs: "New subs", resubs: "Resubs",
+const SECTION_LABELS = { painting: "Chat's painting (from Be right back)", mods: "Thank you to the mods", vips: "Thank you to the VIPs", raiders: "Raiders", subs: "New subs", resubs: "Resubs",
   gifts: "Gifted subs (who gifted, and to whom)", cheers: "Cheers (bits)", streaks: "Watch streaks", follows: "New followers",
   first_chatters: "First-time chatters", gigantify: "Gigantified emotes", hype: "Hype train level", stats: "Stream stats" };
 const EFFECT_NAMES = { mods: "swords", vips: "sparkles + pink gems", raiders: "sirens", subs: "stars", resubs: "stars", gifts: "gift rain", cheers: "gem rain",
@@ -1144,6 +1202,47 @@ function speedLabel() {
 }
 document.querySelector('[data-k="credits_speed"]').addEventListener("input", speedLabel);
 document.querySelector('[data-k="credits_show_logo"]').addEventListener("change", previewCredits);
+/* ── Be right back ─────────────────────────────────────────────────── */
+const BRB_GAME_NAMES = { guess: ["Guess when I'm back", "Runs the whole time you're away: !guess 8:42"], paint: ["Chat paints a picture", "!paint C4 pink on a 26 x 15 grid"],
+  trivia: ["Trivia about you", "10 questions a game, from the list below"], typing: ["Typing race", "8 sentences a game"], polls: ["This or that", "10 questions a game, 1 or 2"] };
+const BRB_PHASE = { idle: "Not running", away: "Running", back: "Showing welcome back" };
+function renderBrb() {
+  const off = state.settings.brb_games || {}, st = state.status.brb || {};
+  $("brbGames").innerHTML = state.brb_games.map(k => `<div class="csec"><label><input type="checkbox" data-bgame="${k}"${off[k] === false ? "" : " checked"}> <span><b>${esc(BRB_GAME_NAMES[k][0])}</b> <span class="hint">· ${esc(BRB_GAME_NAMES[k][1])}</span></span></label></div>`).join("");
+  $("brbGames").querySelectorAll("input").forEach(el => el.addEventListener("change", markDirty));
+  $("brbUrl").value = location.origin + "/brb";
+  if (!$("brbMins").value) $("brbMins").value = state.settings.brb_minutes;
+  brbStatus();
+}
+function brbStatus() {
+  const st = state.status.brb || {};
+  $("brbName").placeholder = st.name || "";
+  $("brbChip").className = "chip" + (st.phase && st.phase !== "idle" ? " ok" : "");
+  $("brbChip").querySelector("span").textContent = (BRB_PHASE[st.phase] || "Not running") + (st.pages ? ` · ${st.pages} open` : "");
+  $("brbTriviaCount").textContent = `(${st.trivia_ready || 0} with answers, ready to ask)`;
+  $("brbPollsCount").textContent = `(${st.polls_ready || 0})`;
+  $("brbTypingCount").textContent = `(${st.typing_ready || 0})`;
+}
+function collectBrbGames() {
+  const out = {};
+  document.querySelectorAll("[data-bgame]").forEach(el => { out[el.dataset.bgame] = el.checked; });
+  return out;
+}
+async function brbStart() {
+  const m = parseInt($("brbMins").value, 10);
+  await send("/brb/start" + (m > 0 ? "?minutes=" + m : ""));
+  if (pvNow === "brb" && !$("pvBrb").value) showPreview("brb");
+}
+function brbDefault(key) {           // add back starter lines that aren't there any more
+  const el = document.querySelector(`[data-k="${key}"]`);
+  const have = new Set(el.value.split("\n").map(l => l.split("=")[0].trim().toLowerCase()));
+  const missing = state.brb_defaults[key].split("\n").filter(l => l.trim() && !have.has(l.split("=")[0].trim().toLowerCase()));
+  if (!missing.length) return toast("Nothing missing");
+  el.value = el.value.replace(/\s*$/, "\n") + missing.join("\n");
+  markDirty();
+  toast(`Added ${missing.length} back. Save to keep them.`);
+}
+
 async function resetCredits() {
   if (!confirm("Start a new list for the credits? Everyone remembered from this stream is cleared.")) return;
   await send("/credits/reset");
