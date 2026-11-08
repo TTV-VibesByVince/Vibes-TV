@@ -21,6 +21,8 @@
   .dim.deep { opacity: .12; filter: blur(14px) saturate(1.6); }
   /* a plain black veil: what lite mode uses instead of blurring the video */
   #shade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .6s ease; pointer-events: none; }
+  #brbframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #0a0811; }
+  #brbframe[hidden] { display: none; }
   #clip { opacity: 0; transition: opacity .5s ease; object-fit: contain; }
   #clip.show { opacity: 1; }
   /* Embedded in the stream overlay (/tv?embed=overlay): no background and no
@@ -371,6 +373,8 @@
 <video id="logo" autoplay muted loop playsinline></video>
 <img id="logoimg" alt="">
 <div id="shade"></div>
+<!-- Be right back: the /brb screen over the logo while you're away (alerts still play on top) -->
+<iframe id="brbframe" title="Be right back" hidden></iframe>
 <!-- poster = 1x1 transparent GIF: stops Android WebView (Fully Kiosk) from
      painting its default white/grey poster while a clip loads -->
 <video id="clip" playsinline preload="auto" poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></video>
@@ -1217,6 +1221,18 @@ function onServer(ev) {
   else if (ev.type === "tts") showTts(ev);
   else if (ev.type === "tts_end") hideTts();
   else if (ev.type === "reload") location.reload();
+  else if (ev.type === "brb_show") showBrb(ev.on);
+}
+
+function showBrb(on) {
+  const f = $("brbframe");
+  if (on) {
+    if (!f.getAttribute("src")) f.src = "/brb" + (PREVIEW ? "?preview=1" : LITE ? "?lite=1" : "");
+    f.hidden = false;
+  } else {
+    f.hidden = true;
+    f.removeAttribute("src");
+  }
 }
 
 addEventListener("resize", () => { if (fxRun) sizeFx(); if ($("raid").classList.contains("go")) measurePortal(); });

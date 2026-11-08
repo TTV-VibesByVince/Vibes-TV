@@ -97,6 +97,10 @@
   .emotes img { width: 7vh; height: 7vh; object-fit: contain; animation: wobble 1.6s ease-in-out infinite; }
   .hype { font-family: "Bungee", sans-serif; font-size: 7vh; text-shadow: 0 0 3vh var(--accent); opacity: 0; }
   .hype.in { animation: personIn .7s cubic-bezier(.2,1.5,.4,1) both; }
+  .painting { display: grid; gap: .25vh; width: min(70vw, 104vh); aspect-ratio: 26 / 15; margin: 0 auto; padding: .4vh;
+    border-radius: 1.6vh; background: rgba(255,255,255,.06); }
+  .painting i { border-radius: .3vh; background: rgba(255,255,255,.05); }
+  .paintedby { margin-top: 2vh; font-size: 2.6vh; opacity: .8; text-align: center; }
   .stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 3vh 6vh; max-width: 86vw; }
   .stat { min-width: 22vh; text-align: center; opacity: 0; }
   .stat.in { animation: personIn .6s cubic-bezier(.2,1.5,.4,1) both; animation-delay: var(--d, 0s); }
@@ -183,7 +187,7 @@ const SECTION = {
   mods: ["Thank you to the mods", "🛡️"], vips: ["Thank you to the VIPs", PINK_GEM], raiders: ["Raided by", "🚨"],
   subs: ["New subscribers", "⭐"], resubs: ["Resubscribed", "🌟"], gifts: ["Gifted subs", "🎁"], cheers: ["Cheered", "💎"],
   streaks: ["Watch streaks", "🔥"], follows: ["New followers", "💗"], first_chatters: ["First time in chat", "👋"],
-  gigantify: ["Gigantified", "🤩"], hype: ["Hype train", "🚂"], stats: ["This stream", "📊"],
+  gigantify: ["Gigantified", "🤩"], hype: ["Hype train", "🚂"], painting: ["Chat's masterpiece", "🎨"], stats: ["This stream", "📊"],
 };
 const BIG = new Set(["mods", "vips", "raiders", "gifts"]);
 const n = x => (x || 0).toLocaleString();
@@ -237,6 +241,20 @@ function build(d) {
       const h = document.createElement("div");
       h.className = "hype"; h.textContent = `LEVEL ${d.hype_level}`;
       sec.appendChild(h);
+    } else if (key === "painting") {
+      const pic = d.painting;
+      if (!pic || !(pic.cells || []).some(Boolean)) continue;
+      const box = document.createElement("div");
+      box.className = "painting";
+      box.style.gridTemplateColumns = `repeat(${pic.w}, 1fr)`;
+      pic.cells.forEach(c => { const i = document.createElement("i"); if (c) i.style.background = c; box.appendChild(i); });
+      sec.appendChild(box);
+      if ((pic.painters || []).length) {
+        const by = document.createElement("p");
+        by.className = "paintedby";
+        by.textContent = "Painted by chat, led by " + pic.painters.map(p => p.name).join(", ");
+        sec.appendChild(by);
+      }
     } else if (key === "stats") {
       const st = d.stats || {}, rows = [["follows", "new followers"], ["subs", "subs"], ["gifted", "gifted subs"],
         ["raids", st.raids === 1 ? "raid" : "raids"], ["bits", "bits"], ["first_chatters", "first-time chatters"]].filter(([k]) => st[k]);
@@ -521,7 +539,17 @@ function sampleData() {
       gigantify: [P("EmoteFan", { emotes: ["/static/icon/icon.svg"] })],
     },
     stats: { follows: 8, subs: 4, gifted: 5, raids: 1, raiders: 128, bits: 2000, first_chatters: 3 },
+    painting: samplePainting(),
   };
+}
+function samplePainting() {      // a heart and a sun, like chat might paint
+  const w = 26, h = 15, cells = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const X = (x - 12.5) / 6, Y = -(y - 6) / 5.2;
+    const heart = Math.pow(X * X + Y * Y - 1, 3) - X * X * Y * Y * Y < 0;
+    cells.push(heart ? "#ff2a6d" : (x - 22) ** 2 + (y - 2.5) ** 2 < 4 ? "#ffc34d" : y > 12 ? "#3ddc84" : "");
+  }
+  return { w, h, cells, painters: [{ name: "PixelPanda", n: 40 }, { name: "LuckyLuna", n: 22 }] };
 }
 
 /* ── starting: when the page opens, or only on /credits/play ───────── */

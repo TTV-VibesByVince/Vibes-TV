@@ -47,13 +47,15 @@ import aiohttp
 from aiohttp import web
 from PIL import Image
 
+from brb import BRB, GAMES as BRB_GAMES, MODES as BRB_MODES
+from brb_banks import DEFAULT_POLLS, DEFAULT_TRIVIA, DEFAULT_TYPING
 from tiktok import TikTokWatcher
 from session import SECTIONS as CREDIT_SECTIONS, Session
 from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "1.96"
+VERSION = "2.0"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -178,6 +180,18 @@ SCHEMA = {
     "credits_auto_reset":   (bool,  True),        # with Twitch connected: a new list when you go live
     "credits_ignore":       (str,   ", ".join(KNOWN_BOTS)),   # never in the credits (bots); comma or line separated
     "alert_sources":        (dict,  {}),          # alert -> "twitch" to play it straight from Twitch (default: MixItUp)
+    # Be right back: games for chat while you're away (see brb.py)
+    "brb_name":             (str,   ""),          # how the screen says your name ("" = your Twitch name)
+    "brb_minutes":          (int,   10),          # "Back in 10:00", unless /brb/start?minutes= says otherwise
+    "brb_games":            (dict,  {}),          # game -> false to leave it out (all on by default)
+    "brb_mode":             (str,   "vote"),      # vote: chat picks each game | turns: one after another | one: the first game only
+    "brb_paint_minutes":    (int,   3),
+    "brb_poll_seconds":     (int,   35),
+    "brb_recap_seconds":    (int,   45),          # how long "Welcome back" stays up
+    "brb_tv":               (bool,  True),        # also on the TV (it's always at /brb for OBS)
+    "brb_trivia":           (str,   DEFAULT_TRIVIA),
+    "brb_polls":            (str,   DEFAULT_POLLS),
+    "brb_typing":           (str,   DEFAULT_TYPING),
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
 TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
@@ -190,7 +204,8 @@ LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "tiktok_min_coins": (0, 1000000),
           "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600),
           "tiktok_widget_count": (1, 10), "tiktok_widget_scale": (0.5, 2), "tiktok_widget_opacity": (0.2, 1),
-          "tiktok_like_goal": (0, 1000000000), "credits_speed": (0.3, 3)}
+          "tiktok_like_goal": (0, 1000000000), "credits_speed": (0.3, 3),
+          "brb_minutes": (1, 120), "brb_paint_minutes": (1, 10), "brb_poll_seconds": (15, 60), "brb_recap_seconds": (10, 300)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
 REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
@@ -285,7 +300,7 @@ def from_twitch(kind):
     """Does this alert play straight from Twitch?"""
     return S["alert_sources"].get(SOURCE_KEY.get(kind, kind)) == "twitch"
 SCREENS = ("tv", "overlay")
-WIDGET_SCREENS = ("tiktok", "credits")      # pages that listen but have no alert queue
+WIDGET_SCREENS = ("tiktok", "credits", "brb")      # pages that listen but have no alert queue
 # Where each kind of alert plays. Subs and resubs share "sub".
 ROUTE_EVENTS = ["shoutout", "raid", "follow", "sub", "bits", "gift", "streak", "modiversary",
                 "gigantify", "message", "welcome", "hype", "tiktok_gift", "tts"]
@@ -368,6 +383,10 @@ def _check_dict(key, val):
         if bad:
             return None, f"alert_sources.{bad[0]}: twitch or mixitup"
         return {k: "twitch" for k, v in val.items() if k in SOURCE_EVENTS and v == "twitch"}, None
+    if key == "brb_games":
+        if not isinstance(val, dict):
+            return None, "brb_games: must be an object"
+        return {k: False for k, v in val.items() if k in ["guess"] + BRB_GAMES and v is False}, None
     if key in ("credits_sections", "credits_effects"):
         if not isinstance(val, dict):
             return None, f"{key}: must be an object"
@@ -441,8 +460,8 @@ class Settings:
             try:
                 if kind is bool:
                     val = val if isinstance(val, bool) else str(val).lower() in ("1", "true", "yes", "on")
-                elif kind is float:
-                    val = float(val)
+                elif kind in (float, int):
+                    val = kind(float(val))
                     lo, hi = LIMITS.get(key, (0, 3600))
                     if not lo <= val <= hi:
                         raise ValueError(f"must be between {lo} and {hi}")
@@ -486,6 +505,15 @@ class Settings:
                 continue
             if key == "credits_ignore" and len(val) > 4000:
                 errors.append("credits_ignore: too long")
+                continue
+            if key == "brb_mode" and val not in BRB_MODES:
+                errors.append("brb_mode: vote, turns or one")
+                continue
+            if key in ("brb_trivia", "brb_polls", "brb_typing") and len(val) > 30000:
+                errors.append(f"{key}: too long")
+                continue
+            if key == "brb_name" and len(val) > 40:
+                errors.append("brb_name: 40 characters at most")
                 continue
             if key in ("credits_title", "credits_end") and len(val) > 80:
                 errors.append(f"{key}: 80 characters at most")
@@ -1341,6 +1369,9 @@ async def twitch_event(kind, d):
     if from_twitch(kind) and kind in ("shoutout", "raid", "follow", "sub", "resub", "gift", "gift_bomb", "bits",
                                       "streak", "modiversary", "gigantify", "hype"):
         await twitch_alert(kind, d)
+    if kind == "chat":
+        await brb_chat(d)
+        return
     if kind == "online":
         if S["credits_auto_reset"]:
             session.reset()
@@ -1372,6 +1403,49 @@ async def twitch_event(kind, d):
 
 
 twitch_live = TwitchLive(S, CONFIG / "twitch_login.json", lambda kind, d: twitch_event(kind, d))
+brb = BRB(S)
+BRB_SHOWN = {"tv": False}
+
+
+def brb_name():
+    return S["brb_name"].strip() or ((twitch_live.auth or {}).get("login") or "").capitalize() or "the streamer"
+
+
+def brb_snapshot():
+    return brb.snapshot(twitch_live=twitch_live.state == "live")
+
+
+def brb_changed():
+    """Refresh the BRB pages, and show or hide it on the TV."""
+    later_push("brb", lambda: {"type": "brb", "data": brb_snapshot()})
+    on_tv = brb.phase != "idle" and S["brb_tv"]
+    if on_tv != BRB_SHOWN["tv"]:
+        BRB_SHOWN["tv"] = on_tv
+        try:
+            asyncio.get_running_loop().create_task(tv.broadcast({"type": "brb_show", "on": on_tv}, "tv"))
+        except RuntimeError:
+            pass
+
+
+async def brb_chat(d):
+    """A Twitch chat message: !brb / !back from you or a mod, or a move in a game."""
+    text = d.get("text") or ""
+    if brb.command(text, d.get("mod")):
+        return
+    if brb.phase != "away":
+        return
+    who = await profile_for(d["user"])
+    brb.chat({"login": who.get("login"), "name": who.get("display_name") or d["user"].get("name"),
+              "avatar": who.get("avatar") or ""}, text)
+
+
+async def brb_ticker():
+    while True:
+        await asyncio.sleep(1)
+        try:
+            brb.tick()
+        except Exception as e:
+            log.warning("brb: %s", e)
 
 
 def hook_up():
@@ -1379,6 +1453,9 @@ def hook_up():
     session.on_change = lambda: later_push("credits", lambda: {"type": "credits_data", "data": session.snapshot()})
     session.ignored = lambda: credits_ignored(S["credits_ignore"])
     tiktok_stats.on_change = lambda: later_push("tiktok", lambda: {"type": "tiktok_stats", **tiktok_stats.snapshot()})
+    brb.on_change = brb_changed
+    brb.on_painting = session.painting
+    brb.name = brb_name
 
 
 hook_up()
@@ -1469,6 +1546,31 @@ async def tiktok_reset(request):
     return web.json_response({"ok": True})
 
 
+async def brb_page(request):
+    """The Be right back screen: an OBS Browser Source, and the TV while you're away."""
+    return web.FileResponse(STATIC / "brb.html", headers={"Cache-Control": "no-cache"})
+
+
+async def brb_start(request):
+    """/brb/start[?minutes=5]: you're stepping away (a Stream Deck button, MixItUp, Settings)."""
+    raw = request.query.get("minutes")
+    if raw is not None and not raw.isdigit():
+        raise web.HTTPBadRequest(text="minutes must be a number")
+    brb.start(int(raw) if raw else None)
+    return web.json_response({"ok": True, "minutes": brb.st["minutes"], "pages": tv.count("brb")})
+
+
+async def brb_back(request):
+    """/brb/back: you're back. Shows what chat got up to, then goes away."""
+    return web.json_response({"ok": True, "was_away": brb.back()})
+
+
+async def brb_stop(request):
+    """/brb/stop: hide the BRB screen straight away (skips the recap)."""
+    brb.stop()
+    return web.json_response({"ok": True})
+
+
 async def overlay_page(request):
     """The transparent stream overlay, for an OBS Browser Source."""
     return web.FileResponse(STATIC / "overlay.html", headers={"Cache-Control": "no-cache"})
@@ -1492,6 +1594,10 @@ async def ws_handler(request):
         await ws.send_str(json.dumps({"type": "tiktok_stats", **tiktok_stats.snapshot()}))
     elif screen == "credits":
         await ws.send_str(json.dumps({"type": "credits_data", "data": session.snapshot()}))
+    elif screen == "brb":
+        await ws.send_str(json.dumps({"type": "brb", "data": brb_snapshot()}))
+    if screen == "tv" and BRB_SHOWN["tv"]:
+        await ws.send_str(json.dumps({"type": "brb_show", "on": True}))
     if tv.hype and screen in destinations("hype"):     # a screen that (re)connects mid hype train
         await ws.send_str(json.dumps(tv.hype_message()))
     try:
@@ -1848,6 +1954,9 @@ async def api_state(request):
                    "tiktok": tiktok.status(), "tts": speaker.status(), "twitch_live": twitch_live.status(),
                    "widgets_connected": tv.count("tiktok"), "credits_connected": tv.count("credits"),
                    "tiktok_stats": tiktok_stats.snapshot(3), "credits_stats": session.snapshot()["stats"],
+                   "brb": {"phase": brb.phase, "pages": tv.count("brb"), "name": brb_name(),
+                           "trivia_ready": len(brb.bank("trivia")), "polls_ready": len(brb.bank("polls")),
+                           "typing_ready": len(brb.bank("typing"))},
                    **logo_info()},
         "media": list_media(),
         "password_protected": bool(ADMIN_PASSWORD),
@@ -1859,6 +1968,8 @@ async def api_state(request):
         "route_defaults": ROUTE_DEFAULTS,
         "size_events": SIZE_EVENTS,
         "credit_sections": CREDIT_SECTIONS,
+        "brb_games": ["guess"] + BRB_GAMES,
+        "brb_defaults": {"brb_trivia": DEFAULT_TRIVIA, "brb_polls": DEFAULT_POLLS, "brb_typing": DEFAULT_TYPING},
         "credit_effects": CREDIT_EFFECTS,
         "source_events": SOURCE_EVENTS,
         "credits_backgrounds": CREDITS_BACKGROUNDS,
@@ -2042,6 +2153,7 @@ async def on_startup(app):
     app["themes"] = asyncio.create_task(tv.theme_watch())
     tiktok.reconfigure()
     app["tts"] = asyncio.create_task(speaker.worker())
+    app["brb"] = asyncio.create_task(brb_ticker())
     twitch_live.reconfigure()
     log.info("Vibe TV v%s on :%d (twitch api: %s, logo: %s, admin password: %s)",
              VERSION, PORT, tv.twitch.enabled, logo_url() or "none", "on" if ADMIN_PASSWORD else "off")
@@ -2052,6 +2164,7 @@ async def on_cleanup(app):
         w.cancel()
     app["themes"].cancel()
     app["tts"].cancel()
+    app["brb"].cancel()
     await tiktok.stop()
     await twitch_live.stop()
     tiktok.config = None
@@ -2067,6 +2180,10 @@ def make_app():
     app.router.add_get("/", index)
     app.router.add_get("/tv", index)
     app.router.add_get("/overlay", overlay_page)
+    app.router.add_get("/brb", brb_page)
+    app.router.add_route("*", "/brb/start", brb_start)
+    app.router.add_route("*", "/brb/back", brb_back)
+    app.router.add_route("*", "/brb/stop", brb_stop)
     app.router.add_get("/credits", credits_page)
     app.router.add_route("*", "/credits/seen/{user}", credits_seen)
     app.router.add_route("*", "/credits/reset", credits_reset)

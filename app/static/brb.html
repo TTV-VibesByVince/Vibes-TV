@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe TV · Be right back</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/static/icon/icon.svg" type="image/svg+xml">
+<link href="/static/fonts/fonts.css" rel="stylesheet">
+<style>
+/* Be right back: an OBS Browser Source at /brb (1920×1080), and the TV while
+   you're away. Drawn at 1920×1080 and scaled to whatever size it's shown at. */
+:root { --accent: #9146ff; --pink: #ff2a6d; --pink2: #ff7aa5; --gold: #ffc34d; --green: #3ddc84; --soft: #b9b0cf; --ease: cubic-bezier(.16, 1, .3, 1); }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0811; color: #fff; font-family: "Outfit", system-ui, sans-serif; }
+#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; font-variant-numeric: tabular-nums; }
+.aur { position: absolute; border-radius: 50%; filter: blur(120px); will-change: transform; }
+.aur.a { width: 1100px; height: 800px; background: var(--accent); opacity: .55; left: -260px; top: -320px; animation: driftA 26s ease-in-out infinite alternate; }
+.aur.b { width: 900px; height: 700px; background: var(--pink); opacity: .38; right: -280px; bottom: -360px; animation: driftB 32s ease-in-out infinite alternate; }
+@keyframes driftA { to { transform: translate(380px, 160px) scale(1.15); } }
+@keyframes driftB { to { transform: translate(-420px, -120px) scale(.9); } }
+.lite .aur { animation: none; filter: blur(80px); }
+
+.head { position: absolute; left: 96px; right: 96px; top: 64px; display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; }
+.brb { font: 400 132px/.86 "Bungee", sans-serif; letter-spacing: -.01em; white-space: nowrap; }
+.brb .dot { color: var(--pink); }
+.clock { text-align: right; padding-bottom: 6px; white-space: nowrap; }
+.clock .big { display: flex; align-items: center; justify-content: flex-end; gap: 14px; font-size: 34px; font-weight: 700; }
+.clock .big b { font: 400 56px/1 "Bungee", sans-serif; }
+.clock .live { width: 14px; height: 14px; border-radius: 50%; background: var(--pink); animation: ping 1.8s var(--ease) infinite; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(255,42,109,.55); } 100% { box-shadow: 0 0 0 18px rgba(255,42,109,0); } }
+.clock .sub { font-size: 24px; color: var(--soft); margin-top: 8px; }
+.timebar { position: absolute; left: 96px; right: 96px; top: 222px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.timebar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--pink)); transition: width 1s linear; }
+.timebar.late i { width: 100% !important; animation: late 2.4s ease-in-out infinite; }
+@keyframes late { 50% { opacity: .35; } }
+
+.panel { position: absolute; left: 96px; top: 262px; width: 1300px; bottom: 120px; border-radius: 36px; background: rgba(16,13,26,.72);
+  border: 1px solid rgba(255,255,255,.09); overflow: hidden; box-shadow: 0 40px 90px -40px rgba(0,0,0,.9); }
+.panel.full { width: auto; right: 96px; }
+.ptag { position: absolute; left: 44px; top: 36px; display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 700; z-index: 3; }
+.ptag svg { width: 34px; height: 34px; color: var(--pink2); flex: none; }
+.ptag em { font-style: normal; font-weight: 500; color: var(--soft); }
+.view { position: absolute; inset: 0; padding: 110px 44px 40px; animation: viewIn .9s var(--ease) both; }
+.lite .view { animation: fadeIn .4s both; }
+@keyframes viewIn { from { opacity: 0; filter: blur(14px); transform: translateY(26px) scale(.985); } to { opacity: 1; filter: none; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } }
+
+.rail { position: absolute; right: 96px; top: 262px; width: 404px; bottom: 120px; display: flex; flex-direction: column; gap: 22px; }
+.card { border-radius: 28px; background: rgba(16,13,26,.72); border: 1px solid rgba(255,255,255,.09); padding: 28px 30px; }
+.card h3 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.card h3 svg { width: 24px; height: 24px; color: var(--gold); flex: none; }
+.card .num { font: 400 46px/1 "Bungee", sans-serif; margin: 14px 0 8px; }
+.card p { font-size: 20px; color: var(--soft); line-height: 1.4; }
+.feed { flex: 1; min-height: 0; overflow: hidden; }
+.feed ul { list-style: none; margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
+.feed li { display: flex; align-items: center; gap: 14px; font-size: 21px; color: #ddd6ee; animation: feedIn .7s var(--ease) both; min-width: 0; }
+.feed li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed li b { color: #fff; }
+.feed .empty { font-size: 20px; color: var(--soft); margin-top: 14px; }
+@keyframes feedIn { from { opacity: 0; transform: translateX(-24px); } }
+
+.cmdbar { position: absolute; left: 96px; right: 96px; bottom: 44px; height: 52px; display: flex; align-items: center; gap: 14px; font-size: 24px; color: var(--soft); white-space: nowrap; }
+.cmd { display: inline-flex; align-items: center; height: 46px; padding: 0 18px; border-radius: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); color: #fff; font-weight: 700; font-size: 24px; }
+.cmd.pink { background: rgba(255,42,109,.16); border-color: rgba(255,42,109,.45); }
+.cmd.sm { height: 36px; font-size: 20px; padding: 0 12px; border-radius: 10px; }
+
+.av { flex: none; width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #2a2539; }
+
+.q { font-size: 64px; font-weight: 800; letter-spacing: -.02em; line-height: 1.06; max-width: 1180px; text-wrap: balance; }
+.q small { display: block; font-size: 28px; font-weight: 500; color: var(--soft); margin-top: 16px; letter-spacing: 0; }
+.bar { position: absolute; left: 44px; right: 44px; top: 96px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--gold); border-radius: 3px; transition: width 1s linear; }
+
+/* guess */
+.track { position: absolute; left: 60px; right: 60px; bottom: 50px; height: 400px; }
+.track .line { position: absolute; left: 0; right: 0; bottom: 100px; height: 8px; border-radius: 4px; background: rgba(255,255,255,.09); }
+.track .gone { position: absolute; left: 0; bottom: 100px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--pink)); transition: width 1s linear; }
+.track .now { position: absolute; bottom: 88px; width: 32px; height: 32px; margin-left: -16px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 8px rgba(255,42,109,.35); transition: left 1s linear; }
+.track .now span { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); font-size: 20px; font-weight: 700; }
+.track .est { position: absolute; bottom: 92px; width: 3px; height: 24px; margin-left: -1px; background: var(--gold); border-radius: 2px; }
+.track .ticks { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; font-size: 20px; color: #8f87a6; }
+.track .ticks span { position: absolute; transform: translateX(-50%); }
+.pin { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; animation: pinIn .8s var(--ease) both; }
+.pin .av { width: 58px; height: 58px; box-shadow: 0 0 0 4px #110e1b; }
+.pin .t { font-size: 20px; font-weight: 700; padding: 2px 10px; border-radius: 8px; background: rgba(0,0,0,.4); }
+.pin .stem { width: 2px; background: rgba(255,255,255,.22); }
+@keyframes pinIn { from { opacity: 0; transform: translate(-50%, -40px) scale(.6); } }
+
+/* paint */
+.paint { display: flex; gap: 40px; height: 100%; }
+.canvaswrap { flex: none; display: grid; grid-template-columns: 30px auto; grid-template-rows: 30px auto; gap: 4px; align-self: center; }
+.cols, .rows { display: grid; font-size: 16px; font-weight: 700; color: #8f87a6; text-align: center; }
+.cols { grid-column: 2; grid-template-columns: repeat(26, 32px); gap: 2px; align-items: end; }
+.rows { grid-row: 2; grid-template-rows: repeat(15, 32px); gap: 2px; align-items: center; }
+.canvas { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(26, 32px); grid-template-rows: repeat(15, 32px); gap: 2px; }
+.canvas i { border-radius: 4px; background: #1c1729; transition: background .3s; }
+.canvas i.hit { animation: hit .9s var(--ease); position: relative; z-index: 2; }
+@keyframes hit { 0% { transform: scale(2.4); box-shadow: 0 0 0 3px #fff; } 100% { transform: none; } }
+.pside { flex: 1; display: flex; flex-direction: column; gap: 22px; padding-top: 8px; min-width: 0; }
+.pside h4 { font-size: 40px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+.swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px; }
+.sw { display: flex; align-items: center; gap: 10px; font-size: 20px; color: #ddd6ee; }
+.sw i { width: 26px; height: 26px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+.lb { margin-top: auto; display: flex; flex-direction: column; gap: 12px; }
+.lb div { display: flex; align-items: center; gap: 14px; font-size: 22px; color: #ddd6ee; }
+.lb b { margin-left: auto; }
+
+/* trivia */
+.answers { position: absolute; left: 44px; right: 44px; bottom: 44px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 22px; }
+.box { border-radius: 24px; padding: 26px 30px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); }
+.box h5 { font-size: 22px; font-weight: 600; color: var(--soft); margin-bottom: 14px; }
+.box.win { background: rgba(61,220,132,.12); border-color: rgba(61,220,132,.5); animation: pop .7s var(--ease); }
+.box.miss { background: rgba(255,195,77,.1); border-color: rgba(255,195,77,.45); animation: pop .7s var(--ease); }
+@keyframes pop { from { transform: scale(.94); opacity: 0; } }
+.box .ans { font-size: 40px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; }
+.box .who { display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 700; margin-top: 14px; }
+.box .who .av { width: 50px; height: 50px; }
+.box .who em { font-style: normal; color: var(--green); }
+.box ol { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.box li { display: flex; align-items: center; gap: 14px; font-size: 24px; color: #ddd6ee; }
+.box li .rk { width: 22px; font-weight: 800; color: var(--gold); }
+.box li b { margin-left: auto; }
+.hint { font-size: 24px; color: var(--soft); }
+
+/* typing */
+.phrase { margin-top: 6px; font: 400 64px/1.12 "Bungee", sans-serif; letter-spacing: -.01em; text-wrap: balance; }
+.podium { position: absolute; left: 44px; right: 44px; bottom: 44px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.slot { border-radius: 26px; padding: 26px; min-height: 220px; background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.16); display: flex; flex-direction: column; gap: 14px; }
+.slot .place { font: 400 44px/1 "Bungee", sans-serif; color: rgba(255,255,255,.35); }
+.slot.filled { border-style: solid; background: rgba(145,70,255,.18); border-color: rgba(180,131,255,.5); animation: pop .7s var(--ease); }
+.slot.filled.first { background: rgba(255,42,109,.2); border-color: rgba(255,122,165,.6); }
+.slot.filled .place { color: #fff; }
+.slot .who { display: flex; align-items: center; gap: 14px; font-size: 28px; font-weight: 700; margin-top: auto; min-width: 0; }
+.slot .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot .who .av { width: 56px; height: 56px; }
+.slot .secs { font-size: 26px; color: var(--soft); }
+
+/* this or that */
+.versus { position: absolute; inset: 0; display: flex; }
+.side { position: relative; display: flex; flex-direction: column; justify-content: center; padding: 140px 56px 0; flex-grow: 50; flex-basis: 0; transition: flex-grow 1s var(--ease); overflow: hidden; min-width: 0; }
+.side.l { background: linear-gradient(160deg, rgba(255,42,109,.55), rgba(255,42,109,.16)); align-items: flex-start; }
+.side.r { background: linear-gradient(200deg, rgba(145,70,255,.6), rgba(145,70,255,.16)); align-items: flex-end; text-align: right; }
+.side .pct { font: 400 150px/.9 "Bungee", sans-serif; }
+.side .name { font-size: 54px; font-weight: 800; letter-spacing: -.02em; margin-top: 18px; line-height: 1.05; }
+.side .key { margin-top: 18px; font-size: 24px; color: rgba(255,255,255,.85); display: flex; align-items: center; gap: 10px; }
+.side.won .pct::after { content: " wins"; font: 700 34px/1 "Outfit", sans-serif; vertical-align: middle; }
+.side.lost { filter: saturate(.4) brightness(.7); }
+.vs { position: absolute; top: 50%; width: 120px; height: 120px; margin: -10px 0 0 -60px; border-radius: 50%; background: #0a0811; display: grid; place-items: center;
+  font: 400 40px/1 "Bungee", sans-serif; box-shadow: 0 0 0 1px rgba(255,255,255,.14); transition: left 1s var(--ease); z-index: 2; }
+.pollhead { position: absolute; left: 0; right: 0; top: 96px; text-align: center; z-index: 2; }
+.pollhead h4 { font-size: 40px; font-weight: 800; letter-spacing: -.01em; }
+.pollhead p { font-size: 24px; color: rgba(255,255,255,.85); margin-top: 6px; }
+.pollclock { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: rgba(0,0,0,.35); z-index: 2; }
+.pollclock i { position: absolute; inset: 0 auto 0 0; background: #fff; transition: width 1s linear; }
+
+/* chat picks the next game */
+.votegrid { position: absolute; left: 44px; right: 44px; bottom: 44px; display: grid; gap: 20px; }
+.vcard { position: relative; border-radius: 26px; padding: 26px 26px 24px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); overflow: hidden; min-height: 330px; display: flex; flex-direction: column; transition: background .4s, border-color .4s; }
+.vcard .n { font: 400 64px/1 "Bungee", sans-serif; }
+.vcard h5 { font-size: 30px; font-weight: 800; line-height: 1.1; margin-top: 18px; letter-spacing: -.01em; }
+.vcard p { font-size: 20px; color: var(--soft); margin-top: 8px; }
+.vcard .votes { margin-top: auto; font-size: 24px; font-weight: 700; }
+.vcard .meter { position: absolute; left: 0; bottom: 0; height: 8px; width: 0; background: #b483ff; transition: width .8s var(--ease); }
+.vcard.lead { border-color: rgba(255,42,109,.6); background: rgba(255,42,109,.1); }
+.vcard.lead .meter { background: var(--pink); }
+
+/* nothing to play */
+.note { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 60px; }
+.note h4 { font-size: 52px; font-weight: 800; letter-spacing: -.02em; }
+.note p { font-size: 28px; color: var(--soft); margin-top: 14px; }
+
+/* welcome back */
+.wb { display: grid; grid-template-columns: 1.05fr 1fr; gap: 26px; height: 100%; }
+.hero { border-radius: 28px; padding: 28px 32px; background: linear-gradient(150deg, rgba(255,195,77,.22), rgba(255,195,77,.04)); border: 1px solid rgba(255,195,77,.35); display: flex; flex-direction: column; min-width: 0; }
+.hero .crown { width: 46px; height: 46px; color: var(--gold); animation: crown 1.2s var(--ease) both .3s; }
+@keyframes crown { from { opacity: 0; transform: translateY(-60px) rotate(-20deg); } }
+.hero .w { display: flex; align-items: center; gap: 22px; margin-top: 10px; min-width: 0; }
+.hero .w .av { width: 96px; height: 96px; box-shadow: 0 0 0 6px rgba(255,195,77,.5); }
+.hero .w h4 { font: 400 50px/1 "Bungee", sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero .w p { font-size: 24px; color: #f3e6c6; margin-top: 10px; }
+.hrow { margin-top: auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; align-items: end; }
+.hrow.solo { grid-template-columns: 1fr; }
+.mini { display: grid; gap: 1px; border-radius: 10px; overflow: hidden; width: 100%; aspect-ratio: 26 / 15; background: rgba(255,255,255,.06); }
+.mini i { background: #1c1729; }
+.awards { display: flex; flex-direction: column; gap: 12px; }
+.award { border-radius: 16px; padding: 10px 16px; background: rgba(0,0,0,.28); }
+.award small { display: block; font-size: 18px; color: #d9cfae; }
+.award b { display: block; font-size: 24px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.decided { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.decided h4 { font-size: 30px; font-weight: 800; letter-spacing: -.01em; }
+.res { position: relative; border-radius: 18px; overflow: hidden; background: rgba(255,255,255,.05); height: 78px; display: flex; align-items: center; padding: 0 22px; animation: resIn .8s var(--ease) both; flex: none; }
+.res .fill { position: absolute; inset: 0 auto 0 0; background: rgba(255,42,109,.3); }
+.res .lbl { position: relative; display: flex; align-items: center; gap: 12px; font-size: 26px; font-weight: 800; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.res .lbl svg { width: 28px; height: 28px; color: var(--gold); flex: none; }
+.res .lbl em { font-style: normal; font-weight: 500; color: #cfc6e3; font-size: 22px; }
+.res .pc { position: relative; margin-left: auto; padding-left: 16px; font: 400 30px/1 "Bungee", sans-serif; }
+.res.top { box-shadow: inset 0 0 0 2px rgba(255,195,77,.7); }
+@keyframes resIn { from { opacity: 0; transform: translateX(40px); } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="aur a"></div><div class="aur b"></div>
+  <header class="head">
+    <h1 class="brb" id="title">Be right back<span class="dot">.</span></h1>
+    <div class="clock" id="clock"></div>
+  </header>
+  <div class="timebar" id="timebar"><i id="timefill"></i></div>
+  <section class="panel" id="panel"><div class="ptag" id="ptag"></div><div id="view"></div></section>
+  <aside class="rail" id="rail">
+    <div class="card" id="guessCard">
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6M12 2v3"/></svg>Guess when I'm back</h3>
+      <div class="num" id="guessNum">0 guesses</div>
+      <p>Type <span class="cmd pink sm">!guess 8:42</span> Closest wins.</p>
+    </div>
+    <div class="card feed">
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--pink2)"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat right now</h3>
+      <ul id="feed"></ul>
+    </div>
+  </aside>
+  <div class="cmdbar" id="cmdbar"></div>
+</div>
+
+<script src="/static/shared.js"></script>
+<script>
+const ICON = {
+  vote: '<rect x="2" y="2" width="20" height="20" rx="5"/><path d="M7 12l3.5 3.5L17 9"/>',
+  guess: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6M12 2v3"/>',
+  paint: '<path d="M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3.5 3H15a2 2 0 0 0-1.5 3.3A1.8 1.8 0 0 1 12 21z"/><circle cx="7.5" cy="11" r="1"/><circle cx="11" cy="7" r="1"/><circle cx="15.5" cy="8.5" r="1"/>',
+  trivia: '<circle cx="12" cy="12" r="10"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/>',
+  typing: '<rect x="2" y="6" width="20" height="12" rx="3"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>',
+  polls: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/>',
+  wave: '<path d="M7 11V6.5a1.5 1.5 0 0 1 3 0V11M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10.5V6a1.5 1.5 0 0 1 3 0v6M7 11a1.5 1.5 0 0 0-3 0v2a8 8 0 0 0 8 8h1a7 7 0 0 0 7-7V9a1.5 1.5 0 0 0-3 0"/>',
+};
+const svg = (k, cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+const cmd = (t, pink) => `<span class="cmd${pink ? " pink" : ""}">${esc(t)}</span>`;
+const avatar = p => `<img class="av" alt="" src="${esc(avatarSrc({ avatar: p.avatar, display_name: p.name }))}">`;
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+const mmss = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+const COLOR_NAMES = { pink: "pink", purple: "purple", gold: "gold", green: "green", orange: "orange", white: "white", blue: "blue", red: "red", black: "black" };
+
+const stage = $("stage");
+function fit() { stage.style.transform = `scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`;
+  stage.style.left = Math.max(0, (innerWidth - 1920 * Math.min(innerWidth / 1920, innerHeight / 1080)) / 2) + "px"; }
+addEventListener("resize", fit); fit();
+if (Q.get("lite") === "1" || /Android/.test(navigator.userAgent)) document.body.classList.add("lite");
+
+let S = null, skew = 0, viewKey = "", barTotal = 20, polls = { page: 0, timer: null };
+const serverNow = () => Date.now() / 1000 + skew;
+const left = t => Math.max(0, t - serverNow());
+
+/* ── the frame: title, countdown, rail, command bar ── */
+function render(s) {
+  S = s; skew = s.now - Date.now() / 1000;
+  const back = s.phase === "back", g = s.game;
+  $("title").innerHTML = back ? 'Welcome back<span class="dot">!</span>' : 'Be right back<span class="dot">.</span>';
+  const wide = back || s.phase === "idle" || !s.twitch;
+  $("rail").style.display = wide ? "none" : "";
+  $("panel").classList.toggle("full", wide);
+  $("timebar").style.visibility = back ? "hidden" : "";
+  $("guessCard").style.display = s.guess_on && !(g && g.kind === "guess") && s.phase === "away" ? "" : "none";
+  $("guessNum").textContent = `${(s.guesses || []).length} guess${(s.guesses || []).length === 1 ? "" : "es"}`;
+  renderFeed(s.feed || []);
+  tickClock();
+
+  const key = back ? "back" : s.phase === "idle" || !s.twitch ? "note:" + s.phase + s.twitch
+    : !g ? (s.guess_on ? "guess" : "none") : g.kind + ":" + (g.n || 0) + ":" + (g.reveal ? 1 : 0);
+  const kind = key.split(":")[0];
+  if (key !== viewKey) {
+    const fresh = kind !== viewKey.split(":")[0];
+    viewKey = key;
+    build(kind, s, fresh);
+  }
+  update(kind, s);
+}
+
+function renderFeed(items) {
+  const ul = $("feed"), have = [...ul.querySelectorAll("li")].map(li => li.dataset.k);
+  const keys = items.map(f => f.login + "|" + f.what);
+  if (ul.dataset.ready && keys.join() === have.join()) return;
+  ul.dataset.ready = 1;
+  ul.innerHTML = items.length ? "" : '<p class="empty">Chat hasn\'t joined in yet.</p>';
+  items.slice(0, 7).forEach((f, i) => {
+    const li = document.createElement("li");
+    li.dataset.k = keys[i];
+    if (have.includes(keys[i])) li.style.animation = "none";
+    li.innerHTML = `${avatar(f)}<span><b>${esc(f.name)}</b> ${esc(f.what)}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function tickClock() {
+  if (!S) return;
+  const c = $("clock"), fill = $("timefill"), bar = $("timebar");
+  if (S.phase !== "away") c.dataset.mode = "";
+  if (S.phase === "back") { c.innerHTML = `<div class="big">Gone for <b>${mmss(S.recap.away)}</b></div><div class="sub">Here's what chat got up to</div>`; return; }
+  if (S.phase === "idle") { c.innerHTML = `<div class="big">Back soon</div>`; bar.classList.remove("late"); fill.style.width = "0"; return; }
+  const away = serverNow() - S.started, rest = S.ends - serverNow(), late = rest <= 0;
+  if (c.dataset.mode !== (late ? "late" : "count")) {        // build once, then only the numbers change
+    c.dataset.mode = late ? "late" : "count";
+    c.innerHTML = `<div class="big"><span class="live"></span>${late ? "" : "Back in "}<b id="clk"></b></div><div class="sub" id="clkAway"></div>`;
+  }
+  $("clk").textContent = late ? "Back soon" : mmss(rest);
+  $("clkAway").textContent = "Away " + mmss(away);
+  bar.classList.toggle("late", late);
+  if (!late) fill.style.width = (rest / (S.ends - S.started) * 100).toFixed(2) + "%";
+}
+
+/* ── each game: build once, then update in place ── */
+const GAME = { vote: "Chat picks the next game", guess: "Guess when I'm back", paint: "Chat paints a picture", trivia: "Trivia", typing: "Typing race", polls: "This or that" };
+
+function build(kind, s, fresh) {
+  const v = $("view"), g = s.game || {};
+  const tag = (k, label, extra) => { $("ptag").innerHTML = svg(k) + esc(label) + (extra ? `<em>· ${esc(extra)}</em>` : ""); };
+  let html = "", bar = "";
+  if (kind === "note") {
+    $("ptag").innerHTML = "";
+    html = s.phase === "idle"
+      ? `<div class="note"><div><h4>Hang tight, chat</h4><p>${esc(cap(s.name))} will be right back.</p></div></div>`
+      : `<div class="note"><div><h4>Hang tight, chat</h4><p>${esc(cap(s.name))} will be right back.<br>(Games need Connect Twitch in Settings › Setup.)</p></div></div>`;
+  } else if (kind === "none") {
+    $("ptag").innerHTML = "";
+    html = `<div class="note"><div><h4>Hang tight, chat</h4><p>${esc(cap(s.name))} will be right back.</p></div></div>`;
+  } else if (kind === "guess") {
+    tag("guess", GAME.guess, "runs the whole time");
+    html = `<div class="q">When will ${esc(s.name)} be back?<small>Closest guess gets the crown when ${esc(s.name)} is back.</small></div>
+      <div class="track" id="track"><div class="line"></div><div class="gone" id="gone"></div><div class="est" id="est"></div><div class="now" id="now"><span>now</span></div><div class="ticks" id="ticks"></div></div>`;
+    bar = `Type ${cmd("!guess 8:42", 1)} minutes and seconds after ${esc(s.name)} left · one guess each`;
+  } else if (kind === "vote") {
+    tag("vote", GAME.vote);
+    html = `<div class="q">What should chat play next?<small>Most votes wins. One vote each.</small></div>
+      <div class="votegrid" style="grid-template-columns:repeat(${g.options.length}, 1fr)">${g.options.map((o, i) =>
+        `<div class="vcard" data-k="${o.key}"><div class="n">${i + 1}</div><h5>${esc(o.name)}</h5><p>${esc(o.blurb)}</p><div class="votes"></div><i class="meter"></i></div>`).join("")}</div>`;
+    bar = `Vote with ${g.options.map((o, i) => cmd(String(i + 1), 1)).join(" ")} in chat`;
+  } else if (kind === "paint") {
+    tag("paint", GAME.paint);
+    const letters = [...Array(g.w)].map((_, i) => `<span>${String.fromCharCode(65 + i)}</span>`).join("");
+    const nums = [...Array(g.h)].map((_, i) => `<span>${i + 1}</span>`).join("");
+    html = `<div class="paint"><div class="canvaswrap"><div class="cols">${letters}</div><div class="rows">${nums}</div><div class="canvas" id="canvas">${"<i></i>".repeat(g.w * g.h)}</div></div>
+      <div class="pside"><h4>Paint it together</h4><div class="swatches">${Object.entries(g.colors).map(([n, c]) => `<span class="sw"><i style="background:${c}"></i>${n}</span>`).join("")}</div><div class="lb" id="painters"></div></div></div>`;
+    bar = `Type ${cmd("!paint C4 pink", 1)} letter, number, colour · one pixel every 5 s each`;
+  } else if (kind === "trivia") {
+    tag("trivia", `Trivia about ${s.name}`, `question ${g.n} of ${g.of}`);
+    html = `<div class="bar"><i id="tbar"></i></div><div class="q" style="margin-top:20px">${esc(g.q)}<small>Type your answer in chat. First right answer scores.</small></div>
+      <div class="answers"><div id="tres"></div><div class="box"><h5>Who knows ${esc(s.name)} best</h5><ol id="tscores"></ol></div></div>`;
+    bar = `Answer in chat · first right answer scores`;
+  } else if (kind === "typing") {
+    tag("typing", GAME.typing, `round ${g.n} of ${g.of}`);
+    html = `<div class="bar"><i id="tbar"></i></div><div class="phrase" style="margin-top:20px">${esc(g.text)}</div>
+      <div class="podium" id="podium">${["1st", "2nd", "3rd"].map((p, i) => `<div class="slot${i ? "" : " first"}"><div class="place">${p}</div></div>`).join("")}</div>`;
+    bar = `Type the sentence exactly · first three to finish score`;
+  } else if (kind === "polls") {
+    tag("polls", GAME.polls, `question ${g.n} of ${g.of}`);
+    html = `<div class="versus" style="position:absolute;inset:0">
+      <div class="side l" id="sl"><div class="pct" id="pa">50%</div><div class="name">${esc(g.a)}</div><div class="key">${cmd("1", 1)} to vote</div></div>
+      <div class="side r" id="sr"><div class="pct" id="pb">50%</div><div class="name">${esc(g.b)}</div><div class="key">to vote ${cmd("2")}</div></div>
+      <div class="vs" id="vs" style="left:50%">VS</div>
+      <div class="pollhead"><h4>${esc(g.title || "This or that?")}</h4><p id="pinfo"></p></div>
+      <div class="pollclock"><i id="pk"></i></div></div>`;
+    bar = `Type ${cmd("1", 1)} or ${cmd("2")} · results when ${esc(s.name)} is back`;
+    barTotal = Math.max(1, left(g.ends || 0));
+    v.innerHTML = `<div class="view" style="padding:0">${html}</div>`;
+    $("cmdbar").innerHTML = bar;
+    if (!fresh) v.firstElementChild.style.animation = "none";
+    return;
+  } else if (kind === "back") {
+    $("ptag").innerHTML = svg("wave") + "While you were gone" + `<em>· chat played ${s.recap.played} game${s.recap.played === 1 ? "" : "s"}</em>`;
+    html = recapHtml(s);
+    bar = `Thanks for hanging out, chat`;
+  }
+  barTotal = Math.max(1, left(g.ends || 0));
+  v.innerHTML = `<div class="view">${html}</div>`;
+  if (!fresh) v.firstElementChild.style.animation = "none";
+  $("cmdbar").innerHTML = bar;
+  if (kind === "back") startPollPages(s);
+}
+
+function update(kind, s) {
+  const g = s.game || {};
+  if (kind === "guess") updateGuess(s);
+  else if (kind === "vote") {
+    const total = g.options.reduce((a, o) => a + o.votes, 0), top = Math.max(...g.options.map(o => o.votes));
+    document.querySelectorAll(".vcard").forEach((c, i) => {
+      const o = g.options[i];
+      c.querySelector(".votes").textContent = `${o.votes} vote${o.votes === 1 ? "" : "s"}`;
+      c.querySelector(".meter").style.width = total ? (o.votes / total * 100) + "%" : "0";
+      c.classList.toggle("lead", top > 0 && o.votes === top);
+    });
+    $("ptag").innerHTML = svg("vote") + GAME.vote + `<em>· ${mmss(left(g.ends))} left</em>`;
+  } else if (kind === "paint") {
+    const cells = $("canvas").children;
+    g.cells.forEach((c, i) => {
+      const el = cells[i], want = c || "";
+      if ((el.dataset.c || "") !== want) {
+        el.dataset.c = want; el.style.background = want;
+        if (el.dataset.seen) { el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit"); }
+      }
+      el.dataset.seen = 1;
+    });
+    $("painters").innerHTML = (g.painters || []).map(p => `<div>${avatar(p)}<span>${esc(p.name)}</span><b>${p.n}</b></div>`).join("");
+    $("ptag").innerHTML = svg("paint") + GAME.paint + `<em>· ${mmss(left(g.ends))} left</em>`;
+  } else if (kind === "trivia") {
+    const r = g.reveal;
+    $("tres").innerHTML = !r ? `<div class="box"><h5>Answers so far</h5><p class="hint">Nobody's got it yet…</p></div>`
+      : r.winner ? `<div class="box win"><h5>${esc(r.winner.name)} got it</h5><div class="ans">${esc(r.answer)}</div><div class="who">${avatar(r.winner)}<span>${esc(r.winner.name)} <em>+1</em></span></div></div>`
+      : `<div class="box miss"><h5>Nobody got it! The answer was</h5><div class="ans">${esc(r.answer)}</div></div>`;
+    $("tscores").innerHTML = (g.scores || []).length ? g.scores.map((p, i) => `<li><span class="rk">${i + 1}</span>${avatar(p)}<span>${esc(p.name)}</span><b>${p.n}</b></li>`).join("")
+      : `<li class="hint">No points yet</li>`;
+  } else if (kind === "typing") {
+    const slots = $("podium").children;
+    (g.done || []).forEach((d, i) => {
+      const el = slots[i];
+      if (!el || el.classList.contains("filled")) return;
+      el.classList.add("filled");
+      el.innerHTML = `<div class="place">${["1st", "2nd", "3rd"][i]}</div><div class="secs">${d.secs.toFixed(1)} s</div><div class="who">${avatar(d)}<span>${esc(d.name)}</span></div>`;
+    });
+  } else if (kind === "polls") {
+    const total = g.va + g.vb, a = total ? Math.round(g.va / total * 100) : 50;
+    $("sl").style.flexGrow = Math.max(18, Math.min(82, a)); $("sr").style.flexGrow = 100 - Math.max(18, Math.min(82, a));
+    $("vs").style.left = Math.max(18, Math.min(82, a)) + "%";
+    $("pa").textContent = (total ? a : 0) + "%"; $("pb").textContent = (total ? 100 - a : 0) + "%";
+    const r = g.reveal;
+    $("sl").classList.toggle("won", !!r && g.va > g.vb); $("sr").classList.toggle("won", !!r && g.vb > g.va);
+    $("sl").classList.toggle("lost", !!r && g.va < g.vb); $("sr").classList.toggle("lost", !!r && g.vb < g.va);
+    $("pinfo").textContent = r ? (g.va === g.vb ? `It's a tie! ${total} vote${total === 1 ? "" : "s"}` : `${total} vote${total === 1 ? "" : "s"}`)
+      : `${mmss(left(g.ends))} left · ${total} vote${total === 1 ? "" : "s"}${g.next ? " · next: " + g.next : ""}`;
+  }
+  tickBars();
+}
+
+function tickBars() {
+  const g = S && S.game;
+  if (!g || S.phase !== "away") return;
+  const tb = $("tbar");
+  if (tb) tb.style.width = g.reveal ? "0" : Math.min(100, left(g.ends) / barTotal * 100).toFixed(1) + "%";
+  const pk = $("pk");
+  if (pk) pk.style.width = g.reveal ? "0" : Math.min(100, left(g.ends) / barTotal * 100).toFixed(1) + "%";
+}
+
+/* ── guess when I'm back: the timeline ── */
+function updateGuess(s) {
+  const track = $("track"); if (!track) return;
+  const away = serverNow() - s.started, maxG = Math.max(0, ...(s.guesses || []).map(x => x.secs));
+  const span = Math.ceil(Math.max(15 * 60, s.minutes * 90, away + 180, maxG + 60) / 300) * 300;
+  const pos = t => Math.min(100, t / span * 100) + "%";
+  $("gone").style.width = pos(away); $("now").style.left = pos(away); $("est").style.left = pos(s.minutes * 60);
+  if (track.dataset.span !== String(span)) {
+    track.dataset.span = span;
+    $("ticks").innerHTML = [0, 1, 2, 3, 4, 5].map(i => `<span style="left:${i * 20}%">${mmss(span * i / 5)}</span>`).join("");
+  }
+  const want = (s.guesses || []).slice(0, 30), have = new Set([...track.querySelectorAll(".pin")].map(p => p.dataset.k));
+  want.forEach((p, i) => {
+    const k = p.login;
+    if (have.has(k)) { track.querySelector(`.pin[data-k="${CSS.escape(k)}"]`).style.left = pos(p.secs); have.delete(k); return; }
+    const el = document.createElement("div");
+    el.className = "pin"; el.dataset.k = k;
+    const h = [0, 80, 150][i % 3];
+    el.style.left = pos(p.secs); el.style.bottom = "104px";
+    el.innerHTML = `${avatar(p)}<span class="t">${mmss(p.secs)}</span><span class="stem" style="height:${h}px"></span>`;
+    track.appendChild(el);
+  });
+  have.forEach(k => track.querySelector(`.pin[data-k="${CSS.escape(k)}"]`).remove());
+  // re-stack so neighbours don't overlap
+  [...track.querySelectorAll(".pin")].sort((a, b) => parseFloat(a.style.left) - parseFloat(b.style.left))
+    .forEach((el, i) => { el.querySelector(".stem").style.height = [0, 80, 150][i % 3] + "px"; });
+}
+
+/* ── welcome back ── */
+function recapHtml(s) {
+  const r = s.recap, name = s.name;
+  const guess = r.guess
+    ? `<div class="w">${avatar(r.guess)}<div><h4>${esc(r.guess.name)}</h4><p>Guessed ${mmss(r.guess.secs)}. ${esc(name)} was gone ${mmss(r.away)}, ${r.guess.off ? r.guess.off + " s off" : "spot on"}.</p></div></div>`
+    : `<div class="w"><div><h4>Thanks, chat</h4><p>${r.guesses ? "" : "Nobody guessed this time. "}${esc(cap(name))} is back after ${mmss(r.away)}.</p></div></div>`;
+  const awards = [r.trivia && ["Trivia champ", `${r.trivia.name} · ${r.trivia.n}`], r.typing && ["Fastest fingers", `${r.typing.name} · ${r.typing.secs.toFixed(1)} s`],
+    r.painter && ["Top painter", r.painter.name]].filter(Boolean);
+  const pic = r.painting ? `<div class="mini" style="grid-template-columns:repeat(${r.painting.w},1fr)">${r.painting.cells.map(c => `<i${c ? ` style="background:${c}"` : ""}></i>`).join("")}</div>` : "";
+  const voted = r.polls.filter(p => p.va + p.vb > 0);
+  const right = voted.length ? `<div class="decided"><h4>Chat has decided</h4><div id="pollPage" style="display:flex;flex-direction:column;gap:14px"></div><p class="hint" id="pollMore" style="font-size:20px"></p></div>`
+    : `<div class="decided"><h4>${r.played ? "Good games, chat" : "Chat held the fort"}</h4><p class="hint">${r.guesses} guess${r.guesses === 1 ? "" : "es"} while ${esc(name)} was away.</p></div>`;
+  return `<div class="wb"><div class="hero">${svg(r.guess ? "crown" : "wave", "crown")}${guess}
+    ${pic || awards.length ? `<div class="hrow${pic && awards.length ? "" : " solo"}">${pic}${awards.length ? `<div class="awards">${awards.map(([a, b]) => `<div class="award"><small>${a}</small><b>${esc(b)}</b></div>`).join("")}</div>` : ""}</div>` : ""}
+    </div>${right}</div>`;
+}
+function startPollPages(s) {
+  clearInterval(polls.timer);
+  const list = s.recap.polls.filter(p => p.va + p.vb > 0), per = 5, pages = Math.ceil(list.length / per);
+  if (!list.length) return;
+  polls.page = 0;
+  const show = () => {
+    const page = list.slice(polls.page * per, polls.page * per + per), el = $("pollPage");
+    if (!el) return clearInterval(polls.timer);
+    el.innerHTML = page.map((p, k) => {
+      const total = p.va + p.vb, aWins = p.va >= p.vb, tie = p.va === p.vb;
+      const pct = total ? Math.round((aWins ? p.va : p.vb) / total * 100) : 0;
+      const [w, l] = aWins ? [p.a, p.b] : [p.b, p.a];
+      const label = !total ? `${esc(p.a)} <em>or ${esc(p.b)}: no votes</em>` : tie ? `${esc(p.a)} <em>ties with ${esc(p.b)}</em>` : `${esc(w)} <em>over ${esc(l)}</em>`;
+      return `<div class="res${k === 0 && polls.page === 0 && total && !tie ? " top" : ""}" style="animation-delay:${.2 + k * .3}s"><i class="fill" style="width:${total ? pct : 0}%"></i><span class="lbl">${total && !tie ? svg("crown") : ""}${label}</span><span class="pc">${total ? pct + "%" : "–"}</span></div>`;
+    }).join("");
+    $("pollMore").textContent = pages > 1 ? `${polls.page + 1} of ${pages}` : "";
+    polls.page = (polls.page + 1) % pages;
+  };
+  show();
+  if (pages > 1) polls.timer = setInterval(show, 7000);
+}
+
+setInterval(() => {                 // countdowns between server updates
+  tickClock();
+  if (S && S.phase === "away") update(viewKey.split(":")[0], S);
+}, 1000);
+
+/* ── sample screens (?sample=vote|guess|paint|trivia|typing|polls|back) for the settings page and screenshots ── */
+function sample(kind) {
+  const now = Date.now() / 1000, P = (n, extra = {}) => ({ login: n.toLowerCase(), name: n, avatar: "", ...extra });
+  const base = { phase: "away", now, name: "Vince", twitch: true, started: now - 192, ends: now + 408, minutes: 10, guess_on: true,
+    guesses: [P("PixelPanda", { secs: 418 }), P("MoonWaffle", { secs: 456 }), P("NachoQueen", { secs: 510 }), P("LazyBeanz", { secs: 545 }), P("GamerToast", { secs: 670 }), P("SkyeCat", { secs: 860 })],
+    feed: [P("LazyBeanz", { what: "guessed 9:05" }), P("SkyeCat", { what: "typed it in 4.2 s" }), P("NachoQueen", { what: "voted Trivia" }), P("GamerToast", { what: "painted C4 pink" }), P("PixelPanda", { what: "guessed 6:58" })] };
+  const cells = [];
+  for (let y = 0; y < 15; y++) for (let x = 0; x < 26; x++) { const X = (x - 12.5) / 6, Y = -(y - 6) / 5.2;
+    cells.push(Math.pow(X * X + Y * Y - 1, 3) - X * X * Y * Y * Y < 0 ? "#ff2a6d" : (x - 22) ** 2 + (y - 2.5) ** 2 < 4 ? "#ffc34d" : y > 12 ? "#3ddc84" : ""); }
+  const games = {
+    vote: { kind: "vote", ends: now + 14, options: [["paint", "Chat paints a picture", "Build a picture together, one pixel at a time", 9], ["trivia", "Trivia", "Who knows Vince best?", 14], ["typing", "Typing race", "Fastest fingers win", 6], ["polls", "This or that", "Pick a side, 10 questions", 11]].map(([key, name, blurb, votes]) => ({ key, name, blurb, votes })) },
+    guess: null,
+    paint: { kind: "paint", ends: now + 130, w: 26, h: 15, cells, colors: { pink: "#ff2a6d", purple: "#9146ff", gold: "#ffc34d", green: "#3ddc84", orange: "#ff8a3d", white: "#f6f2ff", blue: "#4d7bff", red: "#e5283a", black: "#0b0910" },
+      painters: [P("NachoQueen", { n: 64 }), P("PixelPanda", { n: 51 }), P("GamerToast", { n: 38 })] },
+    trivia: { kind: "trivia", n: 4, of: 10, ends: now + 12, q: "What was the first game Vince ever streamed?", reveal: { answer: "Fortnite", winner: P("PixelPanda") },
+      scores: [P("PixelPanda", { n: 3 }), P("NachoQueen", { n: 2 }), P("LazyBeanz", { n: 1 })] },
+    typing: { kind: "typing", n: 3, of: 8, ends: now + 18, text: "Six sticky skeletons skated sideways", done: [P("SkyeCat", { secs: 4.2 }), P("GamerToast", { secs: 5.0 })] },
+    polls: { kind: "polls", n: 3, of: 10, ends: now + 24, title: "", a: "In-N-Out", b: "Whataburger", va: 27, vb: 20, next: "Ranch or Ketchup" },
+  };
+  if (kind === "back") return { ...base, phase: "back", recap: { away: 552, guesses: 6, guess: P("LazyBeanz", { secs: 545, off: 7 }), trivia: P("PixelPanda", { n: 5 }), typing: P("SkyeCat", { secs: 3.9 }),
+    painter: P("NachoQueen", { n: 64 }), painting: { w: 26, h: 15, cells }, played: 4,
+    polls: [["Coke", "Pepsi", 71, 29], ["Whataburger", "In-N-Out", 55, 45], ["Ranch", "Ketchup", 64, 36], ["Cats", "Dogs", 48, 52], ["Pumpkin pie", "Apple pie", 50, 50], ["Snickers", "Twix", 30, 12], ["Sprite", "Mountain Dew", 22, 25]].map(([a, b, va, vb]) => ({ title: "", a, b, va, vb })) } };
+  return { ...base, game: games[kind] || null };
+}
+
+const SAMPLE = Q.get("sample");
+if (SAMPLE) render(sample(SAMPLE));
+else openSocket("brb", ev => {
+  if (ev.type === "hello" && ev.theme) setAccent((ev.theme.accent || "").replace("#", ""));
+  else if (ev.type === "brb") render(ev.data);
+  else if (ev.type === "reload") location.reload();
+});
+</script>
+</body>
+</html>

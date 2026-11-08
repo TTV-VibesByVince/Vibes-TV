@@ -29,15 +29,20 @@ async def settle():
 
 # ── reading Twitch's messages ────────────────────────────────────────────
 
+def badges(ev):
+    """What a chat message means for the credits (every message also goes to Be right back as "chat")."""
+    return [e for e in tl.translate("channel.chat.message", ev) if e[0] != "chat"]
+
+
 def test_chat_badges():
-    assert tl.translate("channel.chat.message", chat("modone", "moderator", "subscriber")) == \
+    assert badges(chat("modone", "moderator", "subscriber")) == \
         [("seen", {"user": {"login": "modone", "name": "Modone", "avatar": ""}, "role": "mod"})]
-    assert tl.translate("channel.chat.message", chat("buddy", "vip"))[0][1]["role"] == "vip"
-    assert tl.translate("channel.chat.message", chat("regular", "subscriber")) == []
-    assert tl.translate("channel.chat.message", chat("vibesbyvince", "broadcaster", "moderator")) == []   # not you
+    assert badges(chat("buddy", "vip"))[0][1]["role"] == "vip"
+    assert badges(chat("regular", "subscriber")) == []
+    assert badges(chat("vibesbyvince", "broadcaster", "moderator")) == []   # not you
     shared = chat("othermod", "moderator", source_broadcaster_user_id="999")
-    assert tl.translate("channel.chat.message", shared) == []                                             # another channel's chat
-    lead = tl.translate("channel.chat.message", chat("headmod", "lead_moderator", "subscriber"))      # a lead mod's own badge
+    assert tl.translate("channel.chat.message", shared) == []                # another channel's chat: nothing at all
+    lead = badges(chat("headmod", "lead_moderator", "subscriber"))      # a lead mod's own badge
     assert lead == [("seen", {"user": {"login": "headmod", "name": "Headmod", "avatar": ""}, "role": "mod"})]
 
 
