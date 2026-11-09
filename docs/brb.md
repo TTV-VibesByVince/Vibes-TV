@@ -49,7 +49,7 @@ one**.
 | Game | How chat plays | A game is |
 | --- | --- | --- |
 | Chat paints a picture | `!paint C4 pink`: a letter (A to Z), a number (1 to 15) and a colour. One pixel every 5 seconds each. `erase` clears a pixel. | 3 minutes (you can change it) |
-| Trivia about you | Answer in chat. The first message with a right answer in it scores. | 10 questions, 20 seconds each |
+| Trivia about you | Multiple choice: `1` to `4`, first pick counts, everyone right scores. Or, for questions without wrong answers, type it: the first message with a right answer in it scores. | 10 questions, 20 seconds each |
 | Typing race | Type the sentence exactly (capitals and punctuation don't matter). The first three score. | 8 sentences, 30 seconds each |
 | This or that | `1` or `2` (or the option's name). One vote each. | 10 questions, 35 seconds each (30 to 40 recommended) |
 
@@ -80,18 +80,30 @@ blue, red and black.
 
 Settings > Be right back > **Questions**, one per line:
 
-- **Trivia**: `Question = answer, another answer | what the screen shows`.
-  For example:
+- **Trivia, multiple choice**: `Question = answer | the right option |
+  wrong | wrong | wrong`. For example:
 
   ```
-  What's {name}'s coffee order? = caramel macchiato, macchiato | Caramel macchiato, with soy milk
+  What's {name}'s favourite snack? = popcorn | Popcorn | Pretzels | Nachos | Trail mix
+  ```
+
+  The screen shows the four options shuffled, and chat types `1` to `4`
+  (one pick each). Make the wrong answers close to the right one, and about
+  as long, so the right one doesn't stand out. One or two wrong answers work
+  too (two or three options).
+- **Trivia, type the answer**: leave the wrong answers off:
+  `Question = answer, another answer | what the screen shows`. For example:
+
+  ```
+  What's {name}'s favourite snack? = popcorn, kettle corn | Popcorn, extra butter
   ```
 
   A message counts as right if it has any of the answers in it. Capitals and
-  punctuation don't matter, so `in n out` also matches "In-N-Out!". A
-  question with nothing after `=` is kept but not asked, so you can fill the
-  answers in over time. `{name}` is your name (Settings, or your Twitch
-  name).
+  punctuation don't matter, so `in n out` also matches "In-N-Out!".
+
+  Either way, a question with nothing after `=` is kept but not asked, so
+  you can fill the answers in over time. `{name}` is your name (Settings, or
+  your Twitch name).
 - **This or that**: `Coke | Pepsi`, or with a question:
   `Pineapple on pizza: Yes | No`.
 - **Typing race**: one sentence per line.

@@ -55,7 +55,7 @@ from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "2.1"
+VERSION = "2.2"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
