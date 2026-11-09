@@ -197,6 +197,21 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0811; c
 .res .pc { position: relative; margin-left: auto; padding-left: 16px; font: 400 30px/1 "Bungee", sans-serif; }
 .res.top { box-shadow: inset 0 0 0 2px rgba(255,195,77,.7); }
 @keyframes resIn { from { opacity: 0; transform: translateX(40px); } }
+
+/* arcade games: a canvas on the left, a side column on the right */
+#arc { position: absolute; left: 0; top: 0; width: 1300px; height: 698px; }
+.gside { position: absolute; right: 44px; top: 110px; bottom: 40px; width: 300px; display: flex; flex-direction: column; gap: 18px; z-index: 2; }
+.gside h4 { font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+.gside .big { font: 400 54px/1 "Bungee", sans-serif; display: flex; align-items: baseline; }
+.gside .big .sm { font-family: "Outfit", sans-serif; }
+.gside .sm { font-size: 20px; color: var(--soft); line-height: 1.35; }
+.alb { display: flex; flex-direction: column; gap: 12px; margin-top: auto; }
+.alb h5 { font-size: 20px; font-weight: 600; color: var(--soft); }
+.alb div { display: flex; align-items: center; gap: 12px; font-size: 22px; color: #ddd6ee; min-width: 0; }
+.alb div span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alb .av { width: 38px; height: 38px; }
+.alb b { margin-left: auto; padding-left: 8px; }
+.alb .rk { width: 20px; font-weight: 800; color: var(--gold); flex: none; }
 </style>
 </head>
 <body>
@@ -231,6 +246,12 @@ const ICON = {
   trivia: '<circle cx="12" cy="12" r="10"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/>',
   typing: '<rect x="2" y="6" width="20" height="12" rx="3"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>',
   polls: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  plinko: '<circle cx="6" cy="5" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="18" cy="5" r="1.5"/><circle cx="9" cy="11" r="1.5"/><circle cx="15" cy="11" r="1.5"/><path d="M3 21v-4M9 21v-4M15 21v-4M21 21v-4M2 21h20"/>',
+  pusher: '<ellipse cx="12" cy="7" rx="8" ry="3"/><path d="M4 7v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5"/>',
+  boss: '<path d="M5 9l-2-5 5 3M19 9l2-5-5 3"/><path d="M4 13a8 8 0 0 1 16 0v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M9 13h.01M15 13h.01M10 17h4"/>',
+  pinata: '<path d="M12 2v4"/><path d="M12 6l2.5 4.5L19 11l-3.5 3.5L16 20l-4-2.5L8 20l.5-5.5L5 11l4.5-.5z"/>',
+  sumo: '<circle cx="12" cy="12" r="9"/><circle cx="9" cy="11" r="2.5"/><circle cx="15.5" cy="13" r="2.5"/>',
+  tower: '<rect x="7" y="16" width="10" height="5" rx="1"/><rect x="5" y="10" width="10" height="5" rx="1"/><rect x="9" y="4" width="10" height="5" rx="1"/>',
   crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/>',
   wave: '<path d="M7 11V6.5a1.5 1.5 0 0 1 3 0V11M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10.5V6a1.5 1.5 0 0 1 3 0v6M7 11a1.5 1.5 0 0 0-3 0v2a8 8 0 0 0 8 8h1a7 7 0 0 0 7-7V9a1.5 1.5 0 0 0-3 0"/>',
 };
@@ -266,7 +287,7 @@ function render(s) {
   tickClock();
 
   const key = back ? "back" : s.phase === "idle" || !s.twitch ? "note:" + s.phase + s.twitch
-    : !g ? (s.guess_on ? "guess" : "none") : g.kind + ":" + (g.n || 0) + ":" + (g.reveal ? 1 : 0);
+    : !g ? (s.guess_on ? "guess" : "none") : ARCADE_KINDS.includes(g.kind) ? g.kind : g.kind + ":" + (g.n || 0) + ":" + (g.reveal ? 1 : 0);
   const kind = key.split(":")[0];
   if (key !== viewKey) {
     const fresh = kind !== viewKey.split(":")[0];
@@ -309,7 +330,8 @@ function tickClock() {
 }
 
 /* ── each game: build once, then update in place ── */
-const GAME = { vote: "Chat picks the next game", guess: "Guess when I'm back", paint: "Chat paints a picture", trivia: "Trivia", typing: "Typing race", polls: "This or that" };
+const GAME = { vote: "Chat picks the next game", guess: "Guess when I'm back", paint: "Chat paints a picture", trivia: "Trivia", typing: "Typing race", polls: "This or that",
+  plinko: "Plinko", pusher: "Coin pusher", boss: "Boss fight", pinata: "Piñata", sumo: "Sumo arena", tower: "Tower stack" };
 
 function build(kind, s, fresh) {
   const v = $("view"), g = s.game || {};
@@ -365,6 +387,9 @@ function build(kind, s, fresh) {
     $("cmdbar").innerHTML = bar;
     if (!fresh) v.firstElementChild.style.animation = "none";
     return;
+  } else if (ARCADE_KINDS.includes(kind)) {
+    tag(kind, GAME[kind]);
+    html = `<canvas id="arc" width="1300" height="698"></canvas><div class="gside" id="gside"></div>`;
   } else if (kind === "back") {
     $("ptag").innerHTML = svg("wave") + "While you were gone" + `<em>· chat played ${s.recap.played} game${s.recap.played === 1 ? "" : "s"}</em>`;
     html = recapHtml(s);
@@ -375,6 +400,7 @@ function build(kind, s, fresh) {
   if (!fresh) v.firstElementChild.style.animation = "none";
   $("cmdbar").innerHTML = bar;
   if (kind === "back") startPollPages(s);
+  if (ARCADE_KINDS.includes(kind)) { v.firstElementChild.style.padding = "0"; arcStart(kind, g); } else arc = null;
 }
 
 function update(kind, s) {
@@ -426,7 +452,7 @@ function update(kind, s) {
     $("sl").classList.toggle("lost", !!r && g.va < g.vb); $("sr").classList.toggle("lost", !!r && g.vb < g.va);
     $("pinfo").textContent = r ? (g.va === g.vb ? `It's a tie! ${total} vote${total === 1 ? "" : "s"}` : `${total} vote${total === 1 ? "" : "s"}`)
       : `${mmss(left(g.ends))} left · ${total} vote${total === 1 ? "" : "s"}${g.next ? " · next: " + g.next : ""}`;
-  }
+  } else if (ARCADE_KINDS.includes(kind)) arcUpdate(kind, g);
   tickBars();
 }
 
@@ -474,7 +500,7 @@ function recapHtml(s) {
     ? `<div class="w">${avatar(r.guess)}<div><h4>${esc(r.guess.name)}</h4><p>Guessed ${mmss(r.guess.secs)}. ${esc(name)} was gone ${mmss(r.away)}, ${r.guess.off ? r.guess.off + " s off" : "spot on"}.</p></div></div>`
     : `<div class="w"><div><h4>Thanks, chat</h4><p>${r.guesses ? "" : "Nobody guessed this time. "}${esc(cap(name))} is back after ${mmss(r.away)}.</p></div></div>`;
   const awards = [r.trivia && ["Trivia champ", `${r.trivia.name} · ${r.trivia.n}`], r.typing && ["Fastest fingers", `${r.typing.name} · ${r.typing.secs.toFixed(1)} s`],
-    r.painter && ["Top painter", r.painter.name]].filter(Boolean);
+    r.painter && ["Top painter", r.painter.name], ...(r.awards || []).map(a => [a.label, a.text])].filter(Boolean).slice(0, 4);
   const pic = r.painting ? `<div class="mini" style="grid-template-columns:repeat(${r.painting.w},1fr)">${r.painting.cells.map(c => `<i${c ? ` style="background:${c}"` : ""}></i>`).join("")}</div>` : "";
   const voted = r.polls.filter(p => p.va + p.vb > 0);
   const right = voted.length ? `<div class="decided"><h4>Chat has decided</h4><div id="pollPage" style="display:flex;flex-direction:column;gap:14px"></div><p class="hint" id="pollMore" style="font-size:20px"></p></div>`
@@ -510,6 +536,325 @@ setInterval(() => {                 // countdowns between server updates
   if (S && S.phase === "away") update(viewKey.split(":")[0], S);
 }, 1000);
 
+/* ── arcade games: drawn on a canvas from what the server decided ──
+   Each game gets state (S.game: scores, events to animate) and, for the coin
+   pusher and sumo arena, positions 10 times a second (brb_frame). The canvas
+   is 1300 x 698 (the panel); the game uses the left 940, the side column the rest. */
+const ARCADE_KINDS = ["plinko", "pusher", "boss", "pinata", "sumo", "tower"];
+const ARC_CMD = { plinko: "!drop", pusher: "!push", boss: "!hit", pinata: "!whack", sumo: "!join", tower: "!stack" };
+let arc = null;                       // the arcade game on screen: { kind, ctx, seen, st, frames }
+const GW = 940;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pickOne = a => a[Math.floor(Math.random() * a.length)];
+const IMGS = {};
+function img(url) {                   // avatars on the canvas, loaded once
+  if (!url) return null;
+  if (!IMGS[url]) { const im = new Image(); im.src = url; IMGS[url] = im; }
+  return IMGS[url].complete && IMGS[url].naturalWidth ? IMGS[url] : null;
+}
+
+function arcStart(kind, g) {
+  const cv = $("arc");
+  arc = { kind, ctx: cv.getContext("2d"), seen: new Set(), st: ARC[kind].init(g), frames: [], floats: [], parts: [], last: performance.now(), side: "" };
+  (g.events || []).forEach(e => { if (serverNow() - e.t > 3) arc.seen.add(e.id); });   // don't replay old news on (re)connect
+}
+function arcUpdate(kind, g) {
+  if (!arc || arc.kind !== kind || !$("arc")) return;
+  arc.g = g;
+  for (const e of g.events || []) if (!arc.seen.has(e.id)) { arc.seen.add(e.id); ARC[kind].event && ARC[kind].event(e, arc.st, g); }
+  const side = ARC[kind].side(g);
+  if (side !== arc.side) { arc.side = side; $("gside").innerHTML = side; }
+  $("ptag").innerHTML = svg(kind) + esc(GAME[kind]) + `<em>· ${mmss(left(g.ends))} left</em>`;
+  const bar = ARC[kind].bar ? ARC[kind].bar(g) : null;
+  if (bar && bar !== arc.bar) { arc.bar = bar; $("cmdbar").innerHTML = bar; }
+}
+function arcFrame(f) {
+  if (!arc || arc.kind !== f.kind) return;
+  arc.frames.push({ f, at: performance.now() });
+  if (arc.frames.length > 2) arc.frames.shift();
+  ARC[arc.kind].frame && ARC[arc.kind].frame(f, arc.st);
+}
+function arcLoop(now) {
+  requestAnimationFrame(arcLoop);
+  if (!arc || !arc.g || !$("arc")) return;
+  const dt = Math.min(.05, (now - arc.last) / 1000);
+  arc.last = now;
+  const c = arc.ctx;
+  c.clearRect(0, 0, 1300, 698);
+  ARC[arc.kind].draw(c, dt, arc.g, arc.st, now);
+  drawFx(c, dt);
+}
+requestAnimationFrame(arcLoop);
+
+/* interpolate the last two physics frames: things move smoothly between updates */
+function lerpFrame(listKey, idOf) {
+  const fr = arc.frames;
+  if (!fr.length) return { f: null, items: [] };
+  const b = fr[fr.length - 1], a = fr.length > 1 ? fr[0] : b;
+  const span = Math.max(40, b.at - a.at), u = Math.min(1, Math.max(0, (performance.now() - b.at) / span));
+  const prev = new Map(a.f[listKey].map(x => [idOf(x), x]));
+  return { f: b.f, u, prevF: a.f, items: b.f[listKey].map(x => { const p = prev.get(idOf(x)) || x; return { x, px: p[1] + (x[1] - p[1]) * u, py: p[2] + (x[2] - p[2]) * u }; }) };
+}
+
+/* drawing helpers */
+function circle(c, x, y, r, fill) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fillStyle = fill; c.fill(); }
+function txt(c, t, x, y, size, color, weight = 800, font = "Outfit", align = "center") { c.font = `${weight} ${size}px "${font}", sans-serif`; c.fillStyle = color; c.textAlign = align; c.textBaseline = "middle"; c.fillText(t, x, y); }
+function coin(c, x, y, r, who, alpha = 1) {
+  c.globalAlpha = alpha;
+  circle(c, x, y, r, who.c || "#4a4360");
+  const im = img(who.avatar);
+  if (im) { c.save(); c.beginPath(); c.arc(x, y, r - 3, 0, Math.PI * 2); c.clip(); c.drawImage(im, x - r + 3, y - r + 3, (r - 3) * 2, (r - 3) * 2); c.restore(); }
+  else if (who.star) txt(c, "★", x, y + 2, r * 1.1, "#fff");
+  else if (who.name) txt(c, who.name.replace(/[^A-Za-z0-9]/g, "").charAt(0).toUpperCase() || "?", x, y + 1, r * 1.05, "#fff");
+  else circle(c, x, y, 3, "rgba(255,255,255,.5)");
+  c.lineWidth = 3; c.strokeStyle = "rgba(255,255,255,.55)"; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.stroke();
+  c.globalAlpha = 1;
+}
+function float(t, x, y, color = "#fff", size = 30) { arc.floats.push({ t, x, y, color, size, life: 1.3 }); }
+function burst(x, y, colors, n = 40, speed = 9) { for (let i = 0; i < n; i++) { const a = rnd(0, Math.PI * 2), s = rnd(2, speed); arc.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 4, life: rnd(1, 2), c: pickOne(colors), r: rnd(4, 9), sq: Math.random() < .5 }); } }
+function drawFx(c, dt) {
+  const k = dt * 60;
+  arc.parts = arc.parts.filter(p => { p.vy += .35 * k; p.x += p.vx * k; p.y += p.vy * k; p.life -= dt; c.globalAlpha = Math.max(0, Math.min(1, p.life));
+    if (p.sq) { c.fillStyle = p.c; c.fillRect(p.x - p.r, p.y - p.r / 2, p.r * 2, p.r); } else circle(c, p.x, p.y, p.r, p.c); c.globalAlpha = 1; return p.life > 0 && p.y < 760; });
+  arc.floats = arc.floats.filter(f => { f.life -= dt; f.y -= 50 * dt; c.globalAlpha = Math.max(0, Math.min(1, f.life * 1.6)); txt(c, f.t, f.x, f.y, f.size, f.color, 800, f.size > 40 ? "Bungee" : "Outfit"); c.globalAlpha = 1; return f.life > 0; });
+}
+function banner(c, t, sub) { c.fillStyle = "rgba(10,8,17,.75)"; c.fillRect(0, 300, GW, 150); txt(c, t, GW / 2, 360, 52, "#fff", 400, "Bungee"); if (sub) txt(c, sub, GW / 2, 415, 26, "#ffc34d", 700); }
+const COLS = ["#ff2a6d", "#ffc34d", "#3ddc84", "#9146ff", "#4d7bff", "#ff8a3d"];
+function board(title, rows, unit = "") {
+  return `<div class="alb"><h5>${esc(title)}</h5>${rows.length ? rows.slice(0, 5).map((r, i) => `<div><span class="rk">${i + 1}</span>${avatar(r)}<span>${esc(r.name)}</span><b>${r.n}${unit}</b></div>`).join("") : '<p class="sm">Nobody yet</p>'}</div>`;
+}
+const bar5 = (c, what, extra) => `Type ${cmd(c, 1)} ${what} · one every 5 s each${extra ? " · " + extra : ""}`;
+
+const ARC = {
+  /* ── Plinko ── */
+  plinko: {
+    init: () => ({ coins: [], flash: {} }),
+    event(e, st) { if (e.kind === "drop") st.coins.push({ e, t: 0, done: false }); },
+    side: g => `<h4>Drop a coin</h4><p class="sm">It lands in a slot and scores those points. Hit an edge for the 500 jackpot.</p>${board("Top droppers", g.scores)}`,
+    bar: () => bar5("!drop", "to drop a coin", "the edges pay 500"),
+    draw(c, dt, g, st) {
+      const cx = 470, top = 150, sx = 76, sy = 50, ROWS = 8, VAL = [500, 50, 10, 3, 1, 3, 10, 50, 500], floorY = top + ROWS * sy + 18;
+      const slotX = i => cx + (i - 4) * sx;
+      for (let r = 0; r < ROWS; r++) for (let j = 0; j < r + 3; j++) circle(c, cx + (j - (r + 2) / 2) * sx, top + r * sy, 7, "rgba(255,255,255,.55)");
+      VAL.forEach((v, i) => { const x = slotX(i), f = st.flash[i] || 0, hot = v >= 500;
+        c.fillStyle = f > 0 ? (hot ? "rgba(255,195,77,.85)" : "rgba(255,42,109,.6)") : hot ? "rgba(255,195,77,.18)" : "rgba(255,255,255,.06)";
+        c.beginPath(); c.roundRect(x - sx / 2 + 4, floorY, sx - 8, 86, 14); c.fill();
+        txt(c, String(v), x, floorY + 44, v >= 100 ? 26 : 30, hot ? "#ffc34d" : "#fff", 400, "Bungee"); st.flash[i] = Math.max(0, f - dt); });
+      st.coins = st.coins.filter(k => {
+        k.t += dt / .26;
+        const path = k.e.path, n = Math.min(ROWS, Math.floor(k.t)), u = Math.min(1, k.t - n);
+        let off = 0; for (let i = 0; i < n; i++) off += path[i] / 2;
+        let x = cx + off * sx, y = top - sy - 14 + n * sy;
+        if (n < ROWS) { x += path[n] / 2 * sx * u; y += sy * u - Math.sin(u * Math.PI) * 22; }
+        else y = top + (ROWS - 1) * sy + 24 + Math.min(1, u * 1.4) * 60;
+        coin(c, x, y, 20, k.e.who);
+        if (n >= ROWS && u >= 1 && !k.done) { k.done = true; const v = k.e.pts; st.flash[k.e.slot] = .6;
+          float("+" + v, slotX(k.e.slot), floorY - 30, v >= 500 ? "#ffc34d" : "#fff", v >= 500 ? 54 : 32);
+          if (v >= 500) burst(slotX(k.e.slot), floorY, ["#ffc34d", "#ff2a6d", "#fff"], 60); }
+        return !(k.done && k.t > ROWS + 1.6);
+      });
+    },
+  },
+
+  /* ── Coin pusher ── */
+  pusher: {
+    init: () => ({ falling: [] }),
+    event(e) {
+      if (e.kind !== "win") return;
+      float(`+${e.v} ${e.who.name}`, e.x, 620, e.v > 1 ? "#ffc34d" : "#fff", e.v > 1 ? 38 : 26);
+      if (e.v > 1) burst(e.x, 640, ["#ffc34d", "#fff"], 50);
+    },
+    frame(f, st) {                    // coins that went over the edge fall off on screen too
+      const prev = arc.frames.length > 1 ? arc.frames[0].f : null;
+      if (!prev) return;
+      const now = new Set(f.coins.map(x => x[0]));
+      prev.coins.forEach(x => { if (!now.has(x[0]) && x[2] > 560) st.falling.push({ x: x[1], y: x[2], vy: 2, who: who(prev, x[3]) }); });
+    },
+    side: g => `<h4>Push them off</h4><p class="sm">Your coin shoves the pile. Whatever falls off the edge is yours. The gold star is worth 25.</p>${board("Coins won", g.scores)}`,
+    bar: () => bar5("!push", "to drop a coin", "coins your drop knocks off are yours"),
+    draw(c, dt, g, st) {
+      const L = 110, R = 830, EDGE = 640;
+      c.fillStyle = "rgba(255,255,255,.04)"; c.beginPath(); c.roundRect(L - 10, 130, R - L + 20, EDGE - 100, 22); c.fill();
+      c.fillStyle = "rgba(255,42,109,.5)"; c.fillRect(L - 10, EDGE + 18, R - L + 20, 6);
+      txt(c, "the edge", R + 2, EDGE + 46, 18, "#8f87a6", 600, "Outfit", "right");
+      const { f, u, prevF, items } = lerpFrame("coins", x => x[0]);
+      items.sort((a, b) => a.py - b.py).forEach(it => coin(c, it.px, it.py, it.x[3] === -2 ? 36 : 24, who(f, it.x[3])));
+      st.falling = st.falling.filter(k => { k.vy += .6; k.y += k.vy; coin(c, k.x, k.y, 24, k.who, Math.max(0, 1 - (k.y - EDGE) / 90)); return k.y < EDGE + 90; });
+      const py = f ? (prevF ? prevF.py + (f.py - prevF.py) * u : f.py) : 170;
+      c.fillStyle = "#2a2440"; c.beginPath(); c.roundRect(L - 10, 110, R - L + 20, py - 110, [0, 0, 16, 16]); c.fill();
+      c.fillStyle = "rgba(180,131,255,.6)"; c.fillRect(L - 10, py - 6, R - L + 20, 6);
+      txt(c, "PUSHER", 470, (110 + py) / 2, 22, "rgba(255,255,255,.35)", 400, "Bungee");
+    },
+  },
+
+  /* ── Boss fight ── */
+  boss: {
+    init: g => ({ hp: g.hp, shake: 0, flash: 0, t: 0 }),
+    event(e, st) {
+      if (e.kind === "hit") { st.shake = .25; st.flash = .06; float((e.crit ? "CRIT " : "") + e.d, rnd(330, 610), rnd(260, 380), e.crit ? "#ffc34d" : "#fff", e.crit ? 50 : 34); }
+      if (e.kind === "ko") burst(470, 420, ["#9146ff", "#ff2a6d", "#ffc34d", "#fff"], 120, 14);
+    },
+    side: g => `<h4>${esc(g.boss)}</h4><p class="sm">${g.down ? "Beaten! The next one is on its way…" : `${g.hp} of ${g.max} HP left. Boss ${g.n}.`}</p>${board("Top damage", g.scores)}`,
+    bar: () => bar5("!hit", "to attack", "beat it before time runs out"),
+    draw(c, dt, g, st) {
+      st.t += dt;
+      if (Math.abs(st.hp - g.hp) > g.max * .5) st.hp = g.hp;     // a new boss
+      st.hp += (g.hp - st.hp) * Math.min(1, dt * 8);
+      c.fillStyle = "rgba(255,255,255,.08)"; c.beginPath(); c.roundRect(60, 128, 820, 26, 13); c.fill();
+      c.fillStyle = st.hp / g.max < .25 ? "#ff2a6d" : "#3ddc84"; c.beginPath(); c.roundRect(60, 128, Math.max(0, 820 * st.hp / g.max), 26, 13); c.fill();
+      txt(c, `${Math.ceil(st.hp)} HP`, 70, 172, 22, "#fff", 700, "Outfit", "left");
+      txt(c, `Boss ${g.n}`, 870, 172, 22, "#b9b0cf", 700, "Outfit", "right");
+      if (g.down) { banner(c, "Boss defeated!", g.killer ? `${g.killer.name} landed the final blow` : ""); return; }
+      st.shake = Math.max(0, st.shake - dt); st.flash = Math.max(0, st.flash - dt);
+      const x = 470 + (st.shake ? rnd(-14, 14) : 0), y = 430 + Math.sin(st.t * 2) * 10 + (st.shake ? rnd(-8, 8) : 0), s = (1 + Math.sin(st.t * 3) * .02) * Math.min(1.15, .9 + g.n * .05);
+      c.save(); c.translate(x, y); c.scale(s, s);
+      const body = ["#6b3fd6", "#d6455f", "#2f9e6e", "#c77a1d", "#3d5fd6", "#a13fd6"][(g.n - 1) % 6];
+      c.fillStyle = st.flash ? "#e2d6ff" : body;
+      c.beginPath(); c.moveTo(-120, -90); c.lineTo(-150, -180); c.lineTo(-70, -120); c.fill();
+      c.beginPath(); c.moveTo(120, -90); c.lineTo(150, -180); c.lineTo(70, -120); c.fill();
+      c.beginPath(); c.ellipse(0, 0, 165, 140, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = "rgba(255,255,255,.18)"; c.beginPath(); c.ellipse(0, 40, 110, 70, 0, 0, Math.PI * 2); c.fill();
+      const hurt = g.hp / g.max < .4;
+      [-55, 55].forEach(ex => { circle(c, ex, -30, 30, "#fff"); circle(c, ex + 6, -24, 13, "#1a1030");
+        if (hurt) { c.strokeStyle = "#1a1030"; c.lineWidth = 8; c.beginPath(); c.moveTo(ex - 32, -72 + (ex > 0 ? 14 : 0)); c.lineTo(ex + 32, -72 + (ex > 0 ? 0 : 14)); c.stroke(); } });
+      c.fillStyle = "#1a1030"; c.beginPath(); c.ellipse(0, 50, 60, hurt ? 30 : 18, 0, 0, Math.PI); c.fill();
+      c.fillStyle = "#fff"; [-36, -12, 12, 36].forEach(tx => { c.beginPath(); c.moveTo(tx - 9, 50); c.lineTo(tx, 66); c.lineTo(tx + 9, 50); c.fill(); });
+      c.restore();
+    },
+  },
+
+  /* ── Piñata ── */
+  pinata: {
+    init: () => ({ ang: 0, va: 0, t: 0, bx: 470, by: 300, chunks: [] }),
+    event(e, st) {
+      if (e.kind === "whack") { st.va += (Math.random() < .5 ? -1 : 1) * rnd(.015, .03); const side = Math.random() < .5 ? -1 : 1;
+        float("WHACK", st.bx + side * rnd(200, 250), rnd(320, 520), pickOne(COLS), 30); }
+      if (e.kind === "break") { burst(st.bx, st.by, COLS, 160, 13); st.chunks = [...Array(7)].map((_, i) => ({ x: st.bx, y: st.by, vx: rnd(-8, 8), vy: rnd(-10, -2), a: 0, va: rnd(-.2, .2), c: COLS[i % 6] })); }
+    },
+    side: g => `<h4>Break it</h4><p class="sm">${g.broke ? "Smashed! A new one is on its way…" : g.crack > .75 ? "It's about to break…" : g.crack > .45 ? "It's starting to crack" : "Nobody knows how many whacks it takes."}</p>${board("Most whacks", g.scores)}`,
+    bar: () => bar5("!whack", "to hit it", "whoever breaks it wins"),
+    draw(c, dt, g, st) {
+      const k = dt * 60;
+      st.t += dt; st.va += -st.ang * 1.6 * dt; st.va *= Math.pow(.97, k); st.ang += st.va * k; st.ang = Math.max(-.45, Math.min(.45, st.ang));
+      if (!g.broke) st.ang += Math.sin(st.t * 1.3) * .002;
+      const len = 300, R0 = 120 * .72, x = 470 + Math.sin(st.ang) * len, y = 100 + Math.cos(st.ang) * len - 40;
+      st.bx = x; st.by = y + 40;
+      if (g.broke) {
+        st.chunks.forEach(ch => { ch.vy += .5 * k; ch.x += ch.vx * k; ch.y += ch.vy * k; ch.a += ch.va * k; c.save(); c.translate(ch.x, ch.y); c.rotate(ch.a); c.fillStyle = ch.c; c.beginPath(); c.moveTo(0, -30); c.lineTo(26, 18); c.lineTo(-22, 22); c.fill(); c.restore(); });
+        banner(c, g.breaker ? `${g.breaker.name} broke it!` : "Smashed!", "Candy for everyone");
+        return;
+      }
+      c.strokeStyle = "rgba(255,255,255,.4)"; c.lineWidth = 3; c.beginPath(); c.moveTo(470, 100); c.lineTo(470 + Math.sin(st.ang) * (len - R0), 100 + Math.cos(st.ang) * (len - R0)); c.stroke();
+      c.save(); c.translate(x, y + 40); c.rotate(-st.ang);
+      const R = 120;
+      for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2 - Math.PI / 2; c.fillStyle = COLS[i % 6];
+        c.beginPath(); c.moveTo(Math.cos(a - .32) * R * .62, Math.sin(a - .32) * R * .62); c.lineTo(Math.cos(a) * R * 1.35, Math.sin(a) * R * 1.35); c.lineTo(Math.cos(a + .32) * R * .62, Math.sin(a + .32) * R * .62); c.fill(); }
+      circle(c, 0, 0, R * .72, "#ff7aa5");
+      c.save(); c.beginPath(); c.arc(0, 0, R * .72, 0, Math.PI * 2); c.clip();
+      ["#ffc34d", "#3ddc84", "#9146ff", "#4d7bff"].forEach((col, i) => { c.fillStyle = col; c.fillRect(-R, -R * .6 + i * 32, R * 2, 14); });
+      const crack = Math.max(0, g.crack - .3) / .7;
+      c.strokeStyle = "#1a1030"; c.lineWidth = 5; c.lineJoin = "round";
+      [[-.3, -1], [.5, -.4], [-.6, .5], [.2, .8], [.8, .2]].forEach(([sx, sy], i) => { if (crack < i / 5 + .01) return; c.beginPath(); let px = sx * 20, pyy = sy * 20; c.moveTo(px, pyy);
+        for (let j = 1; j <= 4; j++) { px += sx * 22 + (j % 2 ? 10 : -10); pyy += sy * 22 + (j % 2 ? -8 : 8); c.lineTo(px, pyy); } c.stroke(); });
+      c.restore();
+      circle(c, -26, -18, 9, "#1a1030"); circle(c, 26, -18, 9, "#1a1030");
+      c.strokeStyle = "#1a1030"; c.lineWidth = 5; c.beginPath(); c.arc(0, 8, 22, crack > .6 ? Math.PI * 1.15 : .15 * Math.PI, crack > .6 ? Math.PI * 1.85 : .85 * Math.PI); c.stroke();
+      c.restore();
+    },
+  },
+
+  /* ── Sumo arena ── */
+  sumo: {
+    init: () => ({ pop: {} }),
+    event(e, st) {
+      if (e.kind === "bump") st.pop[e.who.login] = .6;
+      if (e.kind === "win") burst(470, 420, ["#ffc34d", "#fff", e.who.c], 70);
+    },
+    side: g => `<h4>${g.phase === "join" ? "Jump in!" : g.phase === "fight" ? "Last one standing" : "We have a winner"}</h4>
+      <div class="big">${g.phase === "join" ? g.joined : g.alive}<span class="sm" style="margin-left:12px">${g.phase === "join" ? "in the ring" : "still standing"}</span></div>${board("Wins this break", g.scores)}`,
+    bar: g => g.phase === "join" ? `Type ${cmd("!join", 1)} to jump in · the match starts in ${Math.max(0, Math.ceil(left(g.until)))} s`
+      : `Type ${cmd("!bump", 1)} to charge the nearest rival · one every 5 s · last one in the ring wins`,
+    draw(c, dt, g, st) {
+      const CX = 470, CY = 420;
+      const { f, u, prevF, items } = lerpFrame("blobs", x => x[0]);
+      const ring = f ? (prevF ? prevF.ring + (f.ring - prevF.ring) * u : f.ring) : 250;
+      c.fillStyle = "rgba(255,195,77,.08)"; c.beginPath(); c.ellipse(CX, CY, 260, 182, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = "rgba(255,42,109,.75)"; c.lineWidth = 6; c.setLineDash(g.phase === "fight" ? [] : [16, 12]);
+      c.beginPath(); c.ellipse(CX, CY, ring, ring * .7, 0, 0, Math.PI * 2); c.stroke(); c.setLineDash([]);
+      items.sort((a, b) => a.py - b.py).forEach(it => {
+        const o = who(f, it.x[0]);
+        const out = it.x[3];
+        st.out = st.out || {};
+        if (out) st.out[o.name] = (st.out[o.name] || 0) + dt; else delete st.out[o.name];
+        const fall = out ? st.out[o.name] : 0, s = (1 + (st.pop[o.name] || 0) * .25) * Math.max(0, 1 - fall);
+        st.pop[o.name] = Math.max(0, (st.pop[o.name] || 0) - dt * 2);
+        if (s <= 0) return;
+        const x = it.px, y = it.py + fall * fall * 300;
+        c.globalAlpha = .3; c.fillStyle = "#000"; c.beginPath(); c.ellipse(x, y + 30 * s, 30 * s, 9 * s, 0, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1;
+        circle(c, x, y, 32 * s, o.c);
+        const im = img(o.avatar);
+        if (im) { c.save(); c.beginPath(); c.arc(x, y + 8 * s, 15 * s, 0, Math.PI * 2); c.clip(); c.drawImage(im, x - 15 * s, y - 7 * s, 30 * s, 30 * s); c.restore(); }
+        circle(c, x - 9 * s, y - 12 * s, 6 * s, "#fff"); circle(c, x + 9 * s, y - 12 * s, 6 * s, "#fff"); circle(c, x - 8 * s, y - 11 * s, 3 * s, "#1a1030"); circle(c, x + 10 * s, y - 11 * s, 3 * s, "#1a1030");
+        txt(c, o.name, x, y + 50 * s, 18, "#fff", 700);
+      });
+      if (g.phase === "won" && g.winner) banner(c, `${g.winner.name} wins!`, "Last one standing");
+      if (g.phase === "join") txt(c, g.joined < 2 && left(g.until) < 1 ? "Waiting for two players…" : `Match starts in ${Math.max(0, Math.ceil(left(g.until)))}`, CX, 660, 26, "#ffc34d", 700);
+    },
+  },
+
+  /* ── Tower stack ── */
+  tower: {
+    init: g => ({ drops: [], tumble: [], cam: 0, shown: (g.stack || []).length }),
+    event(e, st) { if (["stack", "slide", "topple"].includes(e.kind)) st.drops.push({ e, y: 150, vy: 0 }); },
+    side: g => `<h4>Build it higher</h4><div class="big">${g.stack.length}<span class="sm" style="margin-left:12px">block${g.stack.length === 1 ? "" : "s"} · best ${g.best}</span></div>${board("Most blocks stacked", g.scores)}`,
+    bar: () => bar5("!stack", "to drop a block", "don't be the one who knocks it over"),
+    draw(c, dt, g, st) {
+      const BW = 170, BH = 40, GY = 660, k = dt * 60;
+      const blk = (x, y, p, a = 0) => { c.save(); c.translate(x, y); c.rotate(a); c.fillStyle = p.c; c.beginPath(); c.roundRect(-BW / 2, -BH / 2, BW, BH, 9); c.fill();
+        c.strokeStyle = "rgba(255,255,255,.35)"; c.lineWidth = 2; c.stroke(); txt(c, p.name.length > 12 ? p.name.slice(0, 11) + "…" : p.name, 0, 1, 19, "#fff", 800); c.restore(); };
+      // the server's tower, without blocks that are still falling into place
+      const pending = st.drops.filter(d => d.e.kind !== "slide");
+      const hideFrom = pending.length ? Math.min(...pending.map(d => d.e.level)) : Infinity;
+      const topple = pending.find(d => d.e.kind === "topple");
+      const base = topple ? g.stack.slice(0, topple.e.at).concat(topple.e.gone.slice(0, -1)) : g.stack;   // before it lands, the tower still stands
+      const shown = base.filter((_, i) => i < hideFrom);
+      if (st.shown > 0 && g.stack.length === 0 && !g.fell && !pending.length) {     // the fallen tower is cleared away
+        (st.last || []).forEach((b, i) => st.tumble.push({ x: b.x, y: GY - i * BH - BH / 2, p: b, vx: rnd(-2, 2), vy: -2, a: 0, va: rnd(-.08, .08) }));
+      }
+      st.shown = g.stack.length; st.last = shown;
+      const want = Math.max(0, shown.length * BH - 330); st.cam += (want - st.cam) * Math.min(1, dt * 4);
+      c.save(); c.beginPath(); c.rect(0, 100, GW, 600); c.clip();
+      c.save(); c.translate(0, st.cam);
+      c.fillStyle = "rgba(255,255,255,.15)"; c.fillRect(330, GY, 280, 8);
+      if (g.best >= 3) { const y = GY - g.best * BH; c.strokeStyle = "rgba(255,195,77,.6)"; c.setLineDash([10, 10]); c.lineWidth = 2; c.beginPath(); c.moveTo(40, y); c.lineTo(GW - 40, y); c.stroke(); c.setLineDash([]); txt(c, `best ${g.best}`, 44, y - 16, 20, "#ffc34d", 700, "Outfit", "left"); }
+      shown.forEach((b, i) => blk(b.x, GY - i * BH - BH / 2, b));
+      c.restore();
+      const h = g.stack.length, t = serverNow() - g.t0, x = 470 + Math.min(280, 50 + h * 14) * Math.sin(t * (1 + h * .04));
+      c.fillStyle = "rgba(255,255,255,.3)"; c.fillRect(40, 118, GW - 80, 4); c.beginPath(); c.roundRect(x - 22, 110, 44, 20, 5); c.fill();
+      if (!st.drops.length && !g.fell) { c.strokeStyle = "rgba(255,255,255,.3)"; c.lineWidth = 2; c.beginPath(); c.moveTo(x, 130); c.lineTo(x, 150); c.stroke(); c.globalAlpha = .4; blk(x, 170, { name: "next", c: "#4a4360" }); c.globalAlpha = 1; }
+      st.drops = st.drops.filter(d => {
+        d.vy += .8 * k; d.y += d.vy * k;
+        const target = GY - d.e.level * BH - BH / 2 + st.cam;
+        blk(d.e.x, Math.min(d.y, target), d.e.who);
+        if (d.y < target) return true;
+        if (d.e.kind === "slide") { const below = shown[shown.length - 1]; const dir = below && d.e.x < below.x ? -1 : 1;
+          st.tumble.push({ x: d.e.x, y: target - st.cam, p: d.e.who, vx: dir * 2, vy: 0, a: 0, va: dir * .07 }); }
+        if (d.e.kind === "topple") d.e.gone.forEach((b, i) => st.tumble.push({ x: b.x, y: GY - (d.e.at + i) * BH - BH / 2, p: b, vx: d.e.dir * (1.5 + i * .3), vy: -1, a: 0, va: d.e.dir * (.03 + i * .01) }));
+        return false;
+      });
+      st.tumble = st.tumble.filter(b => { b.vy += .55 * k; b.x += b.vx * k; b.y += b.vy * k; b.a += b.va * k; blk(b.x, b.y + st.cam, b.p, b.a); return b.y + st.cam < 820; });
+      c.restore();
+      const fallen = (g.events || []).filter(e => e.kind === "topple").pop();
+      if (g.fell && fallen && !st.drops.length) banner(c, `Timber! ${fallen.height} blocks`, `${fallen.who.name} knocked it over`);
+    },
+  },
+};
+function who(f, i) {                // a coin or blob's owner from a physics frame
+  if (!f || i < 0) return i === -2 ? { c: "#ffc34d", star: true } : { c: "#4a4360" };
+  const o = f.owners[i] || [];
+  return { c: o[0] || "#4a4360", name: o[1] || "", avatar: o[2] || "" };
+}
+
 /* ── sample screens (?sample=vote|guess|paint|trivia|typing|polls|back) for the settings page and screenshots ── */
 function sample(kind) {
   const now = Date.now() / 1000, P = (n, extra = {}) => ({ login: n.toLowerCase(), name: n, avatar: "", ...extra });
@@ -528,6 +873,12 @@ function sample(kind) {
       scores: [P("PixelPanda", { n: 3 }), P("NachoQueen", { n: 2 }), P("LazyBeanz", { n: 1 })] },
     typing: { kind: "typing", n: 3, of: 8, ends: now + 18, text: "Six sticky skeletons skated sideways", done: [P("SkyeCat", { secs: 4.2 }), P("GamerToast", { secs: 5.0 })] },
     polls: { kind: "polls", n: 3, of: 10, ends: now + 24, title: "", a: "In-N-Out", b: "Whataburger", va: 27, vb: 20, next: "Ranch or Ketchup" },
+    plinko: { kind: "plinko", ends: now + 140, scores: [], events: [] },
+    pusher: { kind: "pusher", ends: now + 140, scores: [], events: [], t0: now },
+    boss: { kind: "boss", ends: now + 140, scores: [], events: [], boss: "Grumbo the Lag Monster", hp: 800, max: 800, n: 1, down: false, killer: null },
+    pinata: { kind: "pinata", ends: now + 140, scores: [], events: [], crack: 0, broke: false, breaker: null, num: 1 },
+    sumo: { kind: "sumo", ends: now + 140, scores: [], events: [], phase: "fight", until: now + 30, match: 1, alive: 6, joined: 6, winner: null },
+    tower: { kind: "tower", ends: now + 140, scores: [], events: [], stack: [], t0: now, fell: false, best: 0, best_by: null },
   };
   if (kind === "back") return { ...base, phase: "back", recap: { away: 552, guesses: 6, guess: P("LazyBeanz", { secs: 545, off: 7 }), trivia: P("PixelPanda", { n: 5 }), typing: P("SkyeCat", { secs: 3.9 }),
     painter: P("NachoQueen", { n: 64 }), painting: { w: 26, h: 15, cells }, played: 4,
@@ -535,11 +886,54 @@ function sample(kind) {
   return { ...base, game: games[kind] || null };
 }
 
+/* the arcade samples play themselves with pretend chat (same rules as the server, roughly) */
+function fakeArcade(kind) {
+  const people = ["PixelPanda", "NachoQueen", "LazyBeanz", "GamerToast", "SkyeCat", "MoonWaffle", "RanchLord", "MintChip"]
+    .map((n, i) => ({ login: n.toLowerCase(), name: n, avatar: "", c: ["#ff2a6d", "#9146ff", "#ff8a3d", "#3ddc84", "#4d7bff", "#b483ff", "#ffc34d", "#2fc9a5"][i] }));
+  const g = S.game, scores = {}; let id = 0;
+  const add = (p, n) => { scores[p.login] = scores[p.login] || { ...p, n: 0 }; scores[p.login].n += n; g.scores = Object.values(scores).sort((a, b) => b.n - a.n).slice(0, 5); };
+  const ev = e => { g.events = [...g.events.filter(x => serverNow() - x.t < 8), { ...e, id: ++id, t: serverNow() }]; };
+  const feedLine = (p, what) => { S.feed = [{ ...p, what }, ...S.feed].slice(0, 8); renderFeed(S.feed); };
+  const act = () => {
+    const p = pickOne(people);
+    if (kind === "plinko") { const path = [...Array(8)].map(() => Math.random() < .5 ? -1 : 1), slot = (path.reduce((a, b) => a + b) + 8) / 2, pts = [500, 50, 10, 3, 1, 3, 10, 50, 500][slot];
+      ev({ kind: "drop", who: p, path, slot, pts }); setTimeout(() => { add(p, pts); feedLine(p, "scored " + pts); update(kind, S); }, 2600); }
+    if (kind === "boss" && !g.down) { const crit = Math.random() < .1, d = Math.round(rnd(10, 60)) * (crit ? 3 : 1); g.hp = Math.max(0, g.hp - d); add(p, d); ev({ kind: "hit", who: p, d, crit }); feedLine(p, "hit for " + d);
+      if (!g.hp) { g.down = true; g.killer = p; ev({ kind: "ko", who: p }); setTimeout(() => { g.n++; g.max = Math.round(800 * 1.6 ** (g.n - 1) / 10) * 10; g.hp = g.max; g.down = false; g.boss = "Sir Buffers-a-Lot"; }, 5000); } }
+    if (kind === "pinata" && !g.broke) { g.hits = (g.hits || 0) + 1; add(p, 1); g.need = g.need || 30; g.crack = Math.round(Math.min(1, g.hits / g.need) * 10) / 10;
+      if (g.hits >= g.need) { g.broke = true; g.breaker = p; ev({ kind: "break", who: p }); setTimeout(() => { g.broke = false; g.hits = 0; g.crack = 0; }, 5000); } else ev({ kind: "whack", who: p }); feedLine(p, "whacked it"); }
+    if (kind === "tower" && !g.fell) { const h = g.stack.length, x = 470 + Math.min(280, 50 + h * 14) * Math.sin((serverNow() - g.t0) * (1 + h * .04)), top = g.stack[h - 1];
+      if (top && Math.abs(x - top.x) > 85) { ev({ kind: "slide", who: p, x, level: h }); feedLine(p, "slid off the edge"); }
+      else { g.stack = [...g.stack, { x, ...p }]; add(p, 1); g.best = Math.max(g.best, g.stack.length);
+        let fell = false;
+        for (let i = g.stack.length - 2; i >= 0 && !fell; i--) { const above = g.stack.slice(i + 1), com = above.reduce((a, b) => a + b.x, 0) / above.length;
+          if (Math.abs(com - g.stack[i].x) > 85) { fell = true; const height = g.stack.length, gone = g.stack.slice(i + 1); g.stack = g.stack.slice(0, i + 1); g.fell = true;
+            ev({ kind: "topple", who: p, x, level: h, gone, at: i + 1, height, dir: com > g.stack[i].x ? 1 : -1 }); setTimeout(() => { g.stack = []; g.fell = false; update(kind, S); }, 3500); } }
+        if (!fell) ev({ kind: "stack", who: p, x, level: h }); feedLine(p, "stacked block " + (h + 1)); } }
+    if (kind === "pusher") feedLine(p, "dropped a coin");
+    if (kind === "sumo") feedLine(p, "charged someone");
+    update(kind, S);
+  };
+  setInterval(act, kind === "tower" ? 1100 : 600);
+  if (kind === "pusher") {          // a still pile and a moving shelf
+    const coins = []; for (let i = 0; i < 70; i++) coins.push([i, rnd(140, 800), rnd(340, 630), Math.random() < .3 ? Math.floor(rnd(0, 8)) : -1]);
+    coins.push([99, 470, 480, -2]);
+    const owners = people.map(p => [p.c, p.name, ""]);
+    setInterval(() => arcFrame({ kind, owners, coins, py: 150 + (Math.sin((serverNow() - g.t0) * 1.2) + 1) * 90 }), 100);
+  }
+  if (kind === "sumo") {
+    const owners = people.slice(0, 6).map(p => [p.c, p.name, ""]);
+    setInterval(() => { const t = serverNow(); arcFrame({ kind, owners, ring: 200, phase: "fight",
+      blobs: owners.map((_, i) => [i, 470 + Math.cos(t * .7 + i) * 130 + Math.sin(t * 2 + i) * 20, 420 + Math.sin(t * .7 + i) * 90, 0]) }); }, 100);
+  }
+}
+
 const SAMPLE = Q.get("sample");
-if (SAMPLE) render(sample(SAMPLE));
+if (SAMPLE) { render(sample(SAMPLE)); if (ARCADE_KINDS.includes(SAMPLE)) fakeArcade(SAMPLE); }
 else openSocket("brb", ev => {
   if (ev.type === "hello" && ev.theme) setAccent((ev.theme.accent || "").replace("#", ""));
   else if (ev.type === "brb") render(ev.data);
+  else if (ev.type === "brb_frame") arcFrame(ev.data);
   else if (ev.type === "reload") location.reload();
 });
 </script>

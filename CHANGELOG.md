@@ -4,6 +4,29 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 2.1 (2026-11-08)
+
+- **Be right back: six arcade games.** One command each, once every 5
+  seconds per person:
+  - **Plinko** (`!drop`): a coin bounces down the pegs into a slot. The
+    edges pay 500.
+  - **Coin pusher** (`!push`): drop a coin on the pile. Coins pushed off the
+    edge are yours, and the gold star is worth 25.
+  - **Boss fight** (`!hit`): beat the boss together before time runs out.
+    Critical hits do triple damage, and each boss is tougher than the last.
+  - **Piñata** (`!whack`): it breaks after a secret number of whacks.
+  - **Sumo arena** (`!join`, then `!bump`): the ring shrinks; the last one
+    in it wins.
+  - **Tower stack** (`!stack`): drop blocks from a swinging crane. Lean the
+    tower too far and it topples, and the screen says who did it.
+- The vote now shows 4 games, picked at random from the ones you've ticked
+  (never the one just played).
+- The welcome-back screen gives out awards for the arcade games: Plinko high
+  score, boss slayer, piñata smasher, sumo champ, tallest tower and the most
+  coins pushed.
+- Settings > Be right back > *Arcade games last* (3 minutes to start with),
+  and samples of each game in the preview.
+
 ## 2.0 (2026-11-07)
 
 - **Be right back** (new Settings tab, and `/brb` for OBS): a BRB screen with

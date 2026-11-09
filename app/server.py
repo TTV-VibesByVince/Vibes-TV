@@ -55,7 +55,7 @@ from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "2.0"
+VERSION = "2.1"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -186,6 +186,7 @@ SCHEMA = {
     "brb_games":            (dict,  {}),          # game -> false to leave it out (all on by default)
     "brb_mode":             (str,   "vote"),      # vote: chat picks each game | turns: one after another | one: the first game only
     "brb_paint_minutes":    (int,   3),
+    "brb_arcade_minutes":   (int,   3),           # Plinko, coin pusher, boss fight, piñata, sumo, tower stack
     "brb_poll_seconds":     (int,   35),
     "brb_recap_seconds":    (int,   45),          # how long "Welcome back" stays up
     "brb_tv":               (bool,  True),        # also on the TV (it's always at /brb for OBS)
@@ -205,7 +206,7 @@ LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600),
           "tiktok_widget_count": (1, 10), "tiktok_widget_scale": (0.5, 2), "tiktok_widget_opacity": (0.2, 1),
           "tiktok_like_goal": (0, 1000000000), "credits_speed": (0.3, 3),
-          "brb_minutes": (1, 120), "brb_paint_minutes": (1, 10), "brb_poll_seconds": (15, 60), "brb_recap_seconds": (10, 300)}
+          "brb_minutes": (1, 120), "brb_paint_minutes": (1, 10), "brb_arcade_minutes": (1, 10), "brb_poll_seconds": (15, 60), "brb_recap_seconds": (10, 300)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
 REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
@@ -1448,6 +1449,24 @@ async def brb_ticker():
             log.warning("brb: %s", e)
 
 
+async def brb_physics():
+    """The coin pusher and sumo arena move: step them 20 times a second and
+    send the positions to the BRB pages 10 times a second. Idle otherwise."""
+    n = 0
+    while True:
+        await asyncio.sleep(0.05)
+        try:
+            if not brb.physics():
+                continue
+            brb.step(0.05)
+            n += 1
+            if n % 2 == 0:
+                await tv.broadcast({"type": "brb_frame", "data": brb.frame()}, "brb")
+        except Exception as e:
+            log.warning("brb physics: %s", e)
+            await asyncio.sleep(1)
+
+
 def hook_up():
     """Push changes to the open credits and TikTok widget pages."""
     session.on_change = lambda: later_push("credits", lambda: {"type": "credits_data", "data": session.snapshot()})
@@ -2154,6 +2173,7 @@ async def on_startup(app):
     tiktok.reconfigure()
     app["tts"] = asyncio.create_task(speaker.worker())
     app["brb"] = asyncio.create_task(brb_ticker())
+    app["brb_physics"] = asyncio.create_task(brb_physics())
     twitch_live.reconfigure()
     log.info("Vibe TV v%s on :%d (twitch api: %s, logo: %s, admin password: %s)",
              VERSION, PORT, tv.twitch.enabled, logo_url() or "none", "on" if ADMIN_PASSWORD else "off")
@@ -2165,6 +2185,7 @@ async def on_cleanup(app):
     app["themes"].cancel()
     app["tts"].cancel()
     app["brb"].cancel()
+    app["brb_physics"].cancel()
     await tiktok.stop()
     await twitch_live.stop()
     tiktok.config = None

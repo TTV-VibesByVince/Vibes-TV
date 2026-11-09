@@ -31,7 +31,7 @@ class Clock:
 
 
 def make(**over):
-    S = {"brb_minutes": 10, "brb_games": {}, "brb_mode": "vote", "brb_paint_minutes": 3, "brb_poll_seconds": 35,
+    S = {"brb_minutes": 10, "brb_games": {}, "brb_mode": "vote", "brb_paint_minutes": 3, "brb_arcade_minutes": 3, "brb_poll_seconds": 35,
          "brb_recap_seconds": 45, "brb_trivia": TRIVIA, "brb_polls": "Coke | Pepsi\nPineapple on pizza: Yes | No\n" +
          "\n".join(f"A{i} | B{i}" for i in range(20)), "brb_typing": "Six sticky skeletons\nToy boat toy boat\nRed lorry"}
     S.update(over)
@@ -55,12 +55,15 @@ def test_banks_parse():
     assert B.norm("In-N-Out!!") == "in n out" and B.norm("Reese's") == "reeses"
 
 
+CLASSIC = {k: False for k in ("plinko", "pusher", "boss", "pinata", "sumo", "tower")}
+
+
 def test_start_countdown_and_vote():
-    g, clock = make()
+    g, clock = make(brb_games=CLASSIC)
     g.start()
     snap = g.snapshot()
     assert snap["phase"] == "away" and snap["ends"] - snap["started"] == 600
-    assert snap["game"]["kind"] == "vote" and [o["key"] for o in snap["game"]["options"]] == B.GAMES
+    assert snap["game"]["kind"] == "vote" and [o["key"] for o in snap["game"]["options"]] == ["paint", "trivia", "typing", "polls"]
     g.chat(p("ann"), "2")
     g.chat(p("ann"), "3")                                           # one vote each
     g.chat(p("bob"), "2")
