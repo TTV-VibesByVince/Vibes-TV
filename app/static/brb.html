@@ -121,6 +121,30 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0811; c
 .box li { display: flex; align-items: center; gap: 14px; font-size: 24px; color: #ddd6ee; }
 .box li .rk { width: 22px; font-weight: 800; color: var(--gold); }
 .box li b { margin-left: auto; }
+/* trivia, multiple choice: four options, everyone picks once */
+.q.mcq { font-size: 54px; }
+.mc { position: absolute; left: 44px; right: 44px; bottom: 44px; height: 390px; display: grid; grid-template-columns: 1.55fr 1fr; gap: 22px; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 16px; min-height: 0; }
+.opt { position: relative; border-radius: 22px; padding: 18px 24px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); display: flex; align-items: center; gap: 18px;
+  overflow: hidden; min-width: 0; transition: background .4s, border-color .4s, opacity .4s; }
+.opt .n { font: 400 44px/1 "Bungee", sans-serif; color: var(--pink2); flex: none; }
+.opt .t { font-size: 27px; font-weight: 800; line-height: 1.15; letter-spacing: -.01em; min-width: 0; overflow-wrap: anywhere; }
+.opt .pc { margin-left: auto; padding-left: 10px; font: 400 30px/1 "Bungee", sans-serif; flex: none; }
+.opt .meter { position: absolute; left: 0; bottom: 0; height: 8px; width: 0; background: rgba(255,255,255,.3); transition: width .9s var(--ease); }
+.opt.right { background: rgba(61,220,132,.16); border-color: rgba(61,220,132,.6); animation: pop .7s var(--ease); }
+.opt.right .n { color: var(--green); }
+.opt.right .meter { background: var(--green); }
+.opt.wrong { opacity: .42; }
+.mcside { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+.mcside .box { padding: 18px 24px; }
+.mcside .box h5 { margin-bottom: 8px; }
+.mcside .big { font: 400 44px/1 "Bungee", sans-serif; }
+.mcside .firsts { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 21px; color: #ddd6ee; min-width: 0; }
+.mcside .firsts .av { width: 40px; height: 40px; margin-right: -18px; box-shadow: 0 0 0 3px #15111f; }
+.mcside .firsts span { margin-left: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcside ol { gap: 6px; }
+.mcside li { font-size: 21px; }
+.mcside li .av { width: 30px; height: 30px; }
 .hint { font-size: 24px; color: var(--soft); }
 
 /* typing */
@@ -363,6 +387,12 @@ function build(kind, s, fresh) {
     html = `<div class="paint"><div class="canvaswrap"><div class="cols">${letters}</div><div class="rows">${nums}</div><div class="canvas" id="canvas">${"<i></i>".repeat(g.w * g.h)}</div></div>
       <div class="pside"><h4>Paint it together</h4><div class="swatches">${Object.entries(g.colors).map(([n, c]) => `<span class="sw"><i style="background:${c}"></i>${n}</span>`).join("")}</div><div class="lb" id="painters"></div></div></div>`;
     bar = `Type ${cmd("!paint C4 pink", 1)} letter, number, colour · one pixel every 5 s each`;
+  } else if (kind === "trivia" && g.options) {
+    tag("trivia", `Trivia about ${s.name}`, `question ${g.n} of ${g.of}`);
+    html = `<div class="bar"><i id="tbar"></i></div><div class="q mcq" style="margin-top:20px">${esc(g.q)}</div>
+      <div class="mc"><div class="opts">${g.options.map((o, i) => `<div class="opt"><span class="n">${i + 1}</span><span class="t">${esc(o)}</span><span class="pc"></span><i class="meter"></i></div>`).join("")}</div>
+      <div class="mcside"><div class="box" id="mcinfo"></div><div class="box" style="flex:1;min-height:0;overflow:hidden"><h5>Who knows ${esc(s.name)} best</h5><ol id="tscores"></ol></div></div></div>`;
+    bar = `Type ${g.options.map((o, i) => cmd(String(i + 1), 1)).join(" ")} in chat · your first pick counts · the answer shows when time's up`;
   } else if (kind === "trivia") {
     tag("trivia", `Trivia about ${s.name}`, `question ${g.n} of ${g.of}`);
     html = `<div class="bar"><i id="tbar"></i></div><div class="q" style="margin-top:20px">${esc(g.q)}<small>Type your answer in chat. First right answer scores.</small></div>
@@ -427,6 +457,20 @@ function update(kind, s) {
     });
     $("painters").innerHTML = (g.painters || []).map(p => `<div>${avatar(p)}<span>${esc(p.name)}</span><b>${p.n}</b></div>`).join("");
     $("ptag").innerHTML = svg("paint") + GAME.paint + `<em>· ${mmss(left(g.ends))} left</em>`;
+  } else if (kind === "trivia" && g.options) {
+    const r = g.reveal, total = r ? r.counts.reduce((a, b) => a + b, 0) : 0;
+    document.querySelectorAll(".opt").forEach((el, i) => {
+      el.classList.toggle("right", !!r && i === r.correct);
+      el.classList.toggle("wrong", !!r && i !== r.correct);
+      const pct = r && total ? Math.round(r.counts[i] / total * 100) : 0;
+      el.querySelector(".pc").textContent = r ? pct + "%" : "";
+      el.querySelector(".meter").style.width = r ? pct + "%" : "0";
+    });
+    $("mcinfo").innerHTML = !r ? `<h5>Locked in</h5><div class="big">${g.picked} ${g.picked === 1 ? "answer" : "answers"}</div>`
+      : `<h5>${r.right ? "Got it right" : "Nobody got it!"}</h5><div class="big">${r.right} of ${total}</div>` +
+        (r.firsts.length ? `<div class="firsts">${r.firsts.map(avatar).join("")}<span>First: <b>${esc(r.firsts[0].name)}</b></span></div>` : "");
+    $("tscores").innerHTML = (g.scores || []).length ? g.scores.map((p, i) => `<li><span class="rk">${i + 1}</span>${avatar(p)}<span>${esc(p.name)}</span><b>${p.n}</b></li>`).join("")
+      : `<li class="hint">No points yet</li>`;
   } else if (kind === "trivia") {
     const r = g.reveal;
     $("tres").innerHTML = !r ? `<div class="box"><h5>Answers so far</h5><p class="hint">Nobody's got it yet…</p></div>`
@@ -869,7 +913,8 @@ function sample(kind) {
     guess: null,
     paint: { kind: "paint", ends: now + 130, w: 26, h: 15, cells, colors: { pink: "#ff2a6d", purple: "#9146ff", gold: "#ffc34d", green: "#3ddc84", orange: "#ff8a3d", white: "#f6f2ff", blue: "#4d7bff", red: "#e5283a", black: "#0b0910" },
       painters: [P("NachoQueen", { n: 64 }), P("PixelPanda", { n: 51 }), P("GamerToast", { n: 38 })] },
-    trivia: { kind: "trivia", n: 4, of: 10, ends: now + 12, q: "What was the first game Vince ever streamed?", reveal: { answer: "Fortnite", winner: P("PixelPanda") },
+    trivia: { kind: "trivia", n: 4, of: 10, ends: now + 12, q: "What was the first game Vince ever streamed?", options: ["Minecraft", "Fortnite", "Apex Legends", "Call of Duty: Warzone"], picked: 23,
+      reveal: { answer: "Fortnite", correct: 1, counts: [6, 11, 4, 2], right: 11, firsts: [P("PixelPanda"), P("NachoQueen"), P("LazyBeanz")] },
       scores: [P("PixelPanda", { n: 3 }), P("NachoQueen", { n: 2 }), P("LazyBeanz", { n: 1 })] },
     typing: { kind: "typing", n: 3, of: 8, ends: now + 18, text: "Six sticky skeletons skated sideways", done: [P("SkyeCat", { secs: 4.2 }), P("GamerToast", { secs: 5.0 })] },
     polls: { kind: "polls", n: 3, of: 10, ends: now + 24, title: "", a: "In-N-Out", b: "Whataburger", va: 27, vb: 20, next: "Ranch or Ketchup" },

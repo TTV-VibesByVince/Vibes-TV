@@ -300,7 +300,9 @@
     <h2>Questions</h2>
     <p class="hint">One per line. Edit, add or delete any of them, then Save.</p>
     <label class="f"><span>Trivia about you <span class="hint" id="brbTriviaCount"></span></span>
-      <span class="hint" style="display:block;font-weight:400;margin-bottom:6px"><span class="mono">Question = answer, other answer | what the screen shows</span>. A message with any of the answers in it counts (capitals and punctuation don't matter). Questions with nothing after <span class="mono">=</span> aren't asked. <span class="mono">{name}</span> is your name.</span>
+      <span class="hint" style="display:block;font-weight:400;margin-bottom:6px"><b>Multiple choice:</b> <span class="mono">Question = answer | the right option | wrong | wrong | wrong</span>. Chat picks 1 to 4, once each.
+      <b>Type the answer:</b> leave off the wrong ones (<span class="mono">Question = answer, other answer | what the screen shows</span>); a message with any of the answers in it counts.
+      Questions with nothing after <span class="mono">=</span> aren't asked. <span class="mono">{name}</span> is your name.</span>
       <textarea data-k="brb_trivia" rows="10" spellcheck="false" class="mono"></textarea></label>
     <div class="row"><button onclick="brbDefault('brb_trivia')">Add back any starter questions I deleted</button></div>
     <label class="f"><span>This or that <span class="hint" id="brbPollsCount"></span></span>

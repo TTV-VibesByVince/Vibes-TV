@@ -4,6 +4,20 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 2.2 (2026-11-09)
+
+- **Be right back: multiple-choice trivia.** Add up to three wrong answers
+  to a question and it becomes multiple choice: the screen shows four
+  options, chat types `1` to `4`, and only each person's first pick counts.
+  When time's up the right one lights up, with how much of chat picked each
+  option and the first three to get it right. Everyone who got it right
+  scores. Questions without wrong answers stay type-the-answer, and both
+  kinds can be in the same list.
+
+  ```
+  What's {name}'s favourite snack? = popcorn | Popcorn | Pretzels | Nachos | Trail mix
+  ```
+
 ## 2.1 (2026-11-08)
 
 - **Be right back: six arcade games.** One command each, once every 5

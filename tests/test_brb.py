@@ -258,3 +258,38 @@ def test_painting_in_the_credits(srv, cells):
     assert "painting" in srv.credits_info()["sections"]
     srv.session.reset()
     assert srv.session.snapshot()["painting"] is None
+
+
+MC = """First game {name} streamed? = fortnite | Fortnite | Minecraft | Apex Legends | Call of Duty
+Favourite snack? = popcorn | Popcorn | Pretzels | Popcorn | 
+Typed one? = phoenix | Phoenix
+"""
+
+
+def test_multiple_choice_parse():
+    t = B.parse_trivia(MC, "Vince")
+    assert t[0]["wrong"] == ["Minecraft", "Apex Legends", "Call of Duty"] and t[0]["shown"] == "Fortnite"
+    assert t[1]["wrong"] == ["Pretzels"]                            # the right one and blanks aren't wrong answers
+    assert "wrong" not in t[2]
+    assert len(B.parse_trivia("Q = a | A | b | c | d | e | f", "x")[0]["wrong"]) == B.MAX_WRONG
+
+
+def test_multiple_choice_play():
+    g, clock = make(brb_mode="one", brb_trivia=MC.splitlines()[0], brb_games={"paint": False})
+    g.start()
+    v = g.snapshot()["game"]
+    assert v["kind"] == "trivia" and sorted(v["options"]) == sorted(["Fortnite", "Minecraft", "Apex Legends", "Call of Duty"])
+    right = v["options"].index("Fortnite") + 1
+    wrong = right % 4 + 1
+    g.chat(p("ann"), str(wrong))
+    g.chat(p("ann"), str(right))                                    # first pick counts
+    g.chat(p("bob"), str(right))
+    g.chat(p("cat"), "fortnite")                                    # typing the option works too
+    g.chat(p("dan"), "7")                                           # not an option
+    v = g.snapshot()["game"]
+    assert v["picked"] == 3 and v["reveal"] is None                 # no early reveal
+    clock.go(B.TRIVIA_SECONDS, g)
+    r = g.snapshot()["game"]["reveal"]
+    assert r["correct"] == right - 1 and r["right"] == 2 and sum(r["counts"]) == 3
+    assert [x["login"] for x in r["firsts"]] == ["bob", "cat"]
+    assert {s["login"]: s["n"] for s in g.snapshot()["game"]["scores"]} == {"bob": 1, "cat": 1}

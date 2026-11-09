@@ -6,7 +6,8 @@ Twitch chat (Connect Twitch):
 
   Guess when I'm back  runs the whole time: !guess 8:42 (one guess each)
   Chat paints          !paint C4 pink on a 26 x 15 grid, every 5 s each
-  Trivia               10 questions about you, first right answer scores
+  Trivia               10 questions about you: pick 1 to 4 (multiple choice), or
+                       type the answer (first right answer scores)
   Typing race          8 sentences, first three to type each one score
   This or that         10 polls, 1 or 2, one vote each
   Arcade games         Plinko, coin pusher, boss fight, piñata, sumo arena and
@@ -43,6 +44,7 @@ TYPING_SECONDS = 30
 REVEAL_SECONDS = 5
 POLL_PAUSE = 3
 PER_ROUND = 10              # trivia and this-or-that questions per game
+MAX_WRONG = 3               # wrong answers per multiple-choice question (4 options at most)
 TYPING_ROUNDS = 8
 TYPING_WINNERS = 3
 PAINT_COOLDOWN = 5
@@ -66,16 +68,23 @@ def norm(text):
 
 
 def parse_trivia(raw, name):
+    """Question = answers | what the screen shows [| wrong | wrong | wrong]
+    With wrong answers it's multiple choice: the shown answer is the right option."""
     out = []
     for line in (raw or "").splitlines():
         if "=" not in line:
             continue
         q, rest = line.split("=", 1)
-        answers, _, shown = rest.partition("|")
+        answers, *more = rest.split("|")
         accepted = [a for a in (norm(a) for a in answers.split(",")) if a]
         q = q.strip().replace("{name}", name)
         if q and accepted:
-            out.append({"q": q, "accept": accepted, "shown": shown.strip() or answers.split(",")[0].strip()})
+            shown = (more[0].strip() if more else "") or answers.split(",")[0].strip()
+            wrong = [w.strip() for w in more[1:] if w.strip() and norm(w) != norm(shown)][:MAX_WRONG]
+            item = {"q": q, "accept": accepted, "shown": shown}
+            if wrong:
+                item["wrong"] = wrong
+            out.append(item)
     return out
 
 
@@ -242,6 +251,13 @@ class BRB:
         g["reveal"] = None
         if g["kind"] == "trivia":
             g["ends"] = now + TRIVIA_SECONDS
+            item = g["items"][g["i"]]
+            if item.get("wrong"):                   # multiple choice: shuffle the options, everyone picks once
+                options = [item["shown"]] + item["wrong"]
+                self.rng.shuffle(options)
+                g.update(options=options, correct=options.index(item["shown"]), picks={})
+            else:
+                g.update(options=None, correct=None, picks={})
         elif g["kind"] == "typing":
             g.update(ends=now + TYPING_SECONDS, started=now, done=[])
         else:
@@ -281,7 +297,19 @@ class BRB:
 
     def reveal(self, g, now):
         item = g["items"][g["i"]]
-        if g["kind"] == "trivia":
+        if g["kind"] == "trivia" and g.get("options"):
+            counts = [0] * len(g["options"])
+            right = []
+            for login, (pick, who) in g["picks"].items():
+                counts[pick] += 1
+                if pick == g["correct"]:
+                    right.append(who)
+                    score = self.st["trivia"].setdefault(login, {**who, "n": 0})
+                    score["n"] += 1
+            g["reveal"] = {"answer": item["shown"], "correct": g["correct"], "counts": counts,
+                           "right": len(right), "firsts": right[:3]}
+            g["ends"] = now + REVEAL_SECONDS
+        elif g["kind"] == "trivia":
             g["reveal"] = {"answer": item["shown"], "winner": None}
             g["ends"] = now + REVEAL_SECONDS
         elif g["kind"] == "typing":
@@ -378,6 +406,8 @@ class BRB:
     def answer(self, g, who, text):
         if g.get("reveal") is not None:
             return False
+        if g.get("options"):
+            return self.choose(g, who, text)
         item = g["items"][g["i"]]
         said = f" {norm(text)} "
         if not any(f" {a} " in said for a in item["accept"]):
@@ -387,6 +417,19 @@ class BRB:
         g["reveal"] = {"answer": item["shown"], "winner": who}
         g["ends"] = self.clock() + REVEAL_SECONDS
         self.feed(who, "got it right")
+        return True
+
+    def choose(self, g, who, text):
+        """Multiple choice: 1 to 4 (or the option itself). The first pick counts; the answer
+        shows when time's up."""
+        if who["login"] in g["picks"]:
+            return False
+        said = norm(text)
+        pick = int(said) - 1 if said.isdigit() else next((i for i, o in enumerate(g["options"]) if norm(o) == said), -1)
+        if not 0 <= pick < len(g["options"]):
+            return False
+        g["picks"][who["login"]] = (pick, who)     # in the order they came in: the first right ones get named
+        self.feed(who, "locked in an answer")
         return True
 
     def typed(self, g, who, text):
@@ -471,6 +514,8 @@ class BRB:
             item = g["items"][g["i"]]
             if kind == "trivia":
                 v["q"] = item["q"]
+                if g.get("options"):
+                    v.update(options=g["options"], picked=len(g["picks"]))
                 v["scores"] = sorted(self.st["trivia"].values(), key=lambda s: -s["n"])[:3]
             elif kind == "typing":
                 v.update(text=item, done=g["done"], started=g["started"])
