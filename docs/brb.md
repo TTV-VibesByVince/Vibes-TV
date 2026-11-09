@@ -41,8 +41,10 @@ and guesses for a time that's already passed don't count. The closest guess
 gets the crown when you're back.
 
 The others take turns in the middle of the screen. Between games, chat
-votes for the next one by typing `1` to `4` (20 seconds), or set **How the
-next game is picked** to **Take turns** or **Just one**.
+votes for the next one by typing `1` to `4` (20 seconds). Each vote shows 4
+games, picked at random from the ones you've ticked, and never the one just
+played. Or set **How the next game is picked** to **Take turns** or **Just
+one**.
 
 | Game | How chat plays | A game is |
 | --- | --- | --- |
@@ -53,6 +55,23 @@ next game is picked** to **Take turns** or **Just one**.
 
 Questions are shuffled, and nothing repeats until every question in the list
 has been asked.
+
+### Arcade games
+
+One command each, and everyone can play once every 5 seconds. Each game
+lasts 3 minutes (Settings > Be right back > **Arcade games last**).
+
+| Game | How chat plays |
+| --- | --- |
+| Plinko | `!drop`: a coin bounces down the pegs into a slot and scores it. The edges pay 500. |
+| Coin pusher | `!push`: drops a coin on the pile. Coins pushed off the edge go to whoever dropped the last coin. The gold star is worth 25. |
+| Boss fight | `!hit` (or `!attack`): 10 to 60 damage, and 1 hit in 10 is a critical (triple). Chat beats the boss together; the next one is tougher. |
+| Piñata | `!whack`: it breaks after a secret number of whacks (20 to 40), and cracks as it gets close. Whoever breaks it wins. |
+| Sumo arena | `!join` in the 25 seconds before a match, then `!bump` to charge the nearest rival. The ring shrinks; the last one in it wins. Then a new match opens. |
+| Tower stack | `!stack`: drops a block from the swinging crane. Too far off the block below and it slides off; lean the tower too far and it topples. |
+
+Vibe TV decides every result, so OBS and the TV always show the same thing.
+Your streaming PC (and the TV) do the drawing; the server only keeps score.
 
 Colours for painting: pink, purple, gold (or yellow), green, orange, white,
 blue, red and black.
@@ -88,6 +107,8 @@ When you're back, the screen shows:
 - who guessed closest, and how far off they were
 - chat's painting
 - the trivia champ, the fastest typist and the top painter
+- awards from the arcade games: Plinko high score, boss slayer, piñata
+  smasher, sumo champ, tallest tower and the most coins pushed
 - **Chat has decided**: each this-or-that with the winner, like
   "Coke over Pepsi 71%", five at a time
 

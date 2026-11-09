@@ -33,6 +33,8 @@ to vote for one or suggest your own.
 
 - **Be right back** (2.0): a BRB screen with a countdown and games for chat
   while you're away. See [Be right back](docs/brb.md).
+- **BRB arcade games** (2.1): Plinko, coin pusher, boss fight, piñata, sumo
+  arena and tower stack.
 - **Transparent overlay mode** (1.5): the same alerts as an OBS Browser
   Source at `/overlay`, with its own queue and a TV / overlay / both choice
   per alert type. See [Stream overlay](docs/overlay.md).

@@ -194,7 +194,9 @@
     <label class="f" id="pvBrbRow" hidden style="margin-top:12px"><span>Show</span><select id="pvBrb">
       <option value="">What's on the screen right now</option><option value="vote">Sample: chat picks a game</option><option value="guess">Sample: guess when I'm back</option>
       <option value="paint">Sample: chat paints</option><option value="trivia">Sample: trivia</option><option value="typing">Sample: typing race</option>
-      <option value="polls">Sample: this or that</option><option value="back">Sample: welcome back</option></select></label>
+      <option value="polls">Sample: this or that</option><option value="plinko">Sample: Plinko</option><option value="pusher">Sample: coin pusher</option>
+      <option value="boss">Sample: boss fight</option><option value="pinata">Sample: piñata</option><option value="sumo">Sample: sumo arena</option>
+      <option value="tower">Sample: tower stack</option><option value="back">Sample: welcome back</option></select></label>
     <label class="switch" id="pvSampleRow" hidden><span>Show sample data<br><span class="hint">Made-up names, so you can see it before your stream.</span></span><input type="checkbox" id="pvSample" checked></label>
     <div class="tests" id="tests">
       <label class="f" style="margin-top:0"><span>Username for tests</span><input type="text" id="tUser" value="" placeholder="Your channel name (blank = twitch)" maxlength="25"></label>
@@ -281,16 +283,17 @@
     <h2>Games</h2>
     <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(260px, 1fr))">
       <label class="f"><span>How the next game is picked</span><select data-k="brb_mode">
-        <option value="vote">Chat votes (20 seconds between games)</option><option value="turns">Take turns, in this order</option><option value="one">Just one: the first ticked game</option></select></label>
+        <option value="vote">Chat votes on 4 games (20 seconds between games)</option><option value="turns">Take turns, in this order</option><option value="one">Just one: the first ticked game</option></select></label>
       <label class="f"><span>Back in (minutes) <span class="hint">unless you say otherwise</span></span><input type="number" data-k="brb_minutes" min="1" max="120" step="1"></label>
       <label class="f"><span>Your name on the screen <span class="hint">blank = your Twitch name</span></span><input type="text" data-k="brb_name" maxlength="40" id="brbName"></label>
       <label class="f"><span>Painting lasts (minutes)</span><input type="number" data-k="brb_paint_minutes" min="1" max="10" step="1"></label>
+      <label class="f"><span>Arcade games last (minutes)</span><input type="number" data-k="brb_arcade_minutes" min="1" max="10" step="1"></label>
       <label class="f"><span>Each this-or-that (seconds)</span><input type="number" data-k="brb_poll_seconds" min="15" max="60" step="1"></label>
       <label class="f"><span>"Welcome back" stays up (seconds)</span><input type="number" data-k="brb_recap_seconds" min="10" max="300" step="5"></label>
     </div>
     <div class="checks" id="brbGames"></div>
     <label class="switch" style="margin-top:12px"><span>Show it on the TV too<br><span class="hint">Alerts still play over it. Off: only in OBS at the address above.</span></span><input type="checkbox" data-k="brb_tv"></label>
-    <p class="hint" style="margin-top:8px">Trivia and this or that ask 10 questions a game, the typing race 8 sentences, shuffled, and nothing repeats until every question has been asked. Chat's painting also goes in the end credits (Credits › <i>Chat's painting</i>).</p>
+    <p class="hint" style="margin-top:8px">Trivia and this or that ask 10 questions a game, the typing race 8 sentences, shuffled, and nothing repeats until every question has been asked. In the arcade games (Plinko to tower stack) everyone gets one command every 5 seconds. Chat's painting also goes in the end credits (Credits › <i>Chat's painting</i>).</p>
   </section>
 
   <section class="wide" data-tab="brb">
@@ -1204,7 +1207,9 @@ document.querySelector('[data-k="credits_speed"]').addEventListener("input", spe
 document.querySelector('[data-k="credits_show_logo"]').addEventListener("change", previewCredits);
 /* ── Be right back ─────────────────────────────────────────────────── */
 const BRB_GAME_NAMES = { guess: ["Guess when I'm back", "Runs the whole time you're away: !guess 8:42"], paint: ["Chat paints a picture", "!paint C4 pink on a 26 x 15 grid"],
-  trivia: ["Trivia about you", "10 questions a game, from the list below"], typing: ["Typing race", "8 sentences a game"], polls: ["This or that", "10 questions a game, 1 or 2"] };
+  trivia: ["Trivia about you", "10 questions a game, from the list below"], typing: ["Typing race", "8 sentences a game"], polls: ["This or that", "10 questions a game, 1 or 2"],
+  plinko: ["Plinko", "!drop a coin, the edges pay 500"], pusher: ["Coin pusher", "!push coins off the edge"], boss: ["Boss fight", "!hit, beat the boss together"],
+  pinata: ["Piñata", "!whack till it breaks"], sumo: ["Sumo arena", "!join, then !bump, last one in the ring wins"], tower: ["Tower stack", "!stack blocks, don't topple it"] };
 const BRB_PHASE = { idle: "Not running", away: "Running", back: "Showing welcome back" };
 function renderBrb() {
   const off = state.settings.brb_games || {}, st = state.status.brb || {};

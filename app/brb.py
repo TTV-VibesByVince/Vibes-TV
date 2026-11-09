@@ -9,9 +9,11 @@ Twitch chat (Connect Twitch):
   Trivia               10 questions about you, first right answer scores
   Typing race          8 sentences, first three to type each one score
   This or that         10 polls, 1 or 2, one vote each
+  Arcade games         Plinko, coin pusher, boss fight, piñata, sumo arena and
+                       tower stack: one command each (see brb_arcade.py)
 
-Between games chat votes for the next one (or they take turns, or one game
-repeats). When you're back (I'm back, /brb/back or !back) the screen shows
+Between games chat votes for the next one, from 4 picked at random (or they
+take turns, or one game repeats). When you're back (I'm back, /brb/back or !back) the screen shows
 what chat got up to, then goes away.
 
 Nothing here touches the network or the clock directly: the server feeds it
@@ -21,12 +23,19 @@ import random
 import re
 import time
 
-GAMES = ["paint", "trivia", "typing", "polls"]      # the games chat picks between
+from brb_arcade import ARCADE
+
+GAMES = ["paint", "trivia", "typing", "polls", "plinko", "pusher", "boss", "pinata", "sumo", "tower"]   # the games chat picks between
 GAME_NAMES = {"vote": "Chat picks the next game", "guess": "Guess when I'm back", "paint": "Chat paints a picture", "trivia": "Trivia",
-              "typing": "Typing race", "polls": "This or that"}
+              "typing": "Typing race", "polls": "This or that", "plinko": "Plinko", "pusher": "Coin pusher",
+              "boss": "Boss fight", "pinata": "Piñata", "sumo": "Sumo arena", "tower": "Tower stack"}
 GAME_BLURBS = {"paint": "Build a picture together, one pixel at a time", "trivia": "Who knows {name} best?",
-               "typing": "Fastest fingers win", "polls": "Pick a side, 10 questions"}
+               "typing": "Fastest fingers win", "polls": "Pick a side, 10 questions",
+               "plinko": "Drop coins, chase the 500 jackpot", "pusher": "Shove coins off the edge",
+               "boss": "Beat the boss together", "pinata": "Whack it till it breaks",
+               "sumo": "Last one in the ring wins", "tower": "Build it high, don't knock it over"}
 MODES = ("vote", "turns", "one")
+VOTE_OPTIONS = 4            # games on each vote, picked at random
 
 VOTE_SECONDS = 20
 TRIVIA_SECONDS = 20
@@ -120,7 +129,7 @@ class BRB:
         self.st = {"phase": "away", "started": now, "minutes": minutes, "ends": now + minutes * 60,
                    "back_at": None, "recap_until": None, "guesses": {}, "feed": [],
                    "canvas": [""] * (PAINT_W * PAINT_H), "painters": {}, "paint_last": {},
-                   "trivia": {}, "typing": {}, "polls": [], "played": [], "game": None, "turn": 0}
+                   "trivia": {}, "typing": {}, "polls": [], "played": [], "game": None, "turn": 0, "arcade": {}}
         self.next_game()
         self.changed()
 
@@ -195,7 +204,10 @@ class BRB:
             self.begin(games[st["turn"] % len(games)])
             st["turn"] += 1
         else:
-            st["game"] = {"kind": "vote", "options": games, "votes": {}, "ends": self.clock() + VOTE_SECONDS}
+            pool = [g for g in games if not st["played"] or g != st["played"][-1]] if len(games) > VOTE_OPTIONS else games
+            options = self.rng.sample(pool, min(VOTE_OPTIONS, len(pool)))
+            options.sort(key=games.index)
+            st["game"] = {"kind": "vote", "options": options, "votes": {}, "ends": self.clock() + VOTE_SECONDS}
 
     def begin(self, kind):
         now = self.clock()
@@ -208,9 +220,17 @@ class BRB:
             g.update(items=self.draw("typing", TYPING_ROUNDS), i=-1)
         elif kind == "polls":
             g.update(items=self.draw("polls", PER_ROUND), i=-1)
+        elif kind in ARCADE:
+            g["ends"] = now + max(1, int(self.S["brb_arcade_minutes"] or 3)) * 60
+            game = self.st["arcade"].get(kind)
+            if game:
+                game.start()                        # a fresh board, same leaderboard
+            else:
+                game = self.st["arcade"][kind] = ARCADE[kind](self.clock, self.rng, self.feed)
+            g["arcade"] = game
         self.st["game"] = g
         self.st["played"].append(kind)
-        if kind != "paint":
+        if kind not in ARCADE and kind != "paint":
             self.next_item()
 
     def next_item(self):
@@ -239,6 +259,10 @@ class BRB:
                 self.changed()
             return
         g = self.st["game"]
+        if g and "arcade" in g and now < g["ends"]:
+            if g["arcade"].tick(now):
+                self.changed()
+            return
         if not g or now < g["ends"]:
             return
         if g["kind"] == "vote":
@@ -247,7 +271,7 @@ class BRB:
                 counts[o] += 1
             top = max(counts.values())
             self.begin(self.rng.choice([o for o, c in counts.items() if c == top]))
-        elif g["kind"] == "paint":
+        elif g["kind"] == "paint" or "arcade" in g:
             self.next_game()
         elif g.get("reveal") is not None:           # the answer has been shown long enough
             self.next_item()
@@ -294,6 +318,10 @@ class BRB:
             return
         g = self.st["game"]
         if not g:
+            return
+        if "arcade" in g:
+            if g["arcade"].handle(who, text):
+                self.changed()
             return
         handled = {"vote": self.vote, "paint": self.paint, "trivia": self.answer, "typing": self.typed,
                    "polls": self.poll_vote}[g["kind"]](g, who, text)
@@ -387,6 +415,24 @@ class BRB:
         self.feed(who, "voted " + (item["a"] if pick == 0 else item["b"]))
         return True
 
+    # ── physics (coin pusher, sumo arena): the server steps it 20 times a second ──
+    def physics(self):
+        """The arcade game that needs stepping, if one is on."""
+        g = self.st and self.st["phase"] == "away" and self.st["game"]
+        return g["arcade"] if g and "arcade" in g and g["arcade"].frames else None
+
+    def step(self, dt):
+        game = self.physics()
+        if game:
+            n = len(game.events)
+            game.step(dt)
+            if len(game.events) != n:               # something scored or fell out
+                self.changed()
+
+    def frame(self):
+        game = self.physics()
+        return {"kind": game.kind, "now": self.clock(), **game.frame()} if game else None
+
     # ── what the screen gets ──
     def painting(self):
         top = sorted(self.st["painters"].values(), key=lambda p: -p["n"])[:3]
@@ -418,6 +464,8 @@ class BRB:
         elif kind == "paint":
             v.update(self.painting())
             v["colors"] = COLORS
+        elif kind in ARCADE:
+            v.update(g["arcade"].view())
         else:
             v.update(n=g["i"] + 1, of=len(g["items"]), reveal=g.get("reveal"))
             item = g["items"][g["i"]]
@@ -445,4 +493,5 @@ class BRB:
                 "trivia": best(st["trivia"], "n", True), "typing": best(st["typing"], "secs", False),
                 "painter": best(st["painters"], "n", True),
                 "painting": self.painting() if any(st["canvas"]) else None,
-                "polls": st["polls"], "played": len(st["played"])}
+                "polls": st["polls"], "played": len(st["played"]),
+                "awards": [a for game in st["arcade"].values() for a in game.awards()]}
