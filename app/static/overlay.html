@@ -170,6 +170,7 @@
 <div id="hypebanner"></div>
 
 <script src="/static/shared.js"></script>
+<script src="/static/vibesmas.js"></script>
 <script>
 const stage = $("stage");
 let card = null, clipBox = null, outTimer = null;
@@ -189,8 +190,10 @@ const KICKERS = { follow: "NEW FOLLOWER", sub: "NEW SUB", resub: "RESUB", bits: 
   streak: "WATCH STREAK", modiversary: "MODIVERSARY", gigantify: "GIANT EMOTE", message: "MESSAGE", tiktok_gift: "TIKTOK GIFT" };
 
 /* ── settings from the server ─────────────────────────────────────── */
+let VX = { on: false, dir: "ltr", sound: true };   // Vibesmas: alerts as a train (see vibesmas.js)
 function applyConfig(info) {
   applyMode(info.tv_mode || "auto");
+  if (info.vibesmas) VX = info.vibesmas;
   if (info.theme) THEME = info.theme;
   const o = info.overlay || {};
   document.body.dataset.pos = o.position || "bottom-left";
@@ -485,6 +488,10 @@ openSocket("overlay", ev => {
     DARKEN = (ev.overlay || {}).darken ?? .5;
     lastConfig = ev;
     if (bigReady) toBig(ev);
+  }
+  else if (CARD_TYPES.includes(ev.type) && ev.train) {      // Vibesmas: the train along the bottom
+    hideCard(true); endBig();
+    Vibesmas.run(document.body, ev.train, { dir: VX.dir, sound: VX.sound, muted: PREVIEW });
   }
   else if (CARD_TYPES.includes(ev.type) || ev.type === "message") {
     if (ev.size === "full") { hideCard(true); bigOn = true; toBig(ev); }

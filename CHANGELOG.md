@@ -4,6 +4,25 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 2.3 (2026-11-25)
+
+- **The Vibesmas Express** (new Settings tab): for the holidays, follows,
+  subs, gift subs, bits and raids roll across the screen as a train instead
+  of a card, on the TV and the stream overlay.
+  - The locomotive says what happened; each passenger car carries a person's
+    picture and name.
+  - Gift subs: the gifter rides first class, then a car for each person who
+    got a sub, up to 10, and "+15 passengers" on the caboose past that.
+  - Bits fill coal cars with gems; raids bring cars full of passengers.
+  - Short trains stop in the middle with a bell; long ones crawl past.
+  - On between two dates (November 25 to December 31 to start with), or
+    always, or off. Left to right or right to left. Whistle, bell and chuffs.
+- **Hype train video**: when a hype train starts in Vibesmas, the TV plays a
+  video of your choice with a glowing gold "Hype train started!!" title.
+  Upload it on the Vibesmas tab; it stays on your NAS.
+- The Cinzel font (for the train's gold lettering) is served locally, like
+  the others.
+
 ## 2.2 (2026-11-09)
 
 - **Be right back: multiple-choice trivia.** Add up to three wrong answers
