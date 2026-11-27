@@ -56,7 +56,7 @@ from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "2.3"
+VERSION = "2.4"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -203,6 +203,7 @@ SCHEMA = {
     "vibesmas_direction":   (str,   "ltr"),       # ltr: left to right | rtl
     "vibesmas_sound":       (bool,  True),        # whistle, bell and chuffs
     "vibesmas_hype_video":  (str,   ""),          # a video in media/ for the TV when a hype train starts ("" = none)
+    "vibesmas_hype_overlay_video": (str, ""),     # a see-through video (keyed .webm) for the stream overlay ("" = none)
     "vibesmas_hype_volume": (float, 0.5),
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
@@ -528,8 +529,8 @@ class Settings:
             if key == "vibesmas_direction" and val not in ("ltr", "rtl"):
                 errors.append("vibesmas_direction: ltr or rtl")
                 continue
-            if key == "vibesmas_hype_video" and val and not (media_path(val) and Path(val).suffix.lower() in VIDEO_EXT):
-                errors.append("vibesmas_hype_video: pick a video from the media folder")
+            if key in ("vibesmas_hype_video", "vibesmas_hype_overlay_video") and val and                     not (media_path(val) and Path(val).suffix.lower() in VIDEO_EXT):
+                errors.append(f"{key}: pick a video from the media folder")
                 continue
             if key == "brb_mode" and val not in BRB_MODES:
                 errors.append("brb_mode: vote, turns or one")
@@ -624,12 +625,12 @@ def vibesmas_info():
             "dir": S["vibesmas_direction"], "sound": S["vibesmas_sound"]}
 
 
-def hype_video():
-    """The hype train video, if one is chosen and on disk: its address and length."""
-    p = media_path(S["vibesmas_hype_video"])
+def hype_video(screen="tv"):
+    """The hype train video for a screen, if one is chosen and on disk: its address and length."""
+    p = media_path(S["vibesmas_hype_video" if screen == "tv" else "vibesmas_hype_overlay_video"])
     if not p or p.suffix.lower() not in VIDEO_EXT:
         return None
-    secs = vibesmas.mp4_seconds(p) or 9
+    secs = vibesmas.video_seconds(p) or 9
     return {"src": f"/media/{p.name}", "seconds": min(30.0, secs), "volume": S["vibesmas_hype_volume"]}
 
 
@@ -1136,17 +1137,22 @@ class TV:
         self.hype_expiry = asyncio.create_task(self._hype_timeout())
 
     def hype_intro(self, override=None):
-        """When a hype train starts in Vibesmas: the hype video on the TV, in its
-        queue, so alerts that come in meanwhile wait for it."""
-        video = hype_video()
-        if not (video and vibesmas_on() and S["vibesmas_tv"] and "tv" in destinations("hype", override)):
+        """When a hype train starts in Vibesmas: the hype video with its gold title,
+        full screen on the TV and see-through on the overlay (each screen has its
+        own video). It goes in the screen's queue, so alerts that come in
+        meanwhile wait for it."""
+        if not vibesmas_on():
             return
-        payload = {"type": "hype_video", "video": video, "title": "HYPE TRAIN", "title2": "STARTED!!",
-                   "sub": "All aboard the Vibesmas Express", "color": None}
-        prep = asyncio.get_running_loop().create_future()
-        prep.set_result({"payload": payload, "secs": video["seconds"], "color": None, "tier": 1, "raid": False,
-                         "clip_task": None, "clip_for": []})
-        self.screens["tv"].queue.put_nowait(({"type": "hype_video"}, prep))
+        for name in destinations("hype", override):
+            video = hype_video(name)
+            if not (video and S["vibesmas_" + name]):
+                continue
+            payload = {"type": "hype_video", "video": video, "title": "HYPE TRAIN", "title2": "STARTED!!",
+                       "sub": "All aboard the Vibesmas Express", "color": None}
+            prep = asyncio.get_running_loop().create_future()
+            prep.set_result({"payload": payload, "secs": video["seconds"], "color": None, "tier": 1, "raid": False,
+                             "clip_task": None, "clip_for": []})
+            self.screens[name].queue.put_nowait(({"type": "hype_video"}, prep))
 
     async def _hype_timeout(self):
         await asyncio.sleep(HYPE_TIMEOUT)
@@ -1277,8 +1283,9 @@ class TV:
         payload = dict(data["payload"])
         on_tv = screen.name == "tv"
         try:
-            size = None if on_tv else overlay_size(payload["type"])
-            big = on_tv or size == "full"           # full-screen on the overlay keeps the TV's timing
+            own = payload["type"] == "hype_video"  # it brings its own length and look
+            size = None if on_tv or own else overlay_size(payload["type"])
+            big = on_tv or own or size == "full"    # full-screen on the overlay keeps the TV's timing
             if size:
                 payload["size"] = size
             if payload["type"] == "message":

@@ -114,3 +114,33 @@ def mp4_seconds(path):
     except struct.error:
         return None
     return round(dur / scale, 2) if scale else None
+
+
+def webm_seconds(path):
+    """How long a .webm is, from its Segment Info (Duration x TimecodeScale). None if unreadable."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read(1024 * 1024)
+    except OSError:
+        return None
+    if not data.startswith(b"\x1a\x45\xdf\xa3"):
+        return None
+    scale = 1_000_000                                   # the default: milliseconds
+    i = data.find(b"\x2a\xd7\xb1")
+    if i >= 0 and 0x81 <= data[i + 3] <= 0x88:
+        n = data[i + 3] & 0x0F
+        scale = int.from_bytes(data[i + 4:i + 4 + n], "big") or scale
+    i = data.find(b"\x44\x89\x88")
+    fmt, n = ">d", 8
+    if i < 0:
+        i, fmt, n = data.find(b"\x44\x89\x84"), ">f", 4
+    if i < 0 or len(data) < i + 3 + n:
+        return None
+    ticks = struct.unpack(fmt, data[i + 3:i + 3 + n])[0]
+    secs = ticks * scale / 1e9
+    return round(secs, 2) if secs > 0 else None
+
+
+def video_seconds(path):
+    """How long a video is (.mp4/.mov/.m4v or .webm). None if unreadable."""
+    return webm_seconds(path) if str(path).lower().endswith(".webm") else mp4_seconds(path)

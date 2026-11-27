@@ -36,6 +36,7 @@ to vote for one or suggest your own.
 - **BRB arcade games** (2.1): Plinko, coin pusher, boss fight, piñata, sumo
   arena and tower stack.
 - **Vibesmas Express** (2.3): holiday alerts as a train, and a hype train video.
+- **Hype train video on the overlay** (2.4): a see-through video with the gold title, over the stream.
 - **Transparent overlay mode** (1.5): the same alerts as an OBS Browser
   Source at `/overlay`, with its own queue and a TV / overlay / both choice
   per alert type. See [Stream overlay](docs/overlay.md).

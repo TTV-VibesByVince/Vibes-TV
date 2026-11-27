@@ -332,10 +332,12 @@
 
   <section data-tab="vibesmas">
     <h2>Hype train video</h2>
-    <p class="hint">Plays on the TV when a hype train starts. Alerts that come in meanwhile wait until it's done. The title lands 2.4 seconds in.</p>
-    <label class="f"><span>Video</span><select id="vxVideo"></select></label>
+    <p class="hint">Plays when a hype train starts, with a gold <b>Hype train started!!</b> title that lands 2.4 seconds in. Alerts that come in meanwhile wait until it's done.</p>
+    <label class="f"><span>On the TV<br><span class="hint">Full screen.</span></span><select id="vxVideo"></select></label>
     <div class="row"><button onclick="$('vxFile').click()">Upload a video</button><input type="file" id="vxFile" accept="video/mp4,video/webm,video/quicktime,.mov,.m4v" hidden>
       <span class="hint">It goes in the media folder on the NAS.</span></div>
+    <label class="f" style="margin-top:12px"><span>On the stream overlay<br><span class="hint">Over your stream, so use a video with a see-through background (a keyed .webm). The title is added on top.</span></span><select id="vxOvVideo"></select></label>
+    <div class="row"><button onclick="$('vxOvFile').click()">Upload a video</button><input type="file" id="vxOvFile" accept="video/webm,video/mp4,video/quicktime,.mov,.m4v" hidden></div>
     <label class="f"><span>Video volume <b id="vxVolOut"></b></span><input type="range" data-k="vibesmas_hype_volume" min="0" max="1" step="0.05" oninput="$('vxVolOut').textContent = Math.round(this.value * 100) + '%'"></label>
     <h2 style="margin-top:18px">Try it</h2>
     <p class="hint">Save first. These use the test buttons' settings from the Alerts tab (gift count, bits, raiders).</p>
@@ -943,7 +945,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames(), vibesmas_hype_video: $("vxVideo").value };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames(), vibesmas_hype_video: $("vxVideo").value, vibesmas_hype_overlay_video: $("vxOvVideo").value };
 }
 
 async function save() {
@@ -965,7 +967,7 @@ async function delMedia(name) {
   if (r.ok) { toast("Deleted"); await refresh(true); } else toast(r.result || "Delete failed");
 }
 
-function upload(file, forHype) {
+function upload(file, forHype) {      // forHype: the id of the hype video picker to put it in
   if (!file) return;
   const fd = new FormData(); fd.append("file", file);
   const x = new XMLHttpRequest(), bar = $("bar");
@@ -977,7 +979,7 @@ function upload(file, forHype) {
       const r = JSON.parse(x.responseText);
       toast("Uploaded " + r.name);
       await refresh(true);
-      if (forHype) { $("vxVideo").dataset.picked = r.name; $("vxVideo").value = r.name; markDirty(); toast(`Uploaded ${r.name}. Save to use it for hype trains.`); }
+      if (forHype) { $(forHype).dataset.picked = r.name; $(forHype).value = r.name; markDirty(); toast(`Uploaded ${r.name}. Save to use it for hype trains.`); }
       else if (confirm(`Use ${r.name} as the logo now?`)) useLogo(r.name);
     } else toast(x.responseText || "Upload failed");
   };
@@ -1172,8 +1174,10 @@ function showPreview(which) {
 $("pvSeg").querySelectorAll("button").forEach(b => b.onclick = () => showPreview(b.dataset.pv));
 $("pvSample").addEventListener("change", () => showPreview(pvNow));
 $("pvBrb").addEventListener("change", () => showPreview("brb"));
-$("vxVideo").addEventListener("change", () => { $("vxVideo").dataset.picked = $("vxVideo").value; markDirty(); });
-$("vxFile").addEventListener("change", e => { upload(e.target.files[0], true); e.target.value = ""; });
+for (const [sel, file] of [["vxVideo", "vxFile"], ["vxOvVideo", "vxOvFile"]]) {
+  $(sel).addEventListener("change", () => { $(sel).dataset.picked = $(sel).value; markDirty(); });
+  $(file).addEventListener("change", e => { upload(e.target.files[0], sel); e.target.value = ""; });
+}
 
 /* ── tabs ───────────────────────────────────────────────────────────── */
 const TAB_PREVIEW = { alerts: "tv", overlay: "overlay", tiktok: "tiktok", credits: "credits", brb: "brb", vibesmas: "tv" };
@@ -1250,10 +1254,12 @@ const BRB_GAME_NAMES = { guess: ["Guess when I'm back", "Runs the whole time you
 const BRB_PHASE = { idle: "Not running", away: "Running", back: "Showing welcome back" };
 /* ── Vibesmas ─────────────────────────────────────────────────────── */
 function renderVibesmas() {
-  const sel = $("vxVideo"), want = sel.dataset.picked ?? state.settings.vibesmas_hype_video ?? "";
   const vids = state.media.filter(f => f.kind === "video");
-  sel.innerHTML = '<option value="">None</option>' + vids.map(f => `<option value="${esc(f.name)}">${esc(f.name)}</option>`).join("");
-  sel.value = vids.some(f => f.name === want) ? want : "";
+  for (const [id, key] of [["vxVideo", "vibesmas_hype_video"], ["vxOvVideo", "vibesmas_hype_overlay_video"]]) {
+    const sel = $(id), want = sel.dataset.picked ?? state.settings[key] ?? "";
+    sel.innerHTML = '<option value="">None</option>' + vids.map(f => `<option value="${esc(f.name)}">${esc(f.name)}</option>`).join("");
+    sel.value = vids.some(f => f.name === want) ? want : "";
+  }
   $("vxVolOut").textContent = Math.round((state.settings.vibesmas_hype_volume ?? .5) * 100) + "%";
   const on = (state.status.vibesmas || {}).on;
   $("vxChip").className = "chip" + (on ? " ok" : "");

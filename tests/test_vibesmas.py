@@ -24,6 +24,12 @@ def mp4(seconds, version=0):
     return b"\x00\x00\x00\x20ftypisom" + struct.pack(">I", len(body) + 8) + b"mvhd" + body + bytes(80)
 
 
+def webm(seconds, double=True):
+    """The smallest .webm webm_seconds can read: an EBML header, TimecodeScale (1 ms) and Duration."""
+    dur = b"\x44\x89\x88" + struct.pack(">d", seconds * 1000) if double else b"\x44\x89\x84" + struct.pack(">f", seconds * 1000)
+    return b"\x1a\x45\xdf\xa3\x80" + b"\x15\x49\xa9\x66\x90" + b"\x2a\xd7\xb1\x83\x0f\x42\x40" + dur + bytes(40)
+
+
 def test_dates():
     assert V.active(SETTINGS, day("11-25")) and V.active(SETTINGS, day("12-31"))
     assert not V.active(SETTINGS, day("11-24")) and not V.active(SETTINGS, day("01-01"))
@@ -72,6 +78,13 @@ def test_video_length(tmp_path):
     assert V.mp4_seconds(p) == 12.5
     p.write_bytes(b"not a video")
     assert V.mp4_seconds(p) is None
+    w = tmp_path / "a.webm"
+    w.write_bytes(webm(7.938))
+    assert V.webm_seconds(w) == 7.94 and V.video_seconds(w) == 7.94
+    w.write_bytes(webm(6.5, double=False))
+    assert V.video_seconds(w) == 6.5
+    w.write_bytes(b"not a video")
+    assert V.video_seconds(w) is None
 
 
 async def test_alerts_ride_the_train(client, tv, overlay, srv):
@@ -107,6 +120,27 @@ async def test_hype_video(client, tv, srv):
     assert await tv.next("hype_video", timeout=1) is None
 
 
+async def test_hype_video_on_the_overlay(client, tv, overlay, srv):
+    """The overlay plays its own (see-through) video with the same title; the TV keeps its own."""
+    (srv.MEDIA / "hype.mp4").write_bytes(mp4(8))
+    (srv.MEDIA / "clear.webm").write_bytes(webm(6))
+    r = await client.post("/api/settings", json={"vibesmas": "on", "vibesmas_hype_video": "hype.mp4",
+                                                  "vibesmas_hype_overlay_video": "clear.webm"})
+    assert (await r.json())["ok"]
+    await client.get("/hypetrain/start?level=1&percent=10")
+    ov = await overlay.next("hype_video")
+    assert ov["video"]["src"] == "/media/clear.webm" and ov["video"]["seconds"] == 6.0
+    assert ov["title"] == "HYPE TRAIN" and ov["title2"] == "STARTED!!" and "size" not in ov and ov["card_seconds"] == 6.0
+    assert (await tv.next("hype_video"))["video"]["src"] == "/media/hype.mp4"
+
+
+async def test_overlay_hype_needs_its_switch(client, overlay, srv):
+    (srv.MEDIA / "clear.webm").write_bytes(webm(6))
+    srv.S.data.update(vibesmas="on", vibesmas_overlay=False, vibesmas_hype_overlay_video="clear.webm")
+    await client.get("/hypetrain/start?level=1&percent=10")
+    assert await overlay.next("hype_video", timeout=1) is None
+
+
 async def test_no_video_no_intro(client, tv, srv):
     srv.S.data.update(vibesmas="on")
     await client.get("/hypetrain/start?level=1&percent=10")
@@ -117,6 +151,8 @@ async def test_settings_checks(client, tv, srv):
     r = await (await client.post("/api/settings", json={"vibesmas_from": "13-40"})).json()
     assert not r["ok"]
     r = await (await client.post("/api/settings", json={"vibesmas_hype_video": "missing.mp4"})).json()
+    assert not r["ok"]
+    r = await (await client.post("/api/settings", json={"vibesmas_hype_overlay_video": "missing.webm"})).json()
     assert not r["ok"]
     r = await (await client.post("/api/settings", json={"vibesmas_direction": "up"})).json()
     assert not r["ok"]
