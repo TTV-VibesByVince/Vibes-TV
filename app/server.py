@@ -49,13 +49,14 @@ from PIL import Image
 
 from brb import BRB, GAMES as BRB_GAMES, MODES as BRB_MODES
 from brb_banks import DEFAULT_POLLS, DEFAULT_TRIVIA, DEFAULT_TYPING
+import vibesmas
 from tiktok import TikTokWatcher
 from session import SECTIONS as CREDIT_SECTIONS, Session
 from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "2.2"
+VERSION = "2.3"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -193,6 +194,16 @@ SCHEMA = {
     "brb_trivia":           (str,   DEFAULT_TRIVIA),
     "brb_polls":            (str,   DEFAULT_POLLS),
     "brb_typing":           (str,   DEFAULT_TYPING),
+    # Vibesmas: alerts as a holiday train, and a video on the TV when a hype train starts (see vibesmas.py)
+    "vibesmas":             (str,   "auto"),      # auto: between the dates below | on | off
+    "vibesmas_from":        (str,   "11-25"),     # MM-DD
+    "vibesmas_to":          (str,   "12-31"),
+    "vibesmas_tv":          (bool,  True),        # the train on the TV
+    "vibesmas_overlay":     (bool,  True),        # and on the OBS overlay
+    "vibesmas_direction":   (str,   "ltr"),       # ltr: left to right | rtl
+    "vibesmas_sound":       (bool,  True),        # whistle, bell and chuffs
+    "vibesmas_hype_video":  (str,   ""),          # a video in media/ for the TV when a hype train starts ("" = none)
+    "vibesmas_hype_volume": (float, 0.5),
 }
 SECRET_KEYS = {"twitch_client_secret", "tiktok_sign_key"}
 TIKTOK_USER_RE = re.compile(r"^[A-Za-z0-9._]{2,24}$")
@@ -206,7 +217,8 @@ LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600),
           "tiktok_widget_count": (1, 10), "tiktok_widget_scale": (0.5, 2), "tiktok_widget_opacity": (0.2, 1),
           "tiktok_like_goal": (0, 1000000000), "credits_speed": (0.3, 3),
-          "brb_minutes": (1, 120), "brb_paint_minutes": (1, 10), "brb_arcade_minutes": (1, 10), "brb_poll_seconds": (15, 60), "brb_recap_seconds": (10, 300)}
+          "brb_minutes": (1, 120), "brb_paint_minutes": (1, 10), "brb_arcade_minutes": (1, 10), "brb_poll_seconds": (15, 60), "brb_recap_seconds": (10, 300),
+          "vibesmas_hype_volume": (0, 1)}
 TIER_EXTRA_SECONDS = {2: 2.0, 3: 4.0}   # bigger subs stay up a little longer
 REQUEST_LOG_SIZE = 30
 GIFT_WINDOW = 3.0       # seconds of quiet before a batch of gifts is shown
@@ -507,6 +519,18 @@ class Settings:
             if key == "credits_ignore" and len(val) > 4000:
                 errors.append("credits_ignore: too long")
                 continue
+            if key == "vibesmas" and val not in ("auto", "on", "off"):
+                errors.append("vibesmas: auto, on or off")
+                continue
+            if key in ("vibesmas_from", "vibesmas_to") and not vibesmas.DATE_RE.match(val):
+                errors.append(f"{key}: a date as MM-DD, like 12-01")
+                continue
+            if key == "vibesmas_direction" and val not in ("ltr", "rtl"):
+                errors.append("vibesmas_direction: ltr or rtl")
+                continue
+            if key == "vibesmas_hype_video" and val and not (media_path(val) and Path(val).suffix.lower() in VIDEO_EXT):
+                errors.append("vibesmas_hype_video: pick a video from the media folder")
+                continue
             if key == "brb_mode" and val not in BRB_MODES:
                 errors.append("brb_mode: vote, turns or one")
                 continue
@@ -587,7 +611,26 @@ def overlay_info():
 def screen_info():
     """Sent to every screen on connect and whenever these settings change.
     The TV uses the logo part; the overlay uses the overlay part."""
-    return {**logo_info(), "overlay": overlay_info(), "widgets": widget_info(), "credits": credits_info()}
+    return {**logo_info(), "overlay": overlay_info(), "widgets": widget_info(), "credits": credits_info(),
+            "vibesmas": vibesmas_info()}
+
+
+def vibesmas_on():
+    return vibesmas.active(S)
+
+
+def vibesmas_info():
+    return {"on": vibesmas_on(), "tv": S["vibesmas_tv"], "overlay": S["vibesmas_overlay"],
+            "dir": S["vibesmas_direction"], "sound": S["vibesmas_sound"]}
+
+
+def hype_video():
+    """The hype train video, if one is chosen and on disk: its address and length."""
+    p = media_path(S["vibesmas_hype_video"])
+    if not p or p.suffix.lower() not in VIDEO_EXT:
+        return None
+    secs = vibesmas.mp4_seconds(p) or 9
+    return {"src": f"/media/{p.name}", "seconds": min(30.0, secs), "volume": S["vibesmas_hype_volume"]}
 
 
 def widget_info():
@@ -1082,6 +1125,7 @@ class TV:
         banner = None
         if action == "start" or prev is None:
             banner = {"kind": "start", "text": text_for("hype.start", level=lvl)}
+            self.hype_intro(screen)
         elif lvl > prev["level"]:
             banner = {"kind": "levelup", "text": text_for("hype.levelup", level=lvl)}
         self.hype = {"level": lvl, "percent": None if percent is None else max(0.0, min(100.0, percent)),
@@ -1091,6 +1135,19 @@ class TV:
             self.hype_expiry.cancel()
         self.hype_expiry = asyncio.create_task(self._hype_timeout())
 
+    def hype_intro(self, override=None):
+        """When a hype train starts in Vibesmas: the hype video on the TV, in its
+        queue, so alerts that come in meanwhile wait for it."""
+        video = hype_video()
+        if not (video and vibesmas_on() and S["vibesmas_tv"] and "tv" in destinations("hype", override)):
+            return
+        payload = {"type": "hype_video", "video": video, "title": "HYPE TRAIN", "title2": "STARTED!!",
+                   "sub": "All aboard the Vibesmas Express", "color": None}
+        prep = asyncio.get_running_loop().create_future()
+        prep.set_result({"payload": payload, "secs": video["seconds"], "color": None, "tier": 1, "raid": False,
+                         "clip_task": None, "clip_for": []})
+        self.screens["tv"].queue.put_nowait(({"type": "hype_video"}, prep))
+
     async def _hype_timeout(self):
         await asyncio.sleep(HYPE_TIMEOUT)
         self.hype = None
@@ -1098,13 +1155,13 @@ class TV:
 
     async def theme_watch(self):
         """Switch the TVs over when a scheduled theme's dates begin or end."""
-        current = active_theme_id()
+        current = (active_theme_id(), vibesmas_on())
         while True:
             await asyncio.sleep(60)
-            now = active_theme_id()
+            now = (active_theme_id(), vibesmas_on())
             if now != current:
                 current = now
-                log.info("theme is now %s", now)
+                log.info("theme is now %s, vibesmas %s", *now)
                 await self.broadcast({"type": "logo_src", **screen_info()})
 
     async def fetch_clip(self, broadcaster_id):
@@ -1209,6 +1266,8 @@ class TV:
                             "tier": ev.get("tier"), "tier_level": tier})
         payload["text"] = text
         out["secs"] = secs
+        if kind in vibesmas.TRAIN_KINDS:
+            out["train"] = vibesmas.train_for(kind, payload)
         return out
 
     async def play(self, screen, ev, prep):
@@ -1230,6 +1289,10 @@ class TV:
                 await asyncio.sleep(secs + (1 if big else 0.4))
                 return
             secs = data["secs"] if big else S["overlay_seconds"]
+            if data.get("train") and vibesmas_on() and S["vibesmas_" + screen.name]:
+                payload["train"] = data["train"]       # the Vibesmas Express instead of a card
+                payload.pop("size", None)
+                secs = data["train"]["seconds"]
             clip_task = data["clip_task"] if screen.name in data.get("clip_for", []) else None
             payload["card_seconds"] = secs
             if payload["type"] in ("shoutout", "raid"):
@@ -1969,7 +2032,7 @@ async def api_state(request):
                    "showing": tv.current["type"] if tv.current else "logo",
                    "overlays_connected": tv.count("overlay"), "queued_overlay": tv.screens["overlay"].queue.qsize(),
                    "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
-                   "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee,
+                   "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee, "vibesmas": {"on": vibesmas_on()},
                    "tiktok": tiktok.status(), "tts": speaker.status(), "twitch_live": twitch_live.status(),
                    "widgets_connected": tv.count("tiktok"), "credits_connected": tv.count("credits"),
                    "tiktok_stats": tiktok_stats.snapshot(3), "credits_stats": session.snapshot()["stats"],

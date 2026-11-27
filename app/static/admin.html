@@ -180,12 +180,12 @@
   </div>
   <nav class="tabs" id="tabs" aria-label="Settings sections">
     <button data-tab="alerts">Alerts</button><button data-tab="overlay">Stream overlay</button><button data-tab="tiktok">TikTok</button>
-    <button data-tab="credits">Credits</button><button data-tab="brb">Be right back</button><button data-tab="setup">Setup</button>
+    <button data-tab="credits">Credits</button><button data-tab="brb">Be right back</button><button data-tab="vibesmas">Vibesmas</button><button data-tab="setup">Setup</button>
   </nav>
 </header>
 
 <main>
-  <section data-tab="alerts overlay tiktok credits brb" id="pvSection">
+  <section data-tab="alerts overlay tiktok credits brb vibesmas" id="pvSection">
     <h2>Live preview <span class="seg" id="pvSeg"><button class="on" data-pv="tv">TV</button><button data-pv="overlay">Stream overlay</button><button data-pv="tiktok">TikTok</button><button data-pv="credits">Credits</button><button data-pv="brb">BRB</button></span></h2>
     <p class="hint" id="pvHint">What the TV shows right now. Test buttons play on every connected TV.</p>
     <div class="preview" id="pv"><iframe id="pvframe" src="/tv?preview=1" title="TV preview"></iframe></div>
@@ -312,6 +312,38 @@
     <label class="f"><span>Typing race <span class="hint" id="brbTypingCount"></span></span>
       <textarea data-k="brb_typing" rows="6" spellcheck="false" class="mono"></textarea></label>
     <div class="row"><button onclick="brbDefault('brb_typing')">Add back any starter sentences I deleted</button></div>
+  </section>
+
+  <section data-tab="vibesmas">
+    <h2>Vibesmas Express <span class="chip" id="vxChip"><i></i><span>Off</span></span></h2>
+    <p class="hint">Follows, subs, gift subs, bits and raids roll across the screen as a holiday train instead of a card. Each passenger car carries the person's picture and name. When a hype train starts, the TV plays your hype video with a gold <b>Hype train started!!</b> title.</p>
+    <div class="grid2" style="margin-top:14px">
+      <label class="f"><span>When</span><select data-k="vibesmas"><option value="auto">Between these dates</option><option value="on">Always on</option><option value="off">Off</option></select></label>
+      <div class="row" style="align-items:flex-end">
+        <label class="f" style="flex:1"><span>From <span class="hint">MM-DD</span></span><input type="text" class="mono" data-k="vibesmas_from" maxlength="5" placeholder="11-25"></label>
+        <label class="f" style="flex:1"><span>To</span><input type="text" class="mono" data-k="vibesmas_to" maxlength="5" placeholder="12-31"></label>
+      </div>
+      <label class="f"><span>Direction</span><select data-k="vibesmas_direction"><option value="ltr">Left to right</option><option value="rtl">Right to left</option></select></label>
+    </div>
+    <label class="switch" style="margin-top:12px"><span>On the TV</span><input type="checkbox" data-k="vibesmas_tv"></label>
+    <label class="switch"><span>On the stream overlay<br><span class="hint">Along the bottom of the overlay, full width.</span></span><input type="checkbox" data-k="vibesmas_overlay"></label>
+    <label class="switch"><span>Train sounds<br><span class="hint">A whistle, the station bell and chuffing.</span></span><input type="checkbox" data-k="vibesmas_sound"></label>
+  </section>
+
+  <section data-tab="vibesmas">
+    <h2>Hype train video</h2>
+    <p class="hint">Plays on the TV when a hype train starts. Alerts that come in meanwhile wait until it's done. The title lands 2.4 seconds in.</p>
+    <label class="f"><span>Video</span><select id="vxVideo"></select></label>
+    <div class="row"><button onclick="$('vxFile').click()">Upload a video</button><input type="file" id="vxFile" accept="video/mp4,video/webm,video/quicktime,.mov,.m4v" hidden>
+      <span class="hint">It goes in the media folder on the NAS.</span></div>
+    <label class="f"><span>Video volume <b id="vxVolOut"></b></span><input type="range" data-k="vibesmas_hype_volume" min="0" max="1" step="0.05" oninput="$('vxVolOut').textContent = Math.round(this.value * 100) + '%'"></label>
+    <h2 style="margin-top:18px">Try it</h2>
+    <p class="hint">Save first. These use the test buttons' settings from the Alerts tab (gift count, bits, raiders).</p>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(150px, 1fr))">
+      <button onclick="test('follow')">Follow</button><button onclick="test('sub')">Sub</button><button onclick="test('resub')">Resub</button>
+      <button onclick="test('gift')">Gift subs</button><button onclick="test('bits')">Bits</button><button onclick="test('raid')">Raid</button>
+      <button onclick="hype('start')">Start a hype train</button><button onclick="hype('end')">End the hype train</button>
+    </div>
   </section>
 
   <section data-tab="setup">
@@ -604,7 +636,7 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel(); renderBrb();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel(); renderBrb(); renderVibesmas();
   loadVoices(s.tts_voice);
 }
 
@@ -911,7 +943,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames() };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames(), vibesmas_hype_video: $("vxVideo").value };
 }
 
 async function save() {
@@ -933,7 +965,7 @@ async function delMedia(name) {
   if (r.ok) { toast("Deleted"); await refresh(true); } else toast(r.result || "Delete failed");
 }
 
-function upload(file) {
+function upload(file, forHype) {
   if (!file) return;
   const fd = new FormData(); fd.append("file", file);
   const x = new XMLHttpRequest(), bar = $("bar");
@@ -945,7 +977,8 @@ function upload(file) {
       const r = JSON.parse(x.responseText);
       toast("Uploaded " + r.name);
       await refresh(true);
-      if (confirm(`Use ${r.name} as the logo now?`)) useLogo(r.name);
+      if (forHype) { $("vxVideo").dataset.picked = r.name; $("vxVideo").value = r.name; markDirty(); toast(`Uploaded ${r.name}. Save to use it for hype trains.`); }
+      else if (confirm(`Use ${r.name} as the logo now?`)) useLogo(r.name);
     } else toast(x.responseText || "Upload failed");
   };
   x.onerror = () => { bar.style.display = "none"; toast("Upload failed"); };
@@ -1139,9 +1172,11 @@ function showPreview(which) {
 $("pvSeg").querySelectorAll("button").forEach(b => b.onclick = () => showPreview(b.dataset.pv));
 $("pvSample").addEventListener("change", () => showPreview(pvNow));
 $("pvBrb").addEventListener("change", () => showPreview("brb"));
+$("vxVideo").addEventListener("change", () => { $("vxVideo").dataset.picked = $("vxVideo").value; markDirty(); });
+$("vxFile").addEventListener("change", e => { upload(e.target.files[0], true); e.target.value = ""; });
 
 /* ── tabs ───────────────────────────────────────────────────────────── */
-const TAB_PREVIEW = { alerts: "tv", overlay: "overlay", tiktok: "tiktok", credits: "credits", brb: "brb" };
+const TAB_PREVIEW = { alerts: "tv", overlay: "overlay", tiktok: "tiktok", credits: "credits", brb: "brb", vibesmas: "tv" };
 function showTab(tab) {
   if (!TAB_PREVIEW[tab] && tab !== "setup") tab = "alerts";
   $("tabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
@@ -1213,6 +1248,17 @@ const BRB_GAME_NAMES = { guess: ["Guess when I'm back", "Runs the whole time you
   plinko: ["Plinko", "!drop a coin, the edges pay 500"], pusher: ["Coin pusher", "!push coins off the edge"], boss: ["Boss fight", "!hit, beat the boss together"],
   pinata: ["Piñata", "!whack till it breaks"], sumo: ["Sumo arena", "!join, then !bump, last one in the ring wins"], tower: ["Tower stack", "!stack blocks, don't topple it"] };
 const BRB_PHASE = { idle: "Not running", away: "Running", back: "Showing welcome back" };
+/* ── Vibesmas ─────────────────────────────────────────────────────── */
+function renderVibesmas() {
+  const sel = $("vxVideo"), want = sel.dataset.picked ?? state.settings.vibesmas_hype_video ?? "";
+  const vids = state.media.filter(f => f.kind === "video");
+  sel.innerHTML = '<option value="">None</option>' + vids.map(f => `<option value="${esc(f.name)}">${esc(f.name)}</option>`).join("");
+  sel.value = vids.some(f => f.name === want) ? want : "";
+  $("vxVolOut").textContent = Math.round((state.settings.vibesmas_hype_volume ?? .5) * 100) + "%";
+  const on = (state.status.vibesmas || {}).on;
+  $("vxChip").className = "chip" + (on ? " ok" : "");
+  $("vxChip").querySelector("span").textContent = on ? "On now" : "Off now";
+}
 function renderBrb() {
   const off = state.settings.brb_games || {}, st = state.status.brb || {};
   $("brbGames").innerHTML = state.brb_games.map(k => `<div class="csec"><label><input type="checkbox" data-bgame="${k}"${off[k] === false ? "" : " checked"}> <span><b>${esc(BRB_GAME_NAMES[k][0])}</b> <span class="hint">· ${esc(BRB_GAME_NAMES[k][1])}</span></span></label></div>`).join("");
