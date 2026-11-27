@@ -7,7 +7,13 @@
    drawn at 1920 wide and scaled to the host. The train takes train.seconds: a
    short one rolls in, stops for the bell and rolls out; a long one (10 gift subs)
    crawls past so every name gets its moment. Cars are SVG; their lettering stays
-   readable when the train runs the other way. */
+   readable when the train runs the other way.
+
+     Vibesmas.hype(host, ev, { clear: false, muted: false, lite: false, onDone })
+
+   plays the hype train video with its gold title: full screen on the TV, or
+   see-through on the overlay (clear: true, for a video with a transparent
+   background, like a keyed WebM). */
 const Vibesmas = (() => {
   const W = 1920, TOP = 740, GOLDS = "#e9cf86";
   let FLIP = false, uid = 0, current = null;
@@ -321,5 +327,102 @@ const Vibesmas = (() => {
     return current;
   }
 
-  return { run, stop };
+  /* ── the hype train video with its gold title (TV: full screen; overlay: see-through) ── */
+  const HV_TITLE_AT = 2.4;
+  let hv = null;
+  function hypeCss() {
+    if (document.getElementById("vx-hype-css")) return;
+    const st = document.createElement("style");
+    st.id = "vx-hype-css";
+    st.textContent = `
+  .vx-hype { position: absolute; inset: 0; z-index: 40; background: #000; opacity: 0; transition: opacity .5s; pointer-events: none; container-type: inline-size; overflow: hidden; }
+  .vx-hype.clear { background: transparent; transition: opacity .5s, filter 1.1s; }
+  .vx-hype.show { opacity: 1; }
+  .vx-hype video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .vx-hype.clear video { object-fit: contain; }
+  .vx-hype .hvscrim { position: absolute; inset: 0; background: radial-gradient(70% 45% at 50% 18%, rgba(6,4,8,.62), rgba(6,4,8,0) 70%); opacity: 0; transition: opacity .8s; }
+  .vx-hype.clear .hvscrim { background: radial-gradient(48% 26% at 50% 16%, rgba(6,4,8,.5), rgba(6,4,8,0) 72%); }
+  .vx-hype .hvend { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity 1.1s; }
+  .vx-hype.clear .hvend { display: none; }
+  .vx-hype.on .hvscrim { opacity: 1; }
+  .vx-hype.fade .hvend { opacity: 1; }
+  .vx-hype.clear.fade { opacity: 0; transition: opacity 1.1s; }
+  .vx-hype canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .vx-hype .hvtitle { position: absolute; left: 0; right: 0; top: 6.5cqw; display: grid; justify-items: center; gap: .6cqw; text-align: center; }
+  .vx-hype .hvline { position: relative; font-family: "Cinzel", Georgia, serif; font-weight: 900; line-height: 1; letter-spacing: .06em; white-space: nowrap; }
+  .vx-hype .hvline.big { font-size: 8.4cqw; }
+  .vx-hype .hvline.small { font-size: 5.6cqw; }
+  .vx-hype .ch { display: inline-block; opacity: 0; transform: translateY(1.2cqw) scale(1.5); filter: blur(10px);
+    background: linear-gradient(180deg, #fff8da 0%, #ffe08f 30%, #d9a441 52%, #fff0b5 66%, #a8731f 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .vx-hype.on .ch { animation: hvIn .9s cubic-bezier(.2, 1.4, .3, 1) forwards; animation-delay: calc(var(--i) * 55ms); }
+  @keyframes hvIn { to { opacity: 1; transform: none; filter: drop-shadow(0 .18cqw 0 rgba(60, 25, 5, .95)) drop-shadow(0 .3cqw .5cqw rgba(0, 0, 0, .6)); } }
+  .vx-hype .hvline::before { content: attr(data-text); position: absolute; inset: 0; color: transparent; text-shadow: 0 0 2.2cqw rgba(255, 196, 90, .85), 0 0 5cqw rgba(255, 150, 40, .45); opacity: 0; z-index: -1; }
+  .vx-hype.on .hvline::before { animation: hvGlow 2.6s ease-in-out .7s infinite; }
+  @keyframes hvGlow { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+  .vx-hype .hvline::after { content: attr(data-text); position: absolute; inset: 0; color: transparent;
+    background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.95) 48%, rgba(255,250,220,.6) 52%, transparent 62%) no-repeat;
+    background-size: 300% 100%; background-position: 130% 0; -webkit-background-clip: text; background-clip: text; opacity: 0; }
+  .vx-hype.on .hvline::after { animation: hvShine 2.8s ease-in-out 1.1s infinite; }
+  @keyframes hvShine { 0% { background-position: 130% 0; opacity: 1; } 55%, 100% { background-position: -30% 0; opacity: 1; } }
+  .vx-hype .hvsub { margin-top: .8cqw; font: 700 1.55cqw/1 "Outfit", sans-serif; letter-spacing: .32em; text-transform: uppercase; color: #ffe9b0;
+    text-shadow: 0 .15cqw .4cqw rgba(0,0,0,.8); opacity: 0; transform: translateY(.6cqw); transition: opacity .8s 1.2s, transform .8s 1.2s; }
+  .vx-hype.on .hvsub { opacity: 1; transform: none; }
+  .vx-hype.lite .hvline::before, .vx-hype.lite .hvline::after { display: none; }`;
+    document.head.appendChild(st);
+  }
+  // ev: {video: {src, seconds, volume}, title, title2, sub}; opts: {clear, muted, lite, onDone}
+  function hype(host, ev, opts = {}) {
+    hypeStop();
+    hypeCss();
+    const box = document.createElement("div");
+    box.className = "vx-hype" + (opts.clear ? " clear" : "") + (opts.lite ? " lite" : "");
+    const line = (cls, t) => `<div class="hvline ${cls}" data-text="${esc(t || "")}">${[...(t || "")].map((c, i) =>
+      `<span class="ch" style="--i:${i}">${c === " " ? "&nbsp;" : esc(c)}</span>`).join("")}</div>`;
+    box.innerHTML = `<video playsinline preload="auto"></video><div class="hvscrim"></div><canvas></canvas>
+      <div class="hvtitle">${line("big", ev.title)}${line("small", ev.title2)}<div class="hvsub">${esc(ev.sub || "")}</div></div><div class="hvend"></div>`;
+    host.appendChild(box);
+    const v = box.querySelector("video"), cv = box.querySelector("canvas"), ctx = cv.getContext("2d");
+    let shown = false, sparks = [], raf = 0, done = false, safety = 0;
+    v.src = ev.video.src;
+    v.volume = Math.max(0, Math.min(1, ev.video.volume ?? .5));
+    v.muted = !!opts.muted;
+    v.onplaying = () => box.classList.add("show");
+    v.ontimeupdate = () => {
+      if (!shown && v.currentTime >= HV_TITLE_AT) { shown = true; box.classList.add("on"); spark(90); }
+      if (v.duration && v.currentTime >= v.duration - 1.1) box.classList.add("fade");
+    };
+    v.onended = () => finish();
+    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    cv.width = box.clientWidth; cv.height = box.clientHeight;
+    function spark(n) {
+      for (let i = 0; i < n; i++) sparks.push({ x: cv.width * (.25 + Math.random() * .5), y: cv.height * (.12 + Math.random() * .28),
+        vx: (Math.random() - .5) * cv.width * .0012, vy: -Math.random() * cv.height * .0016 - cv.height * .0004, r: Math.random() * 2.2 + .8, life: 1 + Math.random() * 1.4 });
+    }
+    (function draw() {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      if (shown && !opts.lite && Math.random() < .5) spark(1);
+      sparks = sparks.filter(p => {
+        p.life -= .012; p.x += p.vx; p.y += p.vy; ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+        ctx.fillStyle = Math.random() < .2 ? "#fff8dc" : "#ffd27a"; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+        return p.life > 0;
+      });
+      ctx.globalAlpha = 1;
+      if (!done) raf = requestAnimationFrame(draw);
+    })();
+    safety = setTimeout(finish, ((ev.card_seconds || ev.video.seconds || 9) + 3) * 1000);   // a safety net
+    function finish(quiet) {
+      if (done) return;
+      done = true; clearTimeout(safety); cancelAnimationFrame(raf);
+      box.classList.remove("show", "on");
+      v.onplaying = v.ontimeupdate = v.onended = null;
+      setTimeout(() => { v.pause(); v.removeAttribute("src"); v.load(); box.remove(); }, 600);
+      if (hv && hv.box === box) hv = null;
+      if (!quiet && opts.onDone) opts.onDone();
+    }
+    hv = { box, stop: () => finish(true) };
+    return hv;
+  }
+  function hypeStop() { if (hv) hv.stop(); }
+
+  return { run, stop, hype, hypeStop };
 })();

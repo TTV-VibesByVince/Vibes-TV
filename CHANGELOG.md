@@ -4,6 +4,15 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 2.4 (2026-11-26)
+
+- **Hype train video on the stream overlay.** When a hype train starts in
+  Vibesmas, the overlay can play its own video, with the same glowing gold
+  "Hype train started!!" title as the TV. Use a video with a see-through
+  background (a keyed .webm), and it plays over your stream. Pick it on the
+  Vibesmas tab, under **On the stream overlay**. The TV keeps its own video.
+- The overlay's hype train bar steps aside while the video plays.
+
 ## 2.3 (2026-11-25)
 
 - **The Vibesmas Express** (new Settings tab): for the holidays, follows,

@@ -102,7 +102,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **End credits and TikTok widgets.** Movie-style [end credits](docs/credits.md) for an "Ending" scene: everyone who followed, subbed, gifted (and who they gifted to), raided, cheered or chatted for the first time this stream, a thank-you to your mods (with swords), with their pictures, then your logo. Six backgrounds, an animation per list, and they can sit invisibly on top of your stream until you play them. Four [TikTok widgets](docs/tiktok.md#widgets-for-obs), each its own OBS source: a like counter with an optional goal, top likers, top gifters, or all three in one, with profile pictures.
 
-**The Vibesmas Express.** For the holidays, alerts roll across the screen as a [train](docs/vibesmas.md): the locomotive says what happened and each passenger car carries a person's picture and name, with a car for every gifted sub. When a hype train starts, the TV plays your own video with a gold "Hype train started!!" title.
+**The Vibesmas Express.** For the holidays, alerts roll across the screen as a [train](docs/vibesmas.md): the locomotive says what happened and each passenger car carries a person's picture and name, with a car for every gifted sub. When a hype train starts, the TV plays your own video with a gold "Hype train started!!" title, and the stream overlay can play a see-through one with the same title over your stream.
 
 **Be right back.** Step away and leave chat something to do: a [BRB screen](docs/brb.md) with a countdown, on stream and on the TV, while chat plays in Twitch chat. Guess when you'll be back, paint a picture together pixel by pixel, trivia about you (multiple choice or type the answer), a typing race and this-or-that polls (Coke or Pepsi?), plus six arcade games (Plinko, a coin pusher, a boss fight, a piñata, a sumo arena and a tower stack), with chat voting for the next game. When you're back it shows who guessed closest, the painting and what chat decided. Start it from the settings page, a Stream Deck, MixItUp or `!brb` in chat.
 
@@ -114,7 +114,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Under the hood.** One small Python server (aiohttp) and three web pages (TV, overlay, settings), no database. The image is built by GitHub for Intel/AMD and ARM, and rebuilt weekly with the newest yt-dlp. Fonts are bundled, so the TV page works without internet. Lite mode keeps animations smooth on TV sticks and smart TVs. Optional password for the settings page.
 
-## Status: 2.3
+## Status: 2.4
 
 > [!IMPORTANT]
 > Vibe TV is young. It works and it's tested, but it is a hobby project made for one channel first, so expect rough edges. The [changelog](CHANGELOG.md) lists what changed in each version.

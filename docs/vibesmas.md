@@ -51,11 +51,38 @@ Pick a video in Settings > Vibesmas > **Hype train video** (or upload one
 there; it goes in the media folder on your NAS). When a hype train starts, the
 TV plays it full screen with **Hype train started!!** in gold, landing 2.4
 seconds in, then goes back to normal. Alerts that come in meanwhile wait until
-it's done. The hype train bar on the overlay works as before.
+it's done.
+
+The stream overlay can play one too, with the same gold title: pick it under
+**On the stream overlay**. The overlay sits on top of your stream, so use a
+video with a see-through background, like a .webm keyed from a green screen
+(see below). Your stream shows through everywhere except the train, its
+steam and the title. The overlay's hype train bar steps aside while it plays.
+Each screen has its own video, so the TV can keep a full scene. It follows
+the **On the TV** and **On the stream overlay** switches above.
 
 A video made for it works best: about 8 seconds, 16:9, with dark sky in the
 top third where the title goes. **Video volume** sets how loud its sound is
 (50% to start with).
+
+### Making a see-through video
+
+Video generators can't make a transparent background, so make the video on a
+flat green screen and key the green out. In your prompt, ask for the train
+"isolated on a solid flat bright green screen background (#00FF00), no sky,
+no ground, no scenery", with even lighting and a static camera. Leave out fog
+and snow; they blur into the edge of the key (Vibe TV adds the snow anyway).
+
+Then, with [ffmpeg](https://ffmpeg.org/) (put your green's colour in place of
+`0x3bd939`; it's often a little off pure green):
+
+```
+ffmpeg -i train.mp4 -vf "chromakey=0x3bd939:0.13:0.08,format=gbrap,geq=r='r(X,Y)':g='min(g(X,Y),max(r(X,Y),b(X,Y)))':b='b(X,Y)':a='alpha(X,Y)',format=yuva420p" -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 26 -auto-alt-ref 0 -c:a libopus train.webm
+```
+
+The `geq` part takes the green tint off the edges without turning white
+steam pink. OBS's browser source plays .webm transparency; some TV browsers
+don't, so keep a normal video for the TV.
 
 It plays when the hype train starts, not at each level. Test it with **Start
 a hype train** on the Vibesmas tab (then **End the hype train**).

@@ -128,6 +128,7 @@
     border-radius: 99px; background: rgba(10, 8, 18, var(--op)); border: .3vh solid var(--hc, #9146ff); opacity: 0; transition: opacity .4s ease, transform .5s cubic-bezier(.2,1.3,.4,1); }
   body[data-pos^="bottom"] #hype { top: 2.5vh; transform: translateY(-10vh); }
   body[data-pos^="top"] #hype { bottom: 2.5vh; transform: translateY(10vh); }
+  body.vxhype #hype { visibility: hidden; }          /* the hype video's title has the stage */
   body[data-pos] #hype.on { opacity: 1; transform: none; }
   #hype .htitle { font-family: "Bungee", sans-serif; font-size: 2vh; letter-spacing: .08em; white-space: nowrap; }
   #hype .hlevel { font-family: "Bungee", sans-serif; font-size: 1.7vh; padding: .4vh 1.2vh; border-radius: 99px; background: var(--hc, #9146ff); white-space: nowrap; }
@@ -501,6 +502,11 @@ openSocket("overlay", ev => {
   else if (ev.type === "clip") { if (bigOn) toBig(ev); else playClip(ev); }
   else if (ev.type === "logo") { hideCard(); endBig(); }
   else if (ev.type === "welcome") showWelcome(ev);
+  else if (ev.type === "hype_video") {                      // Vibesmas: the see-through hype video and its gold title
+    hideCard(true); endBig();
+    document.body.classList.add("vxhype");
+    Vibesmas.hype(document.body, ev, { clear: true, muted: PREVIEW, lite: LITE, onDone: () => document.body.classList.remove("vxhype") });
+  }
   else if (ev.type === "hype") showHype(ev);
   else if (ev.type === "tts") showTts(ev);
   else if (ev.type === "tts_end") hideTts();
