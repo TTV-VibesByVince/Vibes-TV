@@ -50,13 +50,14 @@ from PIL import Image
 from brb import BRB, GAMES as BRB_GAMES, MODES as BRB_MODES
 from brb_banks import DEFAULT_POLLS, DEFAULT_TRIVIA, DEFAULT_TYPING
 import vibesmas
+import mixitup
 from tiktok import TikTokWatcher
 from session import SECTIONS as CREDIT_SECTIONS, Session
 from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "2.4"
+VERSION = "2.5"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -149,6 +150,10 @@ SCHEMA = {
     "tiktok_username":      (str,   os.getenv("TIKTOK_USERNAME", "")),
     "tiktok_sign_key":      (str,   os.getenv("TIKTOK_SIGN_KEY", "")),   # optional eulerstream.com key
     "tiktok_min_coins":     (float, 1.0),         # smaller gifts (in coins, combo total) aren't shown
+    # MixItUp commands for TikTok events (mixitup.py)
+    "mixitup_url":          (str,   ""),          # MixItUp's Developer API as the NAS sees it, e.g. http://<PC>:8912
+    "tiktok_commands":      (dict,  {}),          # follow / sub / gift / share -> MixItUp command id
+    "tiktok_command_gift_coins": (float, 1.0),    # smaller gifts (coins, combo total) don't run the gift command
     # Text to speech (optional): TikTok chat and /tts read aloud with Edge voices
     "tts_enabled":          (bool,  False),
     "tts_tiktok_chat":      (bool,  True),        # read TikTok LIVE chat (when TikTok is on too)
@@ -214,7 +219,7 @@ LIMITS = {"card_seconds": (2, 60), "raid_seconds": (4, 60),
           "sub_seconds": (3, 60), "bits_seconds": (3, 60), "welcome_seconds": (2, 30),
           "streak_seconds": (3, 60), "modiversary_seconds": (4, 60), "gigantify_seconds": (3, 60),
           "overlay_scale": (0.5, 2), "overlay_opacity": (0.2, 1), "overlay_seconds": (2, 30), "overlay_darken": (0, 0.9),
-          "tiktok_min_coins": (0, 1000000),
+          "tiktok_min_coins": (0, 1000000), "tiktok_command_gift_coins": (0, 1000000),
           "tts_rate": (-50, 100), "tts_volume": (0, 1), "tts_max_chars": (20, 300), "tts_cooldown": (0, 600),
           "tiktok_widget_count": (1, 10), "tiktok_widget_scale": (0.5, 2), "tiktok_widget_opacity": (0.2, 1),
           "tiktok_like_goal": (0, 1000000000), "credits_speed": (0.3, 3),
@@ -397,6 +402,13 @@ def _check_dict(key, val):
         if bad:
             return None, f"alert_sources.{bad[0]}: twitch or mixitup"
         return {k: "twitch" for k, v in val.items() if k in SOURCE_EVENTS and v == "twitch"}, None
+    if key == "tiktok_commands":
+        if not isinstance(val, dict):
+            return None, "tiktok_commands: must be an object"
+        for k, v in val.items():
+            if k in mixitup.KINDS and v and not (isinstance(v, str) and mixitup.ID_RE.match(v)):
+                return None, f"tiktok_commands.{k}: a MixItUp command id"
+        return {k: v for k, v in val.items() if k in mixitup.KINDS and v}, None
     if key == "brb_games":
         if not isinstance(val, dict):
             return None, "brb_games: must be an object"
@@ -554,6 +566,9 @@ class Settings:
                 continue
             if key == "tts_blocked" and len(val) > 4000:
                 errors.append("tts_blocked: too long")
+                continue
+            if key == "mixitup_url" and val and not mixitup.URL_RE.match(val.strip()):
+                errors.append("mixitup_url: an address like http://192.168.1.20:8912")
                 continue
             if key == "tiktok_username":
                 val = val.lstrip("@").strip()
@@ -1548,9 +1563,10 @@ def hook_up():
 
 
 hook_up()
+mixit = mixitup.MixItUp(S, lambda: tv.session)
 tiktok = TikTokWatcher(S, lambda ev: tv.dispatch(ev, limit=True),
                        chat=lambda who, text: speaker.say(text, who["display"], source="tiktok"),
-                       stats=tiktok_stats)
+                       stats=tiktok_stats, command=lambda *a, **k: mixit.trigger(*a, **k))
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -2040,7 +2056,7 @@ async def api_state(request):
                    "overlays_connected": tv.count("overlay"), "queued_overlay": tv.screens["overlay"].queue.qsize(),
                    "showing_overlay": tv.screens["overlay"].current["type"] if tv.screens["overlay"].current else "nothing",
                    "twitch_api": tv.twitch.enabled, "last_lights": tv.last_govee, "vibesmas": {"on": vibesmas_on()},
-                   "tiktok": tiktok.status(), "tts": speaker.status(), "twitch_live": twitch_live.status(),
+                   "tiktok": tiktok.status(), "mixitup": mixit.status(), "tts": speaker.status(), "twitch_live": twitch_live.status(),
                    "widgets_connected": tv.count("tiktok"), "credits_connected": tv.count("credits"),
                    "tiktok_stats": tiktok_stats.snapshot(3), "credits_stats": session.snapshot()["stats"],
                    "brb": {"phase": brb.phase, "pages": tv.count("brb"), "name": brb_name(),
@@ -2209,8 +2225,9 @@ TIKTOK_TEST_GIFTS = {"small": ("Rose", 1, 5), "medium": ("Doughnut", 30, 4), "bi
 
 async def api_test_tiktok(request):
     """Play a made-up TikTok alert (no TikTok connection needed):
-    ?kind=follow|sub|gift|likes&size=small|medium|big, plus the usual &screen=.
-    Test gifts and likes add to the real widget counts (Reset clears them)."""
+    ?kind=follow|sub|gift|share|likes&size=small|medium|big, plus the usual &screen=.
+    Test gifts and likes add to the real widget counts (Reset clears them).
+    Like the real thing, it also runs the MixItUp command chosen for it."""
     kind = request.query.get("kind", "gift")
     if kind == "likes":
         for name in random.sample(TIKTOK_TEST_LIKERS, 3):
@@ -2218,19 +2235,35 @@ async def api_test_tiktok(request):
         return web.json_response({"ok": True, "likes": tiktok_stats.data["likes"]})
     who = {"user": "tiktok_tester", "display": "TikTok Tester", "avatar": ""}
     override = screen_param(request)
+    if kind == "share":
+        task = mixit.trigger("share", who)
+        return web.json_response({"ok": True, "command": bool(task)})
     if kind == "follow":
         ev = {"type": "follow", "platform": "tiktok", **who, "clip": False}
+        mixit.trigger("follow", who)
     elif kind == "sub":
         ev = {"type": "sub", "platform": "tiktok", **who, "clip": False, "tier": None}
+        mixit.trigger("sub", who, months=1)
     elif kind == "gift":
         name, coins, count = TIKTOK_TEST_GIFTS.get(request.query.get("size", "small"), TIKTOK_TEST_GIFTS["small"])
         ev = {"type": "tiktok_gift", "platform": "tiktok", **who, "clip": False,
               "gift": {"name": name, "image": ""}, "count": count, "coins": coins * count}
         tiktok_stats.gift(who, coins * count)
+        mixit.trigger("gift", who, gift=name, count=count, coins=coins * count)
     else:
-        raise web.HTTPBadRequest(text="kind must be follow, sub or gift")
+        raise web.HTTPBadRequest(text="kind must be follow, sub, gift, share or likes")
     ev["screen"] = override
     return queued(tv.dispatch(ev))
+
+
+async def api_mixitup_commands(request):
+    """MixItUp's commands, for the TikTok tab's pickers (?fresh=1 skips the 30 s cache)."""
+    try:
+        cmds = await mixit.commands(fresh=request.query.get("fresh") == "1")
+    except Exception as e:
+        msg = str(e) if isinstance(e, RuntimeError) else f"Couldn't reach MixItUp ({type(e).__name__})"
+        return web.json_response({"ok": False, "error": msg})
+    return web.json_response({"ok": True, "commands": cmds})
 
 
 # ── app ──────────────────────────────────────────────────────────────────
@@ -2313,6 +2346,7 @@ def make_app():
     app.router.add_post("/api/test/lights", api_test_lights)
     app.router.add_post("/api/test/twitch", api_test_twitch)
     app.router.add_post("/api/test/tiktok", api_test_tiktok)
+    app.router.add_get("/api/mixitup/commands", api_mixitup_commands)
     app.router.add_get("/api/tts/voices", api_tts_voices)
     app.router.add_post("/api/twitch/connect", api_twitch_connect)
     app.router.add_post("/api/twitch/disconnect", api_twitch_disconnect)

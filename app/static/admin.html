@@ -457,6 +457,33 @@
   </section>
 
   <section class="wide" data-tab="tiktok">
+    <h2>MixItUp commands <span class="chip" id="mxChip"><i></i><span>Not set up</span></span></h2>
+    <p class="hint">Runs a MixItUp command when something happens on your TikTok LIVE, alongside the alert. In MixItUp, turn on
+      <b>Services &gt; Developer API</b>. It only listens on the PC it runs on, so that PC needs a one-time port forward for the NAS to reach it
+      (see <a href="https://github.com/TTV-VibesByVince/Vibes-TV/blob/main/docs/tiktok-mixitup.md" target="_blank" rel="noopener">TikTok to MixItUp</a>).</p>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(240px, 1fr))">
+      <label class="f"><span>MixItUp's address <span class="hint">(the PC, port 8912)</span></span><input type="text" class="mono" data-k="mixitup_url" placeholder="http://192.168.1.50:8912" autocomplete="off" spellcheck="false"></label>
+      <label class="f"><span>&nbsp;</span><div class="row"><button onclick="loadMixItUp(true)">Load commands</button></div></label>
+    </div>
+    <div class="result" id="mxList"></div>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));margin-top:8px">
+      <label class="f"><span>New follow</span><select data-tcmd="follow"></select></label>
+      <label class="f"><span>New subscriber</span><select data-tcmd="sub"></select></label>
+      <label class="f"><span>Gift</span><select data-tcmd="gift"></select></label>
+      <label class="f"><span>Gifts that run it <span class="hint">(at least this many coins, combo total)</span></span><input type="number" data-k="tiktok_command_gift_coins" min="0" step="1"></label>
+      <label class="f"><span>Share <span class="hint">(once per person every 5 minutes)</span></span><select data-tcmd="share"></select></label>
+    </div>
+    <p class="hint" style="margin-top:10px">In the command, use <span class="mono">$tiktokname</span> (their name), <span class="mono">$tiktokuser</span> (their @handle),
+      <span class="mono">$tiktokavatar</span>, <span class="mono">$tiktokevent</span>; for subs <span class="mono">$tiktokmonths</span>; for gifts
+      <span class="mono">$tiktokgift</span>, <span class="mono">$tiktokgiftcount</span> and <span class="mono">$tiktokcoins</span>.
+      <span class="mono">$arg1text</span> is their @handle too.</p>
+    <div class="result" id="mxRes"></div>
+    <div class="row" style="margin-top:8px"><span class="hint" style="flex:none">Test (save first; runs the real commands):</span>
+      <button onclick="testTikTok('follow')">Follow</button><button onclick="testTikTok('sub')">Subscription</button>
+      <button onclick="testTikTok('gift', 'big')">Big gift</button><button onclick="testTikTok('share')">Share</button></div>
+  </section>
+
+  <section class="wide" data-tab="tiktok">
     <h2>Text to speech <span class="chip" id="ttsChip"><i></i><span>Off</span></span></h2>
     <p class="hint">Reads TikTok LIVE chat aloud (and anything MixItUp sends to <span class="mono">/tts</span>), one message at a time, in a Microsoft Edge
       voice. It plays on the stream overlay by default (in OBS, tick <b>Control audio via OBS</b> on the Browser Source). Uses
@@ -638,8 +665,9 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel(); renderBrb(); renderVibesmas();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel(); renderBrb(); renderVibesmas(); renderMixItUp();
   loadVoices(s.tts_voice);
+  if (s.mixitup_url) loadMixItUp(false);
 }
 
 /* ── text to speech: voices, preview, test ──────────────────────────── */
@@ -885,7 +913,12 @@ function renderStatus() {
   chip.className = "chip " + (tt.state === "live" ? "ok" : tt.state === "error" ? "bad" : "");
   chip.lastChild.textContent = TT[tt.state] || tt.state;
   setRes($("ttRes"), tt.state === "error" ? false : tt.state === "live" ? true : null,
-    (tt.detail || "") + (tt.state === "live" ? ` · this session: ${tt.counts.follow} follows, ${tt.counts.sub} subs, ${tt.counts.gift} gifts` : ""));
+    (tt.detail || "") + (tt.state === "live" ? ` · this session: ${tt.counts.follow} follows, ${tt.counts.sub} subs, ${tt.counts.gift} gifts, ${tt.counts.share || 0} shares` : ""));
+  const mx = st.mixitup || {}, last = mx.last;
+  $("mxChip").className = "chip " + (!mx.url_set ? "" : last && !last.ok ? "bad" : "ok");
+  $("mxChip").lastChild.textContent = !mx.url_set ? "Not set up" : last && !last.ok ? "Problem" : "Ready";
+  if (last) setRes($("mxRes"), last.ok, `Last: ${MX_NAMES[last.kind] || last.kind} from @${last.user}, ${new Date(last.at * 1000).toLocaleTimeString()}: ` +
+    (last.ok ? "MixItUp ran the command" : last.detail));
 }
 
 function renderMedia() {
@@ -945,7 +978,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames(), vibesmas_hype_video: $("vxVideo").value, vibesmas_hype_overlay_video: $("vxOvVideo").value };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames(), tiktok_commands: collectTikTokCommands(), vibesmas_hype_video: $("vxVideo").value, vibesmas_hype_overlay_video: $("vxOvVideo").value };
 }
 
 async function save() {
@@ -1049,6 +1082,40 @@ async function testLights(which) {
   const r = await api(`/api/test/lights?which=${which}&hex=9146ff`, { method: "POST" });
   setRes($("lightRes"), r.ok, r.result);
 }
+/* ── MixItUp commands for TikTok events ─────────────────────────────── */
+const MX_NAMES = { follow: "follow", sub: "subscription", gift: "gift", share: "share" };
+let MX_COMMANDS = null;
+async function loadMixItUp(fresh) {
+  if (fresh && dirty && $("mxList").dataset.url !== document.querySelector('[data-k="mixitup_url"]').value) return toast("Save the address first");
+  setRes($("mxList"), null, "Asking MixItUp for its commands…");
+  const r = await api("/api/mixitup/commands" + (fresh ? "?fresh=1" : ""));
+  if (!r.ok) { MX_COMMANDS = null; setRes($("mxList"), false, r.error || "Couldn't reach MixItUp"); }
+  else { MX_COMMANDS = r.commands; setRes($("mxList"), true, `${r.commands.length} commands found`); }
+  $("mxList").dataset.url = state.settings.mixitup_url || "";
+  renderMixItUp();
+}
+function renderMixItUp() {
+  const saved = state.settings.tiktok_commands || {};
+  document.querySelectorAll("[data-tcmd]").forEach(sel => {
+    const kind = sel.dataset.tcmd, want = sel.dataset.picked ?? saved[kind] ?? "";
+    let opts = '<option value="">None</option>';
+    if (MX_COMMANDS) {
+      const groups = {};
+      MX_COMMANDS.forEach(c => (groups[c.type || "Other"] ||= []).push(c));
+      opts += Object.entries(groups).map(([type, cs]) => `<optgroup label="${esc(type)}">${cs.map(c =>
+        `<option value="${esc(c.id)}">${esc(c.name)}${c.enabled ? "" : " (off in MixItUp)"}</option>`).join("")}</optgroup>`).join("");
+      if (want && !MX_COMMANDS.some(c => c.id === want)) opts += `<option value="${esc(want)}">A command MixItUp doesn't have any more</option>`;
+    } else if (want) opts += `<option value="${esc(want)}">The saved command (load commands to see its name)</option>`;
+    sel.innerHTML = opts;
+    sel.value = want;
+  });
+}
+function collectTikTokCommands() {
+  const out = {};
+  document.querySelectorAll("[data-tcmd]").forEach(sel => { if (sel.value) out[sel.dataset.tcmd] = sel.value; });
+  return out;
+}
+document.querySelectorAll("[data-tcmd]").forEach(sel => sel.addEventListener("change", () => { sel.dataset.picked = sel.value; markDirty(); }));
 /* ── which alerts play straight from Twitch ─────────────────────────── */
 const SOURCE_LABELS = { shoutout: "Shoutouts (Twitch's /shoutout)", raid: "Raids", follow: "Follows", sub: "Subs and resubs", gift: "Gifted subs",
   bits: "Bits", streak: "Watch streaks", modiversary: "Modiversaries", gigantify: "Gigantified emotes", hype: "Hype train" };

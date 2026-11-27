@@ -86,6 +86,12 @@ The **Follow**, **Subscription**, **Small gift** and **Big gift** buttons
 under Settings > TikTok LIVE play made-up TikTok alerts. They don't need a
 TikTok connection, and they follow **Send tests to**.
 
+## Run MixItUp commands
+
+Follows, subscriptions, gifts and shares can also run a MixItUp command,
+for sounds, chat messages and the rest of your MixItUp setup. See
+[TikTok to MixItUp](tiktok-mixitup.md).
+
 ## Signing key (optional)
 
 Settings > TikTok LIVE > **Signing key**: a key from
