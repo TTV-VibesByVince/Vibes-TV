@@ -58,10 +58,11 @@ def srv(monkeypatch):
                                                                  lambda kind, d: server.twitch_event(kind, d)))
     monkeypatch.setattr(server, "PROFILES", {})
     server.hook_up()
+    monkeypatch.setattr(server, "mixit", server.mixitup.MixItUp(server.S, lambda: server.tv.session))
     monkeypatch.setattr(server, "tiktok", server.TikTokWatcher(
         server.S, lambda ev: server.tv.dispatch(ev, limit=True),
         chat=lambda who, text: server.speaker.say(text, who["display"], source="tiktok"),
-        stats=server.tiktok_stats))
+        stats=server.tiktok_stats, command=lambda *a, **k: server.mixit.trigger(*a, **k)))
     monkeypatch.setattr(server, "GIFT_WINDOW", 0.4)
     monkeypatch.setattr(server, "ADMIN_PASSWORD", "")
     for d in (server.MEDIA, server.CACHE, server.CONFIG):

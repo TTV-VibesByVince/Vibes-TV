@@ -4,6 +4,19 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 2.5 (2026-11-27)
+
+- **TikTok events run MixItUp commands.** New follows, subscriptions,
+  gifts and shares on your TikTok LIVE can each run a MixItUp command you
+  pick from a list (Settings > TikTok > **MixItUp commands**), alongside the
+  alert. The command gets who it was and the details, as `$tiktokname`,
+  `$tiktokuser`, `$tiktokgift`, `$tiktokcoins` and more. Gifts have their own
+  minimum in coins; shares run once per person every 5 minutes. MixItUp only
+  listens on its own PC, so it needs a one-time port forward there: see
+  [TikTok to MixItUp](docs/tiktok-mixitup.md).
+- The TikTok test buttons run the chosen commands too, and there's a new
+  **Share** test.
+
 ## 2.4 (2026-11-26)
 
 - **Hype train video on the stream overlay.** When a hype train starts in

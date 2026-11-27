@@ -3,7 +3,8 @@
 Listens to your own TikTok LIVE with TikTokLive (https://github.com/isaackogan/TikTokLive),
 an unofficial, open source Python library that reads the same live feed the
 TikTok app shows. Follows, subscriptions and gifts become Vibe TV alerts and
-go through the same queues and routing as the MixItUp ones.
+go through the same queues and routing as the MixItUp ones. Follows, subs,
+gifts and shares can also run a MixItUp command (mixitup.py).
 
 TikTokLive isn't made or supported by TikTok, so it can break when TikTok
 changes things. It's imported only when the feature is switched on, so the
@@ -18,6 +19,7 @@ log = logging.getLogger("vibetv.tiktok")
 RETRY_OFFLINE = 60          # seconds between "are you live yet?" checks
 RETRY_ERROR = (15, 300)     # back-off after an error: first, longest
 FOLLOW_MEMORY = 3600        # a re-follow within this many seconds isn't shown again
+SHARE_MEMORY = 300          # one share per person in this many seconds runs a command
 
 
 def first_url(image):
@@ -41,18 +43,22 @@ class TikTokWatcher:
     alert(ev): queues an alert dict; returns the screens it went to.
     chat(who, text): optional, called with each chat message (text to speech).
     stats: optional TikTokStats, for the like and gifter widgets.
+    command(kind, who, **details): optional, called for follows, subs, gifts and
+        shares (it runs the MixItUp command chosen for them).
     """
 
-    def __init__(self, settings, alert, chat=None, stats=None):
+    def __init__(self, settings, alert, chat=None, stats=None, command=None):
         self.S = settings
         self.alert = alert
         self.chat_to = chat
         self.stats = stats
+        self.command = command
         self.task = None
         self.config = None
         self.state, self.detail, self.since = "off", "", time.time()
         self.followed = {}
-        self.counts = {"follow": 0, "sub": 0, "gift": 0, "chat": 0}
+        self.shared = {}
+        self.counts = {"follow": 0, "sub": 0, "gift": 0, "share": 0, "chat": 0}
 
     # ── what the settings page shows ──
     def set_state(self, state, detail=""):
@@ -135,6 +141,15 @@ class TikTokWatcher:
                 self.like(person(e.user), getattr(e, "like_count", 0) or getattr(e, "count", 0),
                           getattr(e, "total_like_count", 0) or getattr(e, "total", 0))
 
+            try:                                    # shares: only for commands, they have no alert
+                from TikTokLive.events import ShareEvent
+
+                @client.on(ShareEvent)
+                async def _share(e):
+                    self.share(person(e.user))
+            except ImportError:
+                pass
+
             @client.on(RoomUserSeqEvent)
             async def _viewers(e):
                 if self.stats:
@@ -174,6 +189,7 @@ class TikTokWatcher:
         self.followed = {k: t for k, t in self.followed.items() if now - t < FOLLOW_MEMORY}
         self.followed[key] = now
         self.counts["follow"] += 1
+        self.run_command("follow", who)
         return self.alert({"type": "follow", "platform": "tiktok", **who, "clip": False})
 
     def like(self, who, count, total=None):
@@ -188,6 +204,7 @@ class TikTokWatcher:
 
     def subscribe(self, who, months=0):
         self.counts["sub"] += 1
+        self.run_command("sub", who, months=months or 1)
         kind = "resub" if months and months > 1 else "sub"
         return self.alert({"type": kind, "platform": "tiktok", **who, "clip": False,
                            "tier": None, "months": months if kind == "resub" else None, "message": ""})
@@ -200,9 +217,29 @@ class TikTokWatcher:
         coins = max(0, int(coins_each)) * max(1, int(count))
         if self.stats:
             self.stats.gift(who, coins)     # every gift counts for top gifters, even small ones
+        self.run_command("gift", who, gift=str(name)[:40], count=max(1, int(count)), coins=coins)
         if coins < self.S["tiktok_min_coins"]:
             return None
         self.counts["gift"] += 1
         return self.alert({"type": "tiktok_gift", "platform": "tiktok", **who, "clip": False,
                            "gift": {"name": str(name)[:40], "image": image}, "count": max(1, int(count)),
                            "coins": coins})
+
+    def share(self, who):
+        """Someone shared the live. No alert; it can run a MixItUp command (once per person every few minutes)."""
+        now = time.monotonic()
+        key = who["user"].lower()
+        if now - self.shared.get(key, -SHARE_MEMORY) < SHARE_MEMORY:
+            return None
+        self.shared = {k: t for k, t in self.shared.items() if now - t < SHARE_MEMORY}
+        self.shared[key] = now
+        self.counts["share"] += 1
+        return self.run_command("share", who)
+
+    def run_command(self, kind, who, **details):
+        if self.command:
+            try:
+                return self.command(kind, who, **details)
+            except Exception:                 # a command must never stop the alert
+                log.exception("tiktok: %s command", kind)
+        return None
