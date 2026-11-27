@@ -4,6 +4,16 @@ What changed in each version of Vibe TV. The version is shown at the top of
 the settings page. MixItUp URLs that worked in an earlier version keep
 working in later ones.
 
+## 2.6 (2026-11-27)
+
+- **TikTok chat commands run MixItUp commands.** Add words like `!blue`
+  under Settings > TikTok > MixItUp commands > **Chat commands**, each with a
+  MixItUp command and a cooldown. When someone types one in your TikTok LIVE
+  chat, its command runs, with the rest of their message passed along
+  (`$tiktokmessage`, `$arg1text`). Each person waits 3 seconds between
+  commands, and text to speech never reads them.
+- **Pretend chat** on the TikTok tab tries a chat command without TikTok.
+
 ## 2.5 (2026-11-27)
 
 - **TikTok events run MixItUp commands.** New follows, subscriptions,

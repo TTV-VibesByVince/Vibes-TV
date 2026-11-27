@@ -154,6 +154,9 @@
   .checks .cfx { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .checks input { width: 17px; height: 17px; accent-color: var(--accent); }
   .counts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .ccrow { display: grid; grid-template-columns: minmax(110px, 160px) minmax(0, 1fr) 110px auto; gap: 8px; align-items: center; margin-top: 6px; }
+  .ccrow input, .ccrow select { min-width: 0; }
+  @media (max-width: 640px) { .ccrow { grid-template-columns: 1fr 1fr; } }
   .counts span { padding: 6px 12px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line); font-size: 13px; }
   .counts b { font-size: 15px; }
   pre.code { margin-top: 6px; padding: 9px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); white-space: pre-wrap; word-break: break-all; }
@@ -477,10 +480,20 @@
       <span class="mono">$tiktokavatar</span>, <span class="mono">$tiktokevent</span>; for subs <span class="mono">$tiktokmonths</span>; for gifts
       <span class="mono">$tiktokgift</span>, <span class="mono">$tiktokgiftcount</span> and <span class="mono">$tiktokcoins</span>.
       <span class="mono">$arg1text</span> is their @handle too.</p>
+    <h3 style="margin:18px 0 4px">Chat commands</h3>
+    <p class="hint">When someone types one of these in your TikTok LIVE chat, its MixItUp command runs. Anything they type after it is passed along:
+      <span class="mono">$tiktokmessage</span> (all of it), <span class="mono">$arg1text</span> (its first word), plus <span class="mono">$tiktokname</span>,
+      <span class="mono">$tiktokuser</span> and <span class="mono">$tiktokcommand</span>. The cooldown is for everyone; each person also waits 3 seconds between commands.
+      Text to speech never reads them.</p>
+    <div id="mxChat"></div>
+    <div class="row" style="margin-top:8px"><button onclick="addChatCommand()">Add a chat command</button></div>
     <div class="result" id="mxRes"></div>
     <div class="row" style="margin-top:8px"><span class="hint" style="flex:none">Test (save first; runs the real commands):</span>
       <button onclick="testTikTok('follow')">Follow</button><button onclick="testTikTok('sub')">Subscription</button>
       <button onclick="testTikTok('gift', 'big')">Big gift</button><button onclick="testTikTok('share')">Share</button></div>
+    <div class="row" style="margin-top:8px"><span class="hint" style="flex:none">Pretend chat:</span>
+      <input type="text" id="mxChatTest" class="mono" value="!blue" maxlength="200" style="flex:1;min-width:160px">
+      <button onclick="testChatCommand()">Send</button></div>
   </section>
 
   <section class="wide" data-tab="tiktok">
@@ -665,7 +678,7 @@ async function load() {
     else el.value = s[k] ?? "";
   });
   dirty = false; setRes($("saveRes"), null, "");
-  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel(); renderBrb(); renderVibesmas(); renderMixItUp();
+  renderStatus(); renderMedia(); renderUrls(); renderThemes(); renderSched(s.theme_schedule || []); renderEvents(); renderRoutes(); renderCredits(); renderSources(); renderReqs(); speedLabel(); renderBrb(); renderVibesmas(); delete $("mxChat").dataset.live; renderMixItUp();
   loadVoices(s.tts_voice);
   if (s.mixitup_url) loadMixItUp(false);
 }
@@ -978,7 +991,7 @@ function collect() {
   document.querySelectorAll("[data-k]").forEach(el => {
     out[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   });
-  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames(), tiktok_commands: collectTikTokCommands(), vibesmas_hype_video: $("vxVideo").value, vibesmas_hype_overlay_video: $("vxOvVideo").value };
+  return { ...out, ...collectEvents(), theme_schedule: collectSched(), routes: collectRoutes(), overlay_sizes: collectSizes(), credits_sections: collectCredits(), credits_effects: collectEffects(), alert_sources: collectSources(), brb_games: collectBrbGames(), tiktok_commands: collectTikTokCommands(), tiktok_chat_commands: collectChatCommands(), vibesmas_hype_video: $("vxVideo").value, vibesmas_hype_overlay_video: $("vxOvVideo").value };
 }
 
 async function save() {
@@ -1094,21 +1107,53 @@ async function loadMixItUp(fresh) {
   $("mxList").dataset.url = state.settings.mixitup_url || "";
   renderMixItUp();
 }
+function mxOptions(want, none = "None") {
+  let opts = `<option value="">${none}</option>`;
+  if (MX_COMMANDS) {
+    const groups = {};
+    MX_COMMANDS.forEach(c => (groups[c.type || "Other"] ||= []).push(c));
+    opts += Object.entries(groups).map(([type, cs]) => `<optgroup label="${esc(type)}">${cs.map(c =>
+      `<option value="${esc(c.id)}">${esc(c.name)}${c.enabled ? "" : " (off in MixItUp)"}</option>`).join("")}</optgroup>`).join("");
+    if (want && !MX_COMMANDS.some(c => c.id === want)) opts += `<option value="${esc(want)}">A command MixItUp doesn't have any more</option>`;
+  } else if (want) opts += `<option value="${esc(want)}">The saved command (load commands to see its name)</option>`;
+  return opts;
+}
 function renderMixItUp() {
   const saved = state.settings.tiktok_commands || {};
   document.querySelectorAll("[data-tcmd]").forEach(sel => {
-    const kind = sel.dataset.tcmd, want = sel.dataset.picked ?? saved[kind] ?? "";
-    let opts = '<option value="">None</option>';
-    if (MX_COMMANDS) {
-      const groups = {};
-      MX_COMMANDS.forEach(c => (groups[c.type || "Other"] ||= []).push(c));
-      opts += Object.entries(groups).map(([type, cs]) => `<optgroup label="${esc(type)}">${cs.map(c =>
-        `<option value="${esc(c.id)}">${esc(c.name)}${c.enabled ? "" : " (off in MixItUp)"}</option>`).join("")}</optgroup>`).join("");
-      if (want && !MX_COMMANDS.some(c => c.id === want)) opts += `<option value="${esc(want)}">A command MixItUp doesn't have any more</option>`;
-    } else if (want) opts += `<option value="${esc(want)}">The saved command (load commands to see its name)</option>`;
-    sel.innerHTML = opts;
+    const want = sel.dataset.picked ?? saved[sel.dataset.tcmd] ?? "";
+    sel.innerHTML = mxOptions(want);
     sel.value = want;
   });
+  // chat commands: keep what's typed but not saved yet
+  const rows = $("mxChat").dataset.live ? collectChatCommands(true) : (state.settings.tiktok_chat_commands || []);
+  $("mxChat").innerHTML = "";
+  rows.forEach(r => addChatCommand(r, true));
+}
+function addChatCommand(r = { trigger: "", id: "", cooldown: 10 }, quiet) {
+  const row = document.createElement("div");
+  row.className = "ccrow";
+  row.innerHTML = `<input type="text" class="mono" data-ccword placeholder="!blue" maxlength="31" spellcheck="false" value="${r.trigger ? "!" + esc(r.trigger) : ""}">
+    <select data-cccmd>${mxOptions(r.id, "Pick a MixItUp command")}</select>
+    <label class="row" style="gap:6px" title="Seconds before anyone can use it again"><input type="number" data-cccool min="0" max="3600" step="1" value="${r.cooldown ?? 10}" style="width:70px"><span class="hint">s</span></label>
+    <button class="danger" title="Remove">Remove</button>`;
+  row.querySelector("[data-cccmd]").value = r.id || "";
+  row.querySelectorAll("input, select").forEach(el => el.addEventListener("input", () => { $("mxChat").dataset.live = "1"; markDirty(); }));
+  row.querySelector("button").onclick = () => { row.remove(); $("mxChat").dataset.live = "1"; markDirty(); };
+  $("mxChat").appendChild(row);
+  if (!quiet) { $("mxChat").dataset.live = "1"; markDirty(); row.querySelector("input").focus(); }
+}
+function collectChatCommands(keepEmpty) {
+  return [...document.querySelectorAll("#mxChat .ccrow")].map(row => ({
+    trigger: row.querySelector("[data-ccword]").value.trim().replace(/^!+/, "").toLowerCase(),
+    id: row.querySelector("[data-cccmd]").value, cooldown: row.querySelector("[data-cccool]").value
+  })).filter(r => keepEmpty || r.trigger || r.id);
+}
+async function testChatCommand() {
+  if (dirty) return toast("Save settings first");
+  const r = await api("/api/test/tiktok?kind=chat&text=" + encodeURIComponent($("mxChatTest").value), { method: "POST" });
+  toast(r.result || (r.ok ? "Sent" : "Didn't run"));
+  setTimeout(() => refresh(false), 1500);
 }
 function collectTikTokCommands() {
   const out = {};
