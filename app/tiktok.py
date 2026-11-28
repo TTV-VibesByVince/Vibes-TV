@@ -43,8 +43,8 @@ class TikTokWatcher:
     alert(ev): queues an alert dict; returns the screens it went to.
     chat(who, text): optional, called with each chat message (text to speech).
     stats: optional TikTokStats, for the like and gifter widgets.
-    command(kind, who, **details): optional, called for follows, subs, gifts and
-        shares (it runs the MixItUp command chosen for them).
+    command(kind, who, **details): optional, called for follows, subs, gifts,
+        shares and chat (it runs the MixItUp command chosen for them).
     """
 
     def __init__(self, settings, alert, chat=None, stats=None, command=None):
@@ -198,6 +198,7 @@ class TikTokWatcher:
 
     def chat(self, who, text):
         self.counts["chat"] += 1
+        self.run_command("chat", who, text=text)      # !blue and the like (text to speech skips them)
         if self.chat_to and text.strip():
             return self.chat_to(who, text)
         return None

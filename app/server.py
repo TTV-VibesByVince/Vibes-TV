@@ -57,7 +57,7 @@ from tiktok_stats import TikTokStats
 from twitch_live import TwitchLive
 from tts import VOICE_RE, Speaker
 
-VERSION = "2.5"
+VERSION = "2.6"
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -154,6 +154,7 @@ SCHEMA = {
     "mixitup_url":          (str,   ""),          # MixItUp's Developer API as the NAS sees it, e.g. http://<PC>:8912
     "tiktok_commands":      (dict,  {}),          # follow / sub / gift / share -> MixItUp command id
     "tiktok_command_gift_coins": (float, 1.0),    # smaller gifts (coins, combo total) don't run the gift command
+    "tiktok_chat_commands": (list,  []),          # [{"trigger": "blue", "id": command id, "cooldown": seconds}]
     # Text to speech (optional): TikTok chat and /tts read aloud with Edge voices
     "tts_enabled":          (bool,  False),
     "tts_tiktok_chat":      (bool,  True),        # read TikTok LIVE chat (when TikTok is on too)
@@ -402,6 +403,8 @@ def _check_dict(key, val):
         if bad:
             return None, f"alert_sources.{bad[0]}: twitch or mixitup"
         return {k: "twitch" for k, v in val.items() if k in SOURCE_EVENTS and v == "twitch"}, None
+    if key == "tiktok_chat_commands":
+        return mixitup.check_chat_commands(val)
     if key == "tiktok_commands":
         if not isinstance(val, dict):
             return None, "tiktok_commands: must be an object"
@@ -2226,6 +2229,7 @@ TIKTOK_TEST_GIFTS = {"small": ("Rose", 1, 5), "medium": ("Doughnut", 30, 4), "bi
 async def api_test_tiktok(request):
     """Play a made-up TikTok alert (no TikTok connection needed):
     ?kind=follow|sub|gift|share|likes&size=small|medium|big, plus the usual &screen=.
+    ?kind=chat&text=!blue pretends someone typed that in TikTok chat (chat commands only).
     Test gifts and likes add to the real widget counts (Reset clears them).
     Like the real thing, it also runs the MixItUp command chosen for it."""
     kind = request.query.get("kind", "gift")
@@ -2238,6 +2242,20 @@ async def api_test_tiktok(request):
     if kind == "share":
         task = mixit.trigger("share", who)
         return web.json_response({"ok": True, "command": bool(task)})
+    if kind == "chat":
+        text = request.query.get("text", "")[:200]
+        parsed = mixitup.parse_chat(text)
+        if mixit.chat(who, text):
+            return web.json_response({"ok": True, "command": True, "result": f"Ran !{parsed[0]}"})
+        if not parsed:
+            why = "Chat commands start with !"
+        elif not any(r["trigger"] == parsed[0] for r in S["tiktok_chat_commands"]):
+            why = f"!{parsed[0]} isn't one of your saved chat commands"
+        elif not mixit.base():
+            why = "Enter MixItUp's address first"
+        else:
+            why = f"!{parsed[0]} is cooling down"
+        return web.json_response({"ok": False, "command": False, "result": why})
     if kind == "follow":
         ev = {"type": "follow", "platform": "tiktok", **who, "clip": False}
         mixit.trigger("follow", who)
@@ -2251,7 +2269,7 @@ async def api_test_tiktok(request):
         tiktok_stats.gift(who, coins * count)
         mixit.trigger("gift", who, gift=name, count=count, coins=coins * count)
     else:
-        raise web.HTTPBadRequest(text="kind must be follow, sub, gift, share or likes")
+        raise web.HTTPBadRequest(text="kind must be follow, sub, gift, share, chat or likes")
     ev["screen"] = override
     return queued(tv.dispatch(ev))
 

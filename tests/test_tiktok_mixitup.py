@@ -135,3 +135,68 @@ async def test_settings_checks(client, srv):
     assert r["ok"] and r["settings"]["tiktok_commands"] == {"follow": FOLLOW_ID}
     state = await (await client.get("/api/state")).json()
     assert state["status"]["mixitup"] == {"url_set": True, "last": None}
+
+
+BLUE_ID = "00000000-0000-0000-0000-000000000001"     # cmd1 in the pretend MixItUp
+RED_ID = "00000000-0000-0000-0000-000000000002"
+
+
+def chat_setup(srv, cooldown=10):
+    srv.S.data["tiktok_chat_commands"] = [{"trigger": "blue", "id": BLUE_ID, "cooldown": cooldown},
+                                          {"trigger": "red", "id": RED_ID, "cooldown": cooldown}]
+
+
+async def test_chat_command_runs_with_the_rest_of_the_message(client, srv, mixitup):
+    chat_setup(srv)
+    who = {"user": "pal", "display": "Pal", "avatar": ""}
+    srv.tiktok.chat(who, "hello there")                # not a command
+    srv.tiktok.chat(who, "!green")                     # not one of yours
+    srv.tiktok.chat(who, "  !BLUE  please  now ")      # any case, extra spaces
+    await settle(srv)
+    assert len(mixitup.ran) == 1
+    cid, body = mixitup.ran[0]
+    assert cid == BLUE_ID and body["Arguments"] == "please  now"
+    ids = body["SpecialIdentifiers"]
+    assert ids["tiktokcommand"] == "blue" and ids["tiktokmessage"] == "please  now" and ids["tiktokname"] == "Pal"
+    assert ids["tiktokevent"] == "chat" and srv.mixit.status()["last"]["kind"] == "!blue"
+
+
+async def test_chat_command_cooldowns(client, srv, mixitup):
+    chat_setup(srv, cooldown=10)
+    a, b = {"user": "a", "display": "A"}, {"user": "b", "display": "B"}
+    assert srv.mixit.chat(a, "!blue", now=100)
+    assert not srv.mixit.chat(b, "!blue", now=105)      # the command is cooling down for everyone
+    assert not srv.mixit.chat(a, "!red", now=101)       # the same person, too soon after their last one
+    assert srv.mixit.chat(b, "!red", now=101)           # someone else can use another command
+    assert srv.mixit.chat(a, "!blue", now=110.5)        # cooled down
+    await settle(srv)
+    assert [c for c, _ in mixitup.ran].count(BLUE_ID) == 2
+
+
+async def test_chat_commands_need_the_address(client, srv, mixitup):
+    chat_setup(srv)
+    srv.S.data["mixitup_url"] = ""
+    assert srv.mixit.chat({"user": "a", "display": "A"}, "!blue") is None
+
+
+async def test_chat_command_settings(client, srv):
+    bad = [[{"trigger": "blue", "id": BLUE_ID}, {"trigger": "!Blue", "id": RED_ID}],     # twice
+           [{"trigger": "two words", "id": BLUE_ID}], [{"trigger": "blue", "id": ""}],
+           [{"trigger": "blue", "id": BLUE_ID, "cooldown": -1}], {"blue": BLUE_ID}]
+    for val in bad:
+        assert not (await (await client.post("/api/settings", json={"tiktok_chat_commands": val})).json())["ok"], val
+    r = await (await client.post("/api/settings", json={"tiktok_chat_commands": [
+        {"trigger": "!Blue", "id": BLUE_ID, "cooldown": "5"}, {"trigger": "", "id": ""}]})).json()
+    assert r["ok"] and r["settings"]["tiktok_chat_commands"] == [{"trigger": "blue", "id": BLUE_ID, "cooldown": 5.0}]
+
+
+async def test_pretend_chat_button(client, srv, mixitup):
+    chat_setup(srv)
+    r = await (await client.post("/api/test/tiktok?kind=chat&text=!blue%20hi")).json()
+    assert r == {"ok": True, "command": True, "result": "Ran !blue"}
+    r = await (await client.post("/api/test/tiktok?kind=chat&text=!blue")).json()
+    assert not r["ok"] and "cooling down" in r["result"]
+    r = await (await client.post("/api/test/tiktok?kind=chat&text=!purple")).json()
+    assert not r["ok"] and "isn't one of your" in r["result"]
+    await settle(srv)
+    assert mixitup.ran[0][1]["Arguments"] == "hi"

@@ -10,6 +10,7 @@ TikTok too. It runs alongside the Vibe TV alert, not instead of it.
 | New subscriber | Every subscription and resubscription |
 | Gift | When a combo ends, if it's worth at least the coins you set (combo total) |
 | Share | Once per person every 5 minutes |
+| Chat command, like `!blue` | When someone types it in chat (see [Chat commands](#chat-commands)) |
 
 Leave an event on **None** and nothing extra happens.
 
@@ -31,6 +32,37 @@ speech, overlays and so on):
 
 `$arg1text` is their @handle as well. A good place for these commands is a
 **Custom** command group in MixItUp (they don't need a chat trigger).
+
+## Chat commands
+
+MixItUp only reads Twitch chat (and the other platforms it connects to), so
+it doesn't see `!blue` typed in TikTok chat. Vibe TV does: under **Chat
+commands** on the TikTok tab, **Add a chat command** for each one, with:
+
+- **the word**: `!blue` (letters, numbers and `_`, any case; people can type
+  it in any case too)
+- **the MixItUp command** it runs. It can be the same one your Twitch `!blue`
+  uses, so both chats do the same thing.
+- **a cooldown** in seconds: how long before anyone can use it again (10 to
+  start with; 0 for none)
+
+The message has to start with the word. Anything typed after it is passed
+along:
+
+| Special identifier | What it is |
+| --- | --- |
+| `$tiktokmessage` | Everything after the command (`!blue please` gives `please`) |
+| `$arg1text`, `$arg2text`, ... | Its words, one by one, like a Twitch chat command |
+| `$tiktokcommand` | The command's word, without the `!` |
+| `$tiktokname`, `$tiktokuser`, `$tiktokavatar` | Who typed it |
+| `$tiktokevent` | `chat` |
+
+Each person also waits 3 seconds between commands, so one person can't spam
+them. Text to speech never reads messages that start with `!`.
+
+**Pretend chat** (under the test buttons) sends a message as if someone typed
+it in TikTok chat, and says whether it ran, or why not (not saved yet,
+cooling down). It runs the real command.
 
 ## Set it up
 

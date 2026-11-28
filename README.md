@@ -106,7 +106,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Be right back.** Step away and leave chat something to do: a [BRB screen](docs/brb.md) with a countdown, on stream and on the TV, while chat plays in Twitch chat. Guess when you'll be back, paint a picture together pixel by pixel, trivia about you (multiple choice or type the answer), a typing race and this-or-that polls (Coke or Pepsi?), plus six arcade games (Plinko, a coin pusher, a boss fight, a piñata, a sumo arena and a tower stack), with chat voting for the next game. When you're back it shows who guessed closest, the painting and what chat decided. Start it from the settings page, a Stream Deck, MixItUp or `!brb` in chat.
 
-**On stream too.** A transparent [stream overlay](docs/overlay.md) for OBS shows the same alerts, with its own queue, so it never waits for a TV clip. For each alert type, choose where it plays (TV, overlay or both) and how big it is on stream: a compact card in your corner, a bigger card in the centre, or the TV's full-screen animation over your game with the stream darkened behind it (raids, by default). Optional [TikTok LIVE](docs/tiktok.md) alerts: follows, subscriptions and gifts (combos shown once, with the total), which can also [run MixItUp commands](docs/tiktok-mixitup.md), as can shares. Optional [text to speech](docs/tts.md) reads TikTok chat (or a MixItUp `!tts` command) aloud in a Microsoft Edge voice, one message at a time, with filters against trolls.
+**On stream too.** A transparent [stream overlay](docs/overlay.md) for OBS shows the same alerts, with its own queue, so it never waits for a TV clip. For each alert type, choose where it plays (TV, overlay or both) and how big it is on stream: a compact card in your corner, a bigger card in the centre, or the TV's full-screen animation over your game with the stream darkened behind it (raids, by default). Optional [TikTok LIVE](docs/tiktok.md) alerts: follows, subscriptions and gifts (combos shown once, with the total), which can also [run MixItUp commands](docs/tiktok-mixitup.md), as can shares and chat commands like `!blue`. Optional [text to speech](docs/tts.md) reads TikTok chat (or a MixItUp `!tts` command) aloud in a Microsoft Edge voice, one message at a time, with filters against trolls.
 
 **Clips and lights.** After a shoutout or raid it can play one of that streamer's most-viewed Twitch clips, buffered while their card is on screen. Your room lights can follow each event's colour (for example with [Govee Lights Controller](https://github.com/TTV-VibesByVince/Govee-Lights-Controller)) and go back to normal afterwards.
 
@@ -114,7 +114,7 @@ Synology Container Manager, plain Docker Compose and updating: [install guide](d
 
 **Under the hood.** One small Python server (aiohttp) and three web pages (TV, overlay, settings), no database. The image is built by GitHub for Intel/AMD and ARM, and rebuilt weekly with the newest yt-dlp. Fonts are bundled, so the TV page works without internet. Lite mode keeps animations smooth on TV sticks and smart TVs. Optional password for the settings page.
 
-## Status: 2.5
+## Status: 2.6
 
 > [!IMPORTANT]
 > Vibe TV is young. It works and it's tested, but it is a hobby project made for one channel first, so expect rough edges. The [changelog](CHANGELOG.md) lists what changed in each version.
@@ -175,7 +175,7 @@ Still stuck? [Open an issue](https://github.com/TTV-VibesByVince/Vibes-TV/issues
 | [MixItUp URLs](docs/mixitup.md) | Every URL and option |
 | [Stream overlay](docs/overlay.md) | The alerts on your stream: OBS setup, position, size, routing |
 | [TikTok LIVE](docs/tiktok.md) | TikTok follows, subscriptions and gifts (optional) |
-| [TikTok to MixItUp](docs/tiktok-mixitup.md) | Run MixItUp commands on TikTok follows, subs, gifts and shares |
+| [TikTok to MixItUp](docs/tiktok-mixitup.md) | Run MixItUp commands on TikTok follows, subs, gifts, shares and chat commands like `!blue` |
 | [End credits](docs/credits.md) | Credits for the end of your stream, with everyone's pictures |
 | [Be right back](docs/brb.md) | A BRB screen with a countdown and games for chat while you're away |
 | [Vibesmas Express](docs/vibesmas.md) | Holiday alerts as a train, and a hype train video |
